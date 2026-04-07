@@ -71,7 +71,7 @@ export class NotionService {
   async saveAuditResult(result: AuditResult, reportUrl?: string) {
     try {
       // 1. 위반 사항을 Impact 별로 정렬 및 그룹화 (중복 제거)
-      const groupedViolations = result.violations.reduce((acc, v) => {
+      const groupedViolations = (result.violations || []).reduce((acc, v) => {
         const impact = v.impact || 'minor';
         if (!acc[impact]) acc[impact] = {};
 
@@ -203,34 +203,38 @@ export class NotionService {
         });
       }
 
+      // 필수 속성만 포함 (DB에 반드시 있어야 하는 속성)
+      const properties: Record<string, unknown> = {
+        'Page URL': {
+          title: [{ text: { content: result.pages[0]?.url || 'Unknown URL' } }],
+        },
+        'Date': {
+          date: { start: new Date().toISOString() },
+        },
+        'Score (Total)': {
+          number: result.seoResult?.overallScore?.total ?? 0,
+        },
+        'Violations': {
+          number: result.totalViolations ?? 0,
+        },
+        'Report Link': {
+          url: reportUrl || null,
+        },
+      };
+
+      // 선택적 속성 (데이터가 있을 때만 포함, DB에 해당 속성이 없어도 에러 없음)
+      if (result.artifactName) {
+        properties['Artifact Name'] = {
+          rich_text: [{ text: { content: result.artifactName } }],
+        };
+      }
+      if (result.screenshotUrl) {
+        properties['Screenshot URL'] = { url: result.screenshotUrl };
+      }
+
       const response = await this.notion.pages.create({
         parent: { database_id: this.databaseId },
-        properties: {
-          'Page URL': {
-            title: [{ text: { content: result.pages[0]?.url || 'Unknown URL' } }],
-          },
-          'Date': {
-            date: { start: new Date().toISOString() },
-          },
-          'Score (Total)': {
-            number: result.seoResult?.overallScore.total || 0,
-          },
-          'Violations': {
-            number: result.totalViolations,
-          },
-          'Status': {
-            status: { name: '완료' },
-          },
-          'Report Link': {
-            url: reportUrl || null,
-          },
-          'Artifact Name': {
-            rich_text: result.artifactName ? [{ text: { content: result.artifactName } }] : [],
-          },
-          'Screenshot URL': {
-            url: result.screenshotUrl || null,
-          }
-        },
+        properties,
         children: children.slice(0, 100), // First 100 blocks
       });
 

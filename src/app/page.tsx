@@ -46,7 +46,10 @@ export default function Home() {
         body: JSON.stringify(auditResult),
       });
 
-      if (!response.ok) throw new Error('Failed to save to Notion');
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed to save to Notion');
+      }
 
       const { reportUrl } = await response.json();
       alert(`Notion에 저장되었습니다!\n${reportUrl}`);
