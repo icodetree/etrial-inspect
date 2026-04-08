@@ -29,6 +29,7 @@ export function useAudit(onHistoryRefresh?: () => void) {
     enableAICheck: true,
     platform: 'PC',
     inspector: '',
+    excludePaths: '',
   });
 
   const [progress, setProgress] = useState<ProgressState>({

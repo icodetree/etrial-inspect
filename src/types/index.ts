@@ -12,6 +12,7 @@ export interface AuditConfig {
   enableAICheck?: boolean;
   platform: 'PC' | 'Mobile';
   inspector: string;
+  excludePaths?: string;
 }
 
 export interface PageInfo {

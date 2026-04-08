@@ -102,6 +102,18 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
 
 
 
+      <div className="form-group">
+        <label>제외 경로</label>
+        <textarea
+          placeholder={`제외할 경로를 한 줄씩 입력하세요.\n예시:\n/eng\n/kr/old`}
+          value={config.excludePaths || ''}
+          onChange={(e) => setConfig({ ...config, excludePaths: e.target.value })}
+          rows={3}
+          style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
+        />
+        <small>입력한 경로로 시작하는 URL은 검사에서 제외됩니다.</small>
+      </div>
+
       <Button
         variant="primary"
         fullWidth

@@ -43,10 +43,33 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
   // 2. Crawler Init
   const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+
+  // 사용자 입력 제외 경로 → RegExp 변환
+  const userExcludePatterns: RegExp[] = (config.excludePaths || '')
+    .split('\n')
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
+    .map(p => {
+      const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`${escaped}(\\/|$|\\?)`, 'i');
+    });
+
   const crawler = new WebCrawler({
     maxDepth: isVercel ? 2 : 10,
     maxPages: isVercel ? 5 : 1000,
-    headless: true
+    headless: true,
+    // 기본 제외 패턴 + 사용자 제외 경로를 병합 (spread로 덮어쓰기 방지)
+    excludePatterns: [
+      /\.(jpg|jpeg|png|gif|svg|webp|ico|pdf|zip|exe|dmg)$/i,
+      /logout/i,
+      /delete/i,
+      /signout/i,
+      /#$/,
+      /javascript:/i,
+      /mailto:/i,
+      /tel:/i,
+      ...userExcludePatterns,
+    ],
   });
 
   const auditor = new AccessibilityAuditor({
