@@ -1,15 +1,66 @@
-import React from 'react';
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "@/lib/utils"
 
-type ButtonVariant = 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'info';
+/* ── shadcn-style Button (new) ── */
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground shadow hover:bg-primary/90",
+        destructive: "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+        outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
+        secondary: "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2",
+        sm: "h-8 rounded-md px-3 text-xs",
+        lg: "h-10 rounded-md px-8",
+        icon: "h-9 w-9",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
+export interface ShadButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
+
+const ShadButton = React.forwardRef<HTMLButtonElement, ShadButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button"
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+ShadButton.displayName = "ShadButton"
+
+/* ── Legacy Button (backward compat for AuditConfigForm / AuditTerminal) ── */
+type LegacyButtonVariant = 'primary' | 'secondary' | 'success' | 'danger' | 'warning' | 'info';
+
+interface LegacyButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: LegacyButtonVariant;
   isLoading?: boolean;
   fullWidth?: boolean;
   leftIcon?: React.ReactNode;
 }
 
-export const Button = ({
+const Button = ({
   children,
   variant = 'primary',
   isLoading = false,
@@ -18,18 +69,13 @@ export const Button = ({
   className = '',
   disabled,
   ...props
-}: ButtonProps) => {
+}: LegacyButtonProps) => {
   const baseClass = 'btn';
-  const variantClass = `btn-${variant}`; // Relies on globals.css classes like .btn-primary, .btn-secondary
-  const widthClass = fullWidth ? 'w-full' : ''; // w-full might need to be defined in globals.css or use style={{width: '100%'}} if using Tailwind/Utility class not present
-
-  // Mapping simple variants to existing classes in globals.css
-  // existing: primary, secondary, success
-  // We might need to handle danger/warning if they exist or fallback
+  const variantClass = `btn-${variant}`;
 
   return (
     <button
-      className={`${baseClass} ${variantClass} ${widthClass} ${className}`}
+      className={`${baseClass} ${variantClass} ${className}`}
       disabled={disabled || isLoading}
       style={fullWidth ? { width: '100%' } : {}}
       {...props}
@@ -40,3 +86,5 @@ export const Button = ({
     </button>
   );
 };
+
+export { ShadButton, buttonVariants, Button }

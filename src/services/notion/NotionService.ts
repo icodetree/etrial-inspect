@@ -204,7 +204,8 @@ export class NotionService {
       }
 
       // 필수 속성만 포함 (DB에 반드시 있어야 하는 속성)
-      const properties: Record<string, unknown> = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const properties: Record<string, any> = {
         'Page URL': {
           title: [{ text: { content: result.pages[0]?.url || 'Unknown URL' } }],
         },

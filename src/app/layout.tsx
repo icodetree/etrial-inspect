@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
+import { Sidebar } from "@/components/layout/Sidebar";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "E-able",
+  title: "E-able | 웹접근성 진단",
   description: "이트라이브 웹접근성 자동 진단 도구",
 };
 
@@ -23,9 +16,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
+    <html lang="ko">
+      <body className={inter.variable} style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f6f8fa' }}>
+        <Sidebar />
+        <main style={{ marginLeft: '220px', flex: 1, overflowX: 'hidden', minHeight: '100vh' }}>
+          {children}
+        </main>
       </body>
     </html>
   );
