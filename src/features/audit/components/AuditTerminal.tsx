@@ -25,7 +25,7 @@ export const AuditTerminal = ({ logs, progress, onExport, onSaveToNotion, result
   }, [logs]);
 
   return (
-    <div>
+    <div style={{ height: '100%' }}>
       <div className={styles['terminal-window']}>
         <div className={styles['terminal-header']}>
           <div className={styles['terminal-controls']}>

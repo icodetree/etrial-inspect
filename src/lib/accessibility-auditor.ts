@@ -49,6 +49,16 @@ export class AccessibilityAuditor {
   async close(): Promise<void> {
     if (this.context) await this.context.close();
     if (this.browser) await this.browser.close();
+    this.browser = null;
+    this.context = null;
+  }
+
+  /**
+   * 내부 브라우저 인스턴스를 반환 (SEO 분석 등에서 재사용)
+   * init()이 호출된 후에만 유효
+   */
+  getBrowser(): Browser | null {
+    return this.browser;
   }
 
   async login(loginUrl: string, id: string, password: string): Promise<boolean> {

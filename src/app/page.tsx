@@ -6,7 +6,7 @@ import { AuditTerminal } from '@/features/audit/components/AuditTerminal';
 import { HistoryList } from '@/features/history/components/HistoryList';
 import { useRouter } from 'next/navigation';
 import { useState, useCallback } from 'react';
-import { Activity, AlertTriangle, CheckCircle2, Gauge } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Gauge, Sparkles } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
@@ -57,29 +57,29 @@ export default function Home() {
       label: '진단 횟수',
       value: results ? '1' : '0',
       icon: Activity,
-      iconColor: '#2563eb',
-      iconBg: '#eff6ff',
+      iconColor: '#9ca3af',
+      iconBg: '#f3f4f6',
     },
     {
       label: '발견 위반',
       value: results ? String(results.violations) : '0',
       icon: AlertTriangle,
-      iconColor: '#dc2626',
-      iconBg: '#fef2f2',
+      iconColor: '#9ca3af',
+      iconBg: '#f3f4f6',
     },
     {
       label: '진단 상태',
       value: statusLabel,
       icon: CheckCircle2,
-      iconColor: progress.status === 'completed' ? '#16a34a' : progress.status === 'error' ? '#dc2626' : '#d97706',
-      iconBg: progress.status === 'completed' ? '#f0fdf4' : progress.status === 'error' ? '#fef2f2' : '#fffbeb',
+      iconColor: '#9ca3af',
+      iconBg: '#f3f4f6',
     },
     {
       label: '페이지 수',
       value: results ? String(results.pages) : String(progress.totalFound || 0),
       icon: Gauge,
-      iconColor: '#7c3aed',
-      iconBg: '#f5f3ff',
+      iconColor: '#9ca3af',
+      iconBg: '#f3f4f6',
     },
   ];
 
@@ -88,8 +88,7 @@ export default function Home() {
       {/* 페이지 헤더 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: 0 }}>웹접근성 진단</h1>
-          <p style={{ fontSize: '0.875rem', color: '#6b7280', marginTop: '4px' }}>KWCAG 2.2 자동 진단 시스템</p>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 700, color: '#111827', margin: 0 }}>웹접근성 자동 진단 시스템 (KWCAG 2.2)</h1>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <button
@@ -98,7 +97,8 @@ export default function Home() {
             disabled={isProcessing}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            ▶ 진단 시작
+            <Sparkles size={15} aria-hidden="true" />
+            <span>진단 시작</span>
           </button>
           <button
             className="btn btn-secondary"

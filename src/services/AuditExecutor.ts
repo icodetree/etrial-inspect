@@ -1,10 +1,12 @@
 import { WebCrawler } from '@/lib/crawler';
 import { AccessibilityAuditor } from '@/lib/accessibility-auditor';
 import { Violation, AuditResult, PageInfo, AuditConfig } from '@/types';
+import type { SEOAnalysisResult } from '@/types/seo';
 import * as fs from 'fs';
 import * as path from 'path';
 import { seoAuditService } from './SEOAuditService';
-import { getBrowserErrorGuide } from '@/lib/browser-utils';
+import { getBrowserErrorGuide, getBrowserLaunchOptions } from '@/lib/browser-utils';
+import { chromium } from 'playwright-core';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function runAudit(config: AuditConfig, onProgress?: (data: any) => void): Promise<AuditResult> {
@@ -211,41 +213,26 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     await crawler.close();
 
     // 5. SEO & AI Audit
-    let seoResult;
+    let seoResult: SEOAnalysisResult | undefined;
     if (config.enableSEOCheck || config.enableAICheck) {
       log('🌐 SEO 및 AI 친화도 분석을 시작합니다...');
       try {
-        // Sitemap 분석
-        log('  [SEO] Sitemap.xml 분석 중...');
-        const sitemap = await seoAuditService.analyzeSitemap(config.targetUrl);
-
-        // Metadata 분석
-        log('  [SEO] 메타데이터 및 콘텐츠 분석 중...');
-        const metadata = await seoAuditService.analyzeMetadata(config.targetUrl);
-
-        // AI 친화도 분석
-        log('  [AI] AI 친화도(GEO) 및 llms.txt 분석 중...');
-        const llmsTxt = await seoAuditService.analyzeLlmsTxt(config.targetUrl);
-
-        const seoScore = (sitemap.score + metadata.score) / 2;
-        const geoScore = llmsTxt.score;
-        const totalScore = (seoScore + geoScore) / 2;
-
-        seoResult = {
-          url: config.targetUrl,
-          timestamp: new Date(),
-          sitemap,
-          llmsTxt,
-          metadata,
-          overallScore: {
-            seo: Math.round(seoScore),
-            geoAI: Math.round(geoScore),
-            total: Math.round(totalScore),
-          },
-          recommendations: [],
-        };
-
-        log('✅ SEO 및 AI 친화도 분석 완료');
+        // 기존 auditor 브라우저 재사용, 없으면 새로 생성
+        let browser = auditor.getBrowser();
+        let ownBrowser = false;
+        if (!browser) {
+          const launchOptions = await getBrowserLaunchOptions(true);
+          browser = await chromium.launch(launchOptions);
+          ownBrowser = true;
+        }
+        try {
+          seoResult = await seoAuditService.runFullAudit(browser, config.targetUrl);
+          log(`✅ SEO 분석 완료 (종합 점수: ${seoResult.score})`);
+        } finally {
+          if (ownBrowser && browser) {
+            await browser.close();
+          }
+        }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         log(`❌ SEO/AI 분석 중 오류 발생: ${errorMsg}`);

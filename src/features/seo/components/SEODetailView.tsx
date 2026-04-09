@@ -1,89 +1,440 @@
 'use client';
 
-import { SEOAuditResult } from '@/types/seo';
+import { useState } from 'react';
+import {
+  FileText,
+  List,
+  Image,
+  Link2,
+  Share2,
+  AlignLeft,
+  Code2,
+  Accessibility,
+  Database,
+  Settings,
+} from 'lucide-react';
+import type { SEOAnalysisResult, SEOIssue, SEOPassed } from '@/types/seo';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySEOCategory = { name: string; score: number; issues: SEOIssue[]; passed: SEOPassed[]; data: any };
 import styles from './SEODetailView.module.css';
 
 interface SEODetailViewProps {
-  result: SEOAuditResult;
+  result: SEOAnalysisResult;
 }
 
-/**
- * SEO 최적화 상세 분석 뷰 컴포넌트
- */
+/* ── 유틸 ── */
+
+function getScoreColor(score: number): string {
+  if (score >= 90) return '#3b82f6';
+  if (score >= 70) return '#22c55e';
+  if (score >= 50) return '#f59e0b';
+  return '#ef4444';
+}
+
+function getScoreLabel(score: number): string {
+  if (score >= 90) return '완벽해요!';
+  if (score >= 70) return '훌륭해요!';
+  if (score >= 50) return '괜찮아요';
+  return '많이 개선해야 해요';
+}
+
+/* ── 카테고리 정의 ── */
+
+type CategoryKey = 'meta' | 'heading' | 'image' | 'link' | 'social' | 'content' | 'semantic' | 'accessibility' | 'schema' | 'technical';
+
+interface CategoryDef {
+  key: CategoryKey;
+  label: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+}
+
+const CATEGORIES: CategoryDef[] = [
+  { key: 'meta', label: '메타데이터', icon: FileText },
+  { key: 'heading', label: '헤딩구조', icon: List },
+  { key: 'image', label: '이미지', icon: Image },
+  { key: 'link', label: '링크', icon: Link2 },
+  { key: 'social', label: '소셜미디어', icon: Share2 },
+  { key: 'content', label: '콘텐츠', icon: AlignLeft },
+  { key: 'semantic', label: '시맨틱', icon: Code2 },
+  { key: 'accessibility', label: '접근성보조', icon: Accessibility },
+  { key: 'schema', label: '구조화데이터', icon: Database },
+  { key: 'technical', label: '기술적SEO', icon: Settings },
+];
+
+const TAB_ITEMS = ['전체', ...CATEGORIES.map((c) => c.label)];
+
+/* ── SVG 원형 점수 게이지 ── */
+
+function ScoreCircle({ score, size = 80 }: { score: number; size?: number }) {
+  const color = getScoreColor(score);
+  const radius = (size - 8) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+
+  return (
+    <div className={styles.scoreCircle} style={{ width: size, height: size }}>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        aria-hidden="true"
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="#e5e7eb"
+          strokeWidth={6}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={6}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      <span className={styles.scoreText} style={{ color }} aria-label={`종합 점수 ${score}점`}>
+        {score}
+      </span>
+    </div>
+  );
+}
+
+/* ── 페이지 서머리 ── */
+
+function PageSummary({ result }: { result: SEOAnalysisResult }) {
+  const meta = result.categories?.meta?.data;
+  const heading = result.categories?.heading?.data;
+
+  if (!meta) return null;
+
+  return (
+    <section className={styles.summary} aria-label="페이지 서머리">
+      <h3 className={styles.summaryTitle}>페이지 서머리</h3>
+      <dl className={styles.summaryGrid}>
+        <dt className={styles.summaryLabel}>URL</dt>
+        <dd className={styles.summaryValue}>{result.url}</dd>
+
+        <dt className={styles.summaryLabel}>Canonical</dt>
+        <dd className={styles.summaryValue}>
+          {meta.canonical?.exists ? (
+            <span className={`${styles.summaryBadge} ${styles.badgeGood}`}>설정됨</span>
+          ) : (
+            <span className={`${styles.summaryBadge} ${styles.badgeBad}`}>미설정</span>
+          )}
+          {meta.canonical?.href ? ` ${meta.canonical.href}` : ''}
+        </dd>
+
+        <dt className={styles.summaryLabel}>Title</dt>
+        <dd className={styles.summaryValue}>
+          {meta.title?.exists ? `"${meta.title.text}" (${meta.title.length}자)` : (
+            <span className={`${styles.summaryBadge} ${styles.badgeBad}`}>없음</span>
+          )}
+        </dd>
+
+        <dt className={styles.summaryLabel}>Description</dt>
+        <dd className={styles.summaryValue}>
+          {meta.description?.exists
+            ? `"${meta.description.content?.slice(0, 80)}${(meta.description.content?.length ?? 0) > 80 ? '...' : ''}" (${meta.description.length}자)`
+            : <span className={`${styles.summaryBadge} ${styles.badgeBad}`}>없음</span>
+          }
+        </dd>
+
+        <dt className={styles.summaryLabel}>H1</dt>
+        <dd className={styles.summaryValue}>
+          {heading?.h1Text
+            ? `"${heading.h1Text}"`
+            : <span className={`${styles.summaryBadge} ${styles.badgeBad}`}>없음</span>
+          }
+        </dd>
+
+        <dt className={styles.summaryLabel}>Robots</dt>
+        <dd className={styles.summaryValue}>{meta.robots?.content || meta.robots?.defaultValue || '-'}</dd>
+
+        <dt className={styles.summaryLabel}>Lang</dt>
+        <dd className={styles.summaryValue}>
+          {meta.language ? (
+            <>
+              {meta.language}{' '}
+              <span className={`${styles.summaryBadge} ${styles.badgeGood}`}>설정됨</span>
+            </>
+          ) : (
+            <span className={`${styles.summaryBadge} ${styles.badgeBad}`}>미설정</span>
+          )}
+        </dd>
+
+        {meta.author?.exists && (
+          <>
+            <dt className={styles.summaryLabel}>Author</dt>
+            <dd className={styles.summaryValue}>{meta.author.content}</dd>
+          </>
+        )}
+      </dl>
+    </section>
+  );
+}
+
+/* ── 카테고리 카드 ── */
+
+interface CategoryCardProps {
+  catDef: CategoryDef;
+  category: AnySEOCategory;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+function CategoryCard({ catDef, category, isActive, onClick }: CategoryCardProps) {
+  const score = category.score ?? 0;
+  const color = getScoreColor(score);
+  const label = getScoreLabel(score);
+  const Icon = catDef.icon;
+
+  const criticalCount = category.issues?.filter((i) => i.severity === 'critical').length ?? 0;
+  const warningCount = category.issues?.filter((i) => i.severity === 'warning').length ?? 0;
+  const passedCount = category.passed?.length ?? 0;
+
+  return (
+    <button
+      type="button"
+      className={`${styles.categoryCard} ${isActive ? styles.categoryCardActive : ''}`}
+      onClick={onClick}
+      aria-pressed={isActive}
+      aria-label={`${catDef.label} 카테고리, 점수 ${score}점, ${label}`}
+    >
+      <div className={styles.cardTop}>
+        <Icon size={20} className={styles.cardIcon} aria-hidden="true" />
+        <span className={styles.cardScore} style={{ color }}>{score}</span>
+      </div>
+      <div className={styles.cardName}>{catDef.label}</div>
+      <div className={styles.cardStatus}>{label}</div>
+      <div className={styles.cardDots}>
+        {criticalCount > 0 && (
+          <span className={styles.dotCritical} aria-label={`심각 ${criticalCount}건`}>
+            ● {criticalCount}
+          </span>
+        )}
+        {warningCount > 0 && (
+          <span className={styles.dotWarning} aria-label={`경고 ${warningCount}건`}>
+            ● {warningCount}
+          </span>
+        )}
+        {passedCount > 0 && (
+          <span className={styles.dotGood} aria-label={`통과 ${passedCount}건`}>
+            ● {passedCount}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
+/* ── 카테고리 상세 패널 ── */
+
+interface CategoryDetailProps {
+  catDef: CategoryDef;
+  category: AnySEOCategory;
+  onClose: () => void;
+}
+
+function IssueItem({ issue }: { issue: SEOIssue }) {
+  const severityStyle =
+    issue.severity === 'critical'
+      ? styles.issueCritical
+      : issue.severity === 'warning'
+        ? styles.issueWarning
+        : styles.issueInfo;
+
+  const severityColor =
+    issue.severity === 'critical'
+      ? '#ef4444'
+      : issue.severity === 'warning'
+        ? '#f59e0b'
+        : '#3b82f6';
+
+  return (
+    <div className={`${styles.issueItem} ${severityStyle}`} role="listitem">
+      <span className={styles.issueSeverity} style={{ color: severityColor }}>
+        {issue.severity}
+      </span>
+      <div className={styles.issueContent}>
+        <p className={styles.issueMessage}>{issue.message}</p>
+        {issue.suggestion && (
+          <p className={styles.issueSuggestion}>{issue.suggestion}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PassedSection({ passed }: { passed: SEOPassed[] }) {
+  const [open, setOpen] = useState(false);
+
+  if (!passed || passed.length === 0) return null;
+
+  return (
+    <div>
+      <button
+        type="button"
+        className={styles.passedToggle}
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        {open ? '▾' : '▸'} 통과 항목 ({passed.length}개)
+      </button>
+      {open && (
+        <div className={styles.passedList} role="list">
+          {passed.map((p, idx) => (
+            <div key={idx} className={styles.passedItem} role="listitem">
+              <span className={styles.passedIcon} aria-hidden="true">&#10003;</span>
+              <span>{p.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CategoryDetail({ catDef, category, onClose }: CategoryDetailProps) {
+  const issues = category.issues ?? [];
+  const passed = category.passed ?? [];
+
+  return (
+    <section
+      className={styles.detailPanel}
+      aria-label={`${catDef.label} 상세 분석`}
+    >
+      <div className={styles.detailHeader}>
+        <h3 className={styles.detailTitle}>{catDef.label} 상세</h3>
+        <button
+          type="button"
+          className={styles.detailClose}
+          onClick={onClose}
+          aria-label="상세 패널 닫기"
+        >
+          닫기
+        </button>
+      </div>
+
+      {issues.length > 0 && (
+        <>
+          <p className={styles.sectionLabel}>Issues ({issues.length})</p>
+          <div role="list">
+            {issues.map((issue, idx) => (
+              <IssueItem key={idx} issue={issue} />
+            ))}
+          </div>
+        </>
+      )}
+
+      <PassedSection passed={passed} />
+
+      {issues.length === 0 && passed.length === 0 && (
+        <p className={styles.emptyState}>분석 데이터가 없습니다.</p>
+      )}
+    </section>
+  );
+}
+
+/* ── 메인 컴포넌트 ── */
+
 export default function SEODetailView({ result }: SEODetailViewProps) {
+  const [activeTab, setActiveTab] = useState('전체');
+  const [selectedKey, setSelectedKey] = useState<CategoryKey | null>(null);
+
+  const cats = result.categories;
+  if (!cats) return null;
+
+  const availableCategories = CATEGORIES.filter(
+    (c) => cats[c.key] != null
+  );
+
+  const totalCategories = availableCategories.length;
+
+  // 탭 필터링
+  const visibleCategories =
+    activeTab === '전체'
+      ? availableCategories
+      : availableCategories.filter((c) => c.label === activeTab);
+
+  const handleCardClick = (key: CategoryKey) => {
+    setSelectedKey(selectedKey === key ? null : key);
+  };
+
+  const selectedDef = selectedKey
+    ? CATEGORIES.find((c) => c.key === selectedKey)
+    : null;
+  const selectedCategory: AnySEOCategory | null = selectedKey ? cats[selectedKey] : null;
+
   return (
     <div className={styles.container}>
-      {/* SEO 섹션 */}
-      <div className={styles.section}>
-        <h2 className={styles.title}>
-          📊 SEO 최적화 분석
-        </h2>
-
-        {/* Sitemap */}
-        <div className={styles.card}>
-          <h3 className={styles['card-title']}>
-            🗺️ Sitemap.xml
-          </h3>
-          <div className={styles['flex-row']}>
-            <div>파일 존재: {result.sitemap.exists ? '✅' : '❌'}</div>
-            <div>XML 유효성: {result.sitemap.xmlValid ? '✅' : '❌'}</div>
-            <div>robots.txt 연동: {result.sitemap.robotsTxtReference ? '✅' : '⚠️'}</div>
-            <div>URL 수: {result.sitemap.totalUrls}개</div>
-            <div className={styles['score-text']}>점수: {result.sitemap.score}/100</div>
-          </div>
-        </div>
-
-        {/* 메타데이터 */}
-        <div className={styles.card}>
-          <h3 className={styles['card-title']}>
-            🏷️ 메타데이터
-          </h3>
-          <div className={styles['grid-row']}>
-            <div className={styles['grid-item']}>
-              <span>Title</span>
-              <span>{result.metadata.title.optimal ? '✅ 최적' : result.metadata.title.exists ? '⚠️ 조정 필요' : '❌'} ({result.metadata.title.length}자)</span>
-            </div>
-            <div className={styles['grid-item']}>
-              <span>Description</span>
-              <span>{result.metadata.description.optimal ? '✅ 최적' : result.metadata.description.exists ? '⚠️ 조정 필요' : '❌'} ({result.metadata.description.length}자)</span>
-            </div>
-            <div className={styles['grid-item']}>
-              <span>Canonical</span>
-              <span>{result.metadata.canonical.exists ? '✅' : '❌'}</span>
-            </div>
-            <div className={styles['grid-item']}>
-              <span>Viewport</span>
-              <span>{result.metadata.viewport.mobileFriendly ? '✅ 모바일 친화적' : '⚠️'}</span>
-            </div>
-          </div>
-
-          <div className={styles['card-score']}>
-            점수: {result.metadata.score}/100
-          </div>
-
-          {/* 전문 도구 분석 배지 및 팩트 */}
-          <div className={styles['engine-badge']}>
-            <span>
-              점검 엔진: {result.metadata.analysisSource === 'seo-analyzer' ? '전문가용 (seo-analyzer)' : '커스텀 하이브리드'}
-            </span>
-          </div>
-
-          {result.metadata.professionalFindings && result.metadata.professionalFindings.length > 0 && (
-            <div className={styles['professional-findings']}>
-              <p className={styles['findings-title']}>🔍 엔진 정밀 분석 결과</p>
-              <ul className={styles['findings-list']}>
-                {result.metadata.professionalFindings.map((finding: string, idx: number) => (
-                  <li key={idx}>{finding}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        <div className={styles['final-score']}>
-          🎯 SEO 종합 점수: {result.overallScore.seo}/100
+      {/* 헤더: 종합 점수 원형 게이지 + 요약 */}
+      <div className={styles.header}>
+        <ScoreCircle score={result.score} />
+        <div className={styles.headerInfo}>
+          <h2 className={styles.headerTitle}>SEO 종합 분석</h2>
+          <p className={styles.headerMeta}>
+            {totalCategories}개 카테고리 분석 완료
+            <br />
+            URL: {result.url}
+          </p>
         </div>
       </div>
+
+      {/* 페이지 서머리 */}
+      <PageSummary result={result} />
+
+      {/* 카테고리 탭 */}
+      <nav className={styles.tabBar} aria-label="카테고리 필터">
+        {TAB_ITEMS.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
+            onClick={() => {
+              setActiveTab(tab);
+              setSelectedKey(null);
+            }}
+            aria-pressed={activeTab === tab}
+          >
+            {tab}
+          </button>
+        ))}
+      </nav>
+
+      {/* 카테고리 카드 그리드 */}
+      <div className={styles.categoryGrid}>
+        {visibleCategories.map((catDef) => {
+          const category = cats[catDef.key];
+          if (!category) return null;
+          return (
+            <CategoryCard
+              key={catDef.key}
+              catDef={catDef}
+              category={category}
+              isActive={selectedKey === catDef.key}
+              onClick={() => handleCardClick(catDef.key)}
+            />
+          );
+        })}
+      </div>
+
+      {/* 선택된 카테고리 상세 패널 */}
+      {selectedDef && selectedCategory && (
+        <CategoryDetail
+          catDef={selectedDef}
+          category={selectedCategory}
+          onClose={() => setSelectedKey(null)}
+        />
+      )}
     </div>
   );
 }

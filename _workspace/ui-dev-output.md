@@ -1,49 +1,65 @@
-# UI 재구성 결과 (SaaS 대시보드 스타일)
+# SEO/AI 탭 UI 재설계 결과 (SOYOYU 스타일)
 
 ## 변경 파일 목록
 
-### 신규 생성
-- `src/lib/utils.ts` - cn() 유틸리티 (clsx + tailwind-merge)
-- `src/components/layout/Sidebar.tsx` - 좌측 사이드바 네비게이션
-- `src/components/ui/badge.tsx` - Badge 컴포넌트 (shadcn 스타일)
-- `src/components/ui/separator.tsx` - Separator 컴포넌트 (Radix UI)
+### 완전 재작성
+- `src/features/seo/components/SEODetailView.tsx` - SOYOYU 스타일 SEO 종합 분석 뷰
+- `src/features/seo/components/SEODetailView.module.css` - SEO 뷰 스타일 (카드 그리드, 원형 게이지 등)
+- `src/features/seo/components/AIDetailView.tsx` - AI 최적화 뷰 (llms.txt + 크롤러 + issues)
+- `src/features/seo/components/AIDetailView.module.css` - AI 뷰 스타일
 
 ### 수정
-- `src/app/globals.css` - Tailwind v4 `@import "tailwindcss"` 추가, shadcn HSL CSS 변수 추가
-- `src/app/layout.tsx` - Sidebar 레이아웃으로 전면 교체 (lang="ko", Inter 폰트)
-- `src/app/page.tsx` - 대시보드 레이아웃 재구성 (통계 카드 4개 + 2열 Config/Terminal + History)
-- `src/components/ui/Button.tsx` - ShadButton(새) + Button(레거시) 병행 export
-- `src/components/ui/Card.tsx` - ShadCard(새) + Card(레거시) 병행 export
-- `postcss.config.mjs` - `@tailwindcss/postcss` 사용 (Tailwind v4 호환)
-- `tailwind.config.ts` - darkMode 배열 타입 수정
+- `src/features/report/components/ReportViewer.tsx` - 탭 라벨 변경 ("SEO 종합 분석", "AI 최적화")
 
-### 버그 수정
-- `src/services/notion/NotionService.ts` - properties 타입 오류 수정
+## 주요 컴포넌트 구조
 
-## 주요 구조 변경
+### SEODetailView.tsx
+- `ScoreCircle` - SVG stroke-dasharray 기반 원형 점수 게이지
+- `PageSummary` - URL/Canonical/Title/Description/H1/Robots/Lang 서머리 카드
+- `CategoryCard` - 10개 카테고리 카드 (아이콘, 점수, 상태텍스트, critical/warning/passed 도트)
+- `CategoryDetail` - 클릭 시 펼쳐지는 상세 패널 (Issues + Passed 접기/펼치기)
+- 탭바 - 전체 + 10개 카테고리 필터 (pill 버튼)
+- 카테고리 그리드 - 3열 반응형 (900px 이하 2열, 560px 이하 1열)
 
-### 레이아웃
-- 기존: 헤더 + 단일 컬럼
-- 변경: 좌측 사이드바(220px) + 메인 콘텐츠(flex-1)
+### AIDetailView.tsx
+- 헤더 원형 점수 게이지
+- llms.txt 분석 카드 (존재 여부, 구조, 품질, 제안)
+- AI 크롤러 접근성 카드 (GPTBot/ClaudeBot/Google-Extended/BingBot 허용/차단)
+- Issues 목록 카드 (geo 카테고리 이슈)
+- AI 전문가 검증 버튼 그룹 (기존 프롬프트 복사 기능 유지)
 
-### 대시보드 페이지 (page.tsx)
-- 상단: 페이지 타이틀 + 진단 시작/내보내기 버튼
-- 통계 카드 4개: 진단 횟수, 발견 위반, 진단 상태, 페이지 수
-- 2열: AuditConfigForm + AuditTerminal
-- 하단: HistoryList
+### 점수 색상 체계
+- 0~49: 빨간(#ef4444), "많이 개선해야 해요"
+- 50~69: 주황(#f59e0b), "괜찮아요"
+- 70~89: 초록(#22c55e), "훌륭해요!"
+- 90~100: 파랑(#3b82f6), "완벽해요!"
 
-### 사이드바 메뉴
-- 진단 (/) / 보고서 (/report) / 이력 (/#history) / 체크리스트 (/report/checklist)
-- 설정 / 도움말
-- Pro 업그레이드 카드
+## TypeScript 에러
+- 수정된 파일에서 TS 에러 없음
+- 기존 browser-utils.test.ts 에러는 이번 작업 범위 밖
 
-## 접근성 체크리스트
-- [x] Sidebar에 `role="navigation"` + `aria-label="메인 내비게이션"` 부여
-- [x] 활성 메뉴에 `aria-current="page"` 적용
-- [x] 아이콘에 `aria-hidden="true"` 적용
-- [x] `lang="ko"` 설정
-- [x] 키보드 접근: Link 컴포넌트 사용으로 자연스러운 탭 순서 보장
-- [x] section에 `aria-label` 부여 (진단 설정, 진단 로그, 진단 이력)
+## QA 확인 사항
 
-## 빌드 상태
-npm run build: 성공
+### 키보드 접근성
+- [ ] 탭바 버튼 Tab/Enter 키 동작
+- [ ] 카테고리 카드 버튼 Tab/Enter/Space 키 동작 + aria-pressed
+- [ ] 상세 패널 닫기 버튼 키보드 접근
+- [ ] 통과 항목 접기/펼치기 버튼 aria-expanded
+
+### 스크린리더
+- [ ] ScoreCircle aria-label "종합 점수 N점" 읽힘
+- [ ] 카테고리 카드 aria-label "카테고리명, 점수 N점, 상태텍스트" 읽힘
+- [ ] 이슈 severity 텍스트 읽힘
+- [ ] 프롬프트 복사 성공 메시지 aria-live="polite" 동작
+- [ ] nav aria-label="카테고리 필터" 랜드마크 인식
+
+### 색상 대비
+- [ ] 점수 색상 (#ef4444, #f59e0b, #22c55e, #3b82f6) 흰색 배경 대비 AA 기준 확인
+- [ ] 탭 활성 상태 (#2563eb 배경 + 흰색 텍스트) 대비 확인
+- [ ] 이슈 severity 텍스트 배경 대비 확인
+
+### 관련 KWCAG 항목
+- 1.1.1 대체 텍스트 (아이콘 aria-hidden, 점수 aria-label)
+- 2.1.1 키보드 접근 (모든 인터랙티브 요소)
+- 1.4.3 명도 대비 (점수 색상, 탭 색상)
+- 4.1.2 이름/역할/값 (aria-pressed, aria-expanded, role="list")

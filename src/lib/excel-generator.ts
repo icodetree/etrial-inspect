@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { Violation, PageInfo, AuditResult } from '@/types';
-import { SEOAuditResult } from '@/types/seo';
+import type { SEOAuditResult } from '@/types/seo';
 
 export interface ExcelGeneratorOptions {
   includeViolations: boolean;
@@ -260,42 +260,46 @@ export class ExcelGenerator {
   }
 
   /**
-   * SEO 분석 시트 추가 (private)
+   * SEO 분석 시트 추가 (private) - SOYOYU 구조 기반
    */
   private addSEOAnalysisSheet(workbook: ExcelJS.Workbook, result: SEOAuditResult): void {
     const sheet = workbook.addWorksheet('SEO 분석');
 
-    // 타이틀
     sheet.mergeCells('A1:D1');
     const titleCell = sheet.getCell('A1');
-    titleCell.value = '📊 SEO 분석 리포트';
+    titleCell.value = 'SEO 분석 리포트';
     titleCell.font = { size: 16, bold: true };
     titleCell.alignment = { horizontal: 'center' };
 
     sheet.getCell('A2').value = '진단 URL:';
     sheet.getCell('B2').value = result.url || '-';
     sheet.getCell('A3').value = '진단 일시:';
-
-    // Date 객체인지 확인 (직렬화 시 문자열로 변환될 수 있음)
     const timestamp = result.timestamp ? new Date(result.timestamp) : new Date();
     sheet.getCell('B3').value = timestamp.toLocaleString('ko-KR');
 
-    // Sitemap 섹션
-    sheet.getCell('A5').value = '1. Sitemap.xml 분석';
+    // 카테고리별 점수 요약
+    const cats = result.categories;
+    if (!cats) {
+      sheet.getCell('A5').value = 'SEO 분석 데이터 없음';
+      return;
+    }
+
+    sheet.getCell('A5').value = '1. 메타 태그';
     sheet.getCell('A5').font = { size: 14, bold: true };
 
-    const sitemapRows = [
+    const meta = cats.meta?.data;
+    const metaRows = [
       ['항목', '상태', '상세'],
-      ['파일 존재', (result.sitemap?.exists) ? '✅' : '❌', (result.sitemap?.exists) ? '정상' : '파일 없음'],
-      ['XML 유효성', (result.sitemap?.xmlValid) ? '✅' : '❌', (result.sitemap?.xmlValid) ? '유효한 XML' : 'XML 파싱 실패'],
-      ['robots.txt 연동', (result.sitemap?.robotsTxtReference) ? '✅' : '⚠️', (result.sitemap?.robotsTxtReference) ? '연동됨' : '미연동'],
-      ['전체 URL 수', '', (result.sitemap?.totalUrls || 0).toString() + '개'],
-      ['샘플 검증', '', `${(result.sitemap?.sampledUrls || []).filter(u => u.statusCode === 200).length}/${(result.sitemap?.sampledUrls || []).length} 정상`],
-      ['종합 점수', '🎯', (result.sitemap?.score || 0).toString() + '/100'],
+      ['Title', meta?.title?.exists ? 'O' : 'X', meta?.title?.text || '없음'],
+      ['Description', meta?.description?.exists ? 'O' : 'X', `${meta?.description?.length || 0}자`],
+      ['Canonical', meta?.canonical?.exists ? 'O' : 'X', meta?.canonical?.href || '미설정'],
+      ['Viewport', meta?.viewport?.exists ? 'O' : 'X', meta?.viewport?.content || '없음'],
+      ['Charset', meta?.charset?.exists ? 'O' : 'X', meta?.charset?.value || '없음'],
+      ['점수', '', `${cats.meta?.score ?? 0}/100`],
     ];
 
     let row = 6;
-    sitemapRows.forEach((data, idx) => {
+    metaRows.forEach((data, idx) => {
       sheet.getRow(row).values = data;
       if (idx === 0) {
         sheet.getRow(row).font = { bold: true };
@@ -304,31 +308,41 @@ export class ExcelGenerator {
       row++;
     });
 
-    // 메타데이터 섹션
-    row += 2;
-    sheet.getCell(`A${row}`).value = '2. 메타데이터 분석';
+    // 2. 헤딩 구조
+    row += 1;
+    sheet.getCell(`A${row}`).value = '2. 헤딩 구조';
     sheet.getCell(`A${row}`).font = { size: 14, bold: true };
     row++;
-
-    const metaRows = [
-      ['항목', '상태', '길이/상세'],
-      ['Title', result.metadata?.title?.exists ? (result.metadata.title.optimal ? '✅ 최적' : '⚠️ 조정 필요') : '❌', (result.metadata?.title?.length || 0) + '자 (권장: 50~60자)'],
-      ['Description', result.metadata?.description?.exists ? (result.metadata.description.optimal ? '✅ 최적' : '⚠️ 조정 필요') : '❌', (result.metadata?.description?.length || 0) + '자 (권장: 150~160자)'],
-      ['Canonical URL', result.metadata?.canonical?.exists ? '✅' : '❌', result.metadata?.canonical?.url || '미설정'],
-      ['OG: Title', result.metadata?.openGraph?.hasTitle ? '✅' : '❌', ''],
-      ['OG: Description', result.metadata?.openGraph?.hasDescription ? '✅' : '❌', ''],
-      ['OG: Image', result.metadata?.openGraph?.hasImage ? '✅' : '❌', ''],
-      ['OG: URL', result.metadata?.openGraph?.hasUrl ? '✅' : '❌', ''],
-      ['Viewport', result.metadata?.viewport?.mobileFriendly ? '✅ 모바일 친화적' : (result.metadata?.viewport?.exists ? '⚠️' : '❌'), ''],
-      ['종합 점수', '🎯', (result.metadata?.score || 0) + '/100'],
+    const hd = cats.heading?.data;
+    const headingRows = [
+      ['태그', '개수', '내용'],
+      ['H1', String(hd?.counts?.h1 || 0), hd?.h1Text || '-'],
+      ['H2', String(hd?.counts?.h2 || 0), ''],
+      ['H3', String(hd?.counts?.h3 || 0), ''],
+      ['점수', '', `${cats.heading?.score ?? 0}/100`],
     ];
-
-    metaRows.forEach((data, idx) => {
+    headingRows.forEach((data, idx) => {
       sheet.getRow(row).values = data;
-      if (idx === 0) {
-        sheet.getRow(row).font = { bold: true };
-        sheet.getRow(row).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
-      }
+      if (idx === 0) { sheet.getRow(row).font = { bold: true }; sheet.getRow(row).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }; }
+      row++;
+    });
+
+    // 3. 이미지
+    row += 1;
+    sheet.getCell(`A${row}`).value = '3. 이미지';
+    sheet.getCell(`A${row}`).font = { size: 14, bold: true };
+    row++;
+    const imgStats = cats.image?.data?.stats;
+    const imgRows = [
+      ['항목', '값', ''],
+      ['전체', String(cats.image?.data?.total || 0), ''],
+      ['alt 누락', String(imgStats?.missingAlt || 0), ''],
+      ['크기 미지정', String(imgStats?.missingDimensions || 0), ''],
+      ['점수', '', `${cats.image?.score ?? 0}/100`],
+    ];
+    imgRows.forEach((data, idx) => {
+      sheet.getRow(row).values = data;
+      if (idx === 0) { sheet.getRow(row).font = { bold: true }; sheet.getRow(row).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }; }
       row++;
     });
 
@@ -339,43 +353,51 @@ export class ExcelGenerator {
   }
 
   /**
-   * AI 최적화 시트 추가 (private)
+   * AI 최적화 시트 추가 (private) - SOYOYU 구조 기반
    */
   private addAIOptimizationSheet(workbook: ExcelJS.Workbook, result: SEOAuditResult): void {
     const sheet = workbook.addWorksheet('AI 최적화');
 
-    // 타이틀
     sheet.mergeCells('A1:C1');
     const titleCell = sheet.getCell('A1');
-    titleCell.value = '🤖 AI 친화도 분석 (GEO)';
+    titleCell.value = 'AI 친화도 분석 (GEO)';
     titleCell.font = { size: 16, bold: true };
     titleCell.alignment = { horizontal: 'center' };
+
+    const geo = result.categories?.geo?.data;
+    const llms = geo?.llmsTxt;
 
     sheet.getCell('A3').value = 'llms.txt 파일 분석';
     sheet.getCell('A3').font = { size: 14, bold: true };
 
     const llmsRows = [
       ['항목', '상태/값'],
-      ['파일 존재', result.llmsTxt?.exists ? '✅ 존재' : '❌ 없음'],
-      ['H1 헤더', result.llmsTxt?.structure?.hasH1 ? '✅' : '❌'],
-      ['H2 헤더', result.llmsTxt?.structure?.hasH2 ? '✅' : '❌'],
-      ['H3 헤더', result.llmsTxt?.structure?.hasH3 ? '✅' : '❌'],
-      ['총 단어 수', (result.llmsTxt?.structure?.wordCount || 0) + '개 (권장: 100~500개)'],
-      ['단락 수', (result.llmsTxt?.structure?.paragraphCount || 0) + '개'],
+      ['파일 존재', llms?.exists ? 'O 존재' : 'X 없음'],
+      ['H1 헤더', llms?.structure?.hasH1 ? 'O' : 'X'],
+      ['H2 헤더', llms?.structure?.hasH2 ? 'O' : 'X'],
+      ['H3 헤더', llms?.structure?.hasH3 ? 'O' : 'X'],
+      ['총 단어 수', (llms?.structure?.wordCount || 0) + '개 (권장: 100~500개)'],
+      ['단락 수', (llms?.structure?.paragraphCount || 0) + '개'],
       ['', ''],
       ['품질 평가', ''],
-      ['상단 요약', result.llmsTxt?.contentQuality?.hasSummary ? '✅ 있음' : '❌ 없음'],
-      ['키워드 밀도', result.llmsTxt?.contentQuality?.hasKeywords ? '✅ 충분' : '⚠️ 부족'],
-      ['구조 점수', (result.llmsTxt?.contentQuality?.structureScore || 0) + '/30'],
-      ['가독성 점수', (result.llmsTxt?.contentQuality?.readabilityScore || 0) + '/10'],
+      ['상단 요약', llms?.contentQuality?.hasSummary ? 'O 있음' : 'X 없음'],
+      ['키워드 밀도', llms?.contentQuality?.hasKeywords ? 'O 충분' : '! 부족'],
+      ['구조 점수', (llms?.contentQuality?.structureScore || 0) + '/30'],
+      ['가독성 점수', (llms?.contentQuality?.readabilityScore || 0) + '/10'],
       ['', ''],
-      ['종합 점수', '🎯 ' + (result.llmsTxt?.score || 0) + '/100'],
+      ['AI 크롤러', ''],
+      ['GPTBot', geo?.robotsAiCrawlers?.gptBot ? 'O 허용' : 'X 차단'],
+      ['ClaudeBot', geo?.robotsAiCrawlers?.claudeBot ? 'O 허용' : 'X 차단'],
+      ['GoogleBot', geo?.robotsAiCrawlers?.googleBot ? 'O 허용' : 'X 차단'],
+      ['BingBot', geo?.robotsAiCrawlers?.bingBot ? 'O 허용' : 'X 차단'],
+      ['', ''],
+      ['종합 점수', (geo?.score || 0) + '/100'],
     ];
 
     let row = 4;
     llmsRows.forEach((data, idx) => {
       sheet.getRow(row).values = data;
-      if (idx === 0 || idx === 8 || idx === 14) {
+      if (idx === 0 || idx === 8 || idx === 14 || idx === 20) {
         sheet.getRow(row).font = { bold: true };
         sheet.getRow(row).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE599' } };
       }
@@ -383,15 +405,15 @@ export class ExcelGenerator {
     });
 
     // llms.txt 제안
-    if (!result.llmsTxt.exists && result.llmsTxt.suggestedContent) {
+    if (llms && !llms.exists && llms.suggestedContent) {
       row += 2;
-      sheet.getCell(`A${row}`).value = '💡 추천: llms.txt 파일 생성 템플릿';
+      sheet.getCell(`A${row}`).value = '추천: llms.txt 파일 생성 템플릿';
       sheet.getCell(`A${row}`).font = { size: 13, bold: true, color: { argb: 'FFFF0000' } };
       row++;
 
       sheet.mergeCells(`A${row}:C${row + 15}`);
       const suggestionCell = sheet.getCell(`A${row}`);
-      suggestionCell.value = result.llmsTxt.suggestedContent;
+      suggestionCell.value = llms.suggestedContent;
       suggestionCell.alignment = { vertical: 'top', wrapText: true };
       suggestionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFF0' } };
       sheet.getRow(row).height = 300;
@@ -403,31 +425,48 @@ export class ExcelGenerator {
   }
 
   /**
-   * 종합 점수 시트 추가 (private)
+   * 종합 점수 시트 추가 (private) - SOYOYU 구조 기반
    */
   private addSEOScoreSheet(workbook: ExcelJS.Workbook, result: SEOAuditResult): void {
     const sheet = workbook.addWorksheet('종합 점수');
 
-    // 타이틀
     sheet.mergeCells('A1:D1');
     const titleCell = sheet.getCell('A1');
-    titleCell.value = '📈 SEO & AI 최적화 종합 점수';
+    titleCell.value = 'SEO & AI 최적화 종합 점수';
     titleCell.font = { size: 18, bold: true };
     titleCell.alignment = { horizontal: 'center' };
 
     sheet.getCell('A3').value = '진단 URL:';
     sheet.getCell('B3').value = result.url;
 
-    // 종합 점수
-    sheet.getCell('A5').value = '종합 점수';
+    sheet.getCell('A5').value = '카테고리별 점수';
     sheet.getCell('A5').font = { size: 14, bold: true };
 
-    const scoreRows = [
-      ['영역', '점수', '등급', '상태'],
-      ['SEO 최적화', (result.overallScore?.seo || 0) + '/100', this.getGrade(result.overallScore?.seo || 0), this.getStatusEmoji(result.overallScore?.seo || 0)],
-      ['AI 친화도 (GEO)', (result.overallScore?.geoAI || 0) + '/100', this.getGrade(result.overallScore?.geoAI || 0), this.getStatusEmoji(result.overallScore?.geoAI || 0)],
+    const cats = result.categories;
+    const catEntries = cats ? [
+      ['메타 태그', cats.meta?.score ?? 0],
+      ['헤딩 구조', cats.heading?.score ?? 0],
+      ['이미지', cats.image?.score ?? 0],
+      ['링크', cats.link?.score ?? 0],
+      ['소셜 미디어', cats.social?.score ?? 0],
+      ['콘텐츠', cats.content?.score ?? 0],
+      ['시맨틱 구조', cats.semantic?.score ?? 0],
+      ['접근성', cats.accessibility?.score ?? 0],
+      ['구조화 데이터', cats.schema?.score ?? 0],
+      ['기술 분석', cats.technical?.score ?? 0],
+      ['AI 최적화 (GEO)', cats.geo?.score ?? 0],
+    ] : [];
+
+    const scoreRows: (string | number)[][] = [
+      ['카테고리', '점수', '등급', '상태'],
+      ...catEntries.map(([name, score]) => [
+        name as string,
+        `${score}/100`,
+        this.getGrade(score as number),
+        this.getStatusEmoji(score as number),
+      ]),
       ['', '', '', ''],
-      ['최종 점수', (result.overallScore?.total || 0) + '/100', this.getGrade(result.overallScore?.total || 0), this.getStatusEmoji(result.overallScore?.total || 0)],
+      ['종합 점수', `${result.score ?? 0}/100`, this.getGrade(result.score ?? 0), this.getStatusEmoji(result.score ?? 0)],
     ];
 
     let row = 6;
@@ -436,36 +475,14 @@ export class ExcelGenerator {
       if (idx === 0) {
         sheet.getRow(row).font = { bold: true, color: { argb: 'FFFFFFFF' } };
         sheet.getRow(row).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
-      } else if (idx === 4) {
+      } else if (idx === scoreRows.length - 1) {
         sheet.getRow(row).font = { bold: true, size: 13 };
         sheet.getRow(row).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB3B' } };
       }
       row++;
     });
 
-    // 상세 항목
-    row += 2;
-    sheet.getCell(`A${row}`).value = '상세 분석';
-    sheet.getCell(`A${row}`).font = { size: 14, bold: true };
-    row++;
-
-    const detailRows = [
-      ['카테고리', '항목', '점수'],
-      ['SEO', 'Sitemap.xml', (result.sitemap?.score || 0) + '/100'],
-      ['SEO', '메타데이터', (result.metadata?.score || 0) + '/100'],
-      ['AI/GEO', 'llms.txt', (result.llmsTxt?.score || 0) + '/100'],
-    ];
-
-    detailRows.forEach((data, idx) => {
-      sheet.getRow(row).values = data;
-      if (idx === 0) {
-        sheet.getRow(row).font = { bold: true };
-        sheet.getRow(row).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
-      }
-      row++;
-    });
-
-    sheet.getColumn('A').width = 20;
+    sheet.getColumn('A').width = 25;
     sheet.getColumn('B').width = 20;
     sheet.getColumn('C').width = 15;
     sheet.getColumn('D').width = 20;

@@ -178,13 +178,13 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
               onClick={() => setActiveView('seo')}
               className={`${styles['tab-btn']} ${activeView === 'seo' ? styles['active-seo'] : ''}`}
             >
-              🗺️ SEO 상세 분석
+              🗺️ SEO 종합 분석
             </button>
             <button
               onClick={() => setActiveView('ai')}
               className={`${styles['tab-btn']} ${activeView === 'ai' ? styles['active-ai'] : ''}`}
             >
-              🤖 AI 친화도 상세
+              🤖 AI 최적화
             </button>
           </div>
 

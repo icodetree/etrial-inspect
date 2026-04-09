@@ -6,28 +6,6 @@
   text-decoration: none;
 }
 
-.brandIcon {
-  width: 32px;
-  height: 32px;
-  background: #2563eb;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.brandIcon span {
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.875rem;
-}
-
-.brandName {
-  font-size: 1.0625rem;
-  font-weight: 700;
-  color: #111827;
-}
 
 .nav {
   flex: 1;

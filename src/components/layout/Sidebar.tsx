@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   Home, FileText, Clock, CheckSquare,
@@ -11,7 +12,6 @@ import styles from './Sidebar.module.css';
 const mainNav = [
   { label: '진단',        href: '/',                 icon: Home },
   { label: '보고서',      href: '/report',            icon: FileText },
-  { label: '이력',        href: '/#history',          icon: Clock },
   { label: '체크리스트',  href: '/report/checklist',  icon: CheckSquare },
 ];
 
@@ -48,10 +48,15 @@ export function Sidebar() {
     >
       {/* 로고 */}
       <Link href="/" className={styles.brandArea}>
-        <div className={styles.brandIcon}>
-          <span>E</span>
-        </div>
-        <span className={styles.brandName}>E-able</span>
+        <Image
+          src="/images/logo.png"
+          alt="E-able 로고"
+          width={50}
+          height={32}
+          style={{ objectFit: 'contain', objectPosition: 'left' }}
+          priority
+        />
+        <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#111827' }}>E-able</span>
       </Link>
 
       {/* 메인 네비게이션 */}
@@ -92,19 +97,6 @@ export function Sidebar() {
           })}
         </ul>
 
-        {/* 업그레이드 카드 */}
-        <div className={styles.upgradeCard}>
-          <div className={styles.upgradeTitle}>
-            <Sparkles size={15} aria-hidden="true" />
-            <span>Pro 업그레이드</span>
-          </div>
-          <p className={styles.upgradeDesc}>
-            고급 보고서와 AI 분석 기능을 사용해보세요.
-          </p>
-          <button className={styles.upgradeBtn} type="button">
-            업그레이드
-          </button>
-        </div>
       </div>
     </aside>
   );

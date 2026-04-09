@@ -192,11 +192,151 @@ describe('NotionService', () => {
       // Should correctly parse the full JSON
       expect(result).toEqual(mockAuditResult);
     });
+
+    it('should assemble JSON from code blocks split across paginated responses', async () => {
+      // This reproduces the real-world scenario: saveAuditResult creates multiple
+      // code blocks (due to 100 rich_text limit), and those blocks may span across
+      // different paginated API responses.
+      const fullJson = JSON.stringify(mockAuditResult);
+      const splitPoint = Math.floor(fullJson.length / 3);
+      const part1 = fullJson.substring(0, splitPoint);
+      const part2 = fullJson.substring(splitPoint, splitPoint * 2);
+      const part3 = fullJson.substring(splitPoint * 2);
+
+      mockNotionClient.blocks.children.list
+        .mockResolvedValueOnce({
+          results: [
+            { type: 'heading_2', heading_2: { rich_text: [{ plain_text: 'Summary' }] } },
+            {
+              type: 'code',
+              code: { language: 'json', rich_text: [{ plain_text: part1 }] }
+            }
+          ],
+          has_more: true,
+          next_cursor: 'cursor-1'
+        })
+        .mockResolvedValueOnce({
+          results: [
+            {
+              type: 'code',
+              code: { language: 'json', rich_text: [{ plain_text: part2 }] }
+            }
+          ],
+          has_more: true,
+          next_cursor: 'cursor-2'
+        })
+        .mockResolvedValueOnce({
+          results: [
+            {
+              type: 'code',
+              code: { language: 'json', rich_text: [{ plain_text: part3 }] }
+            }
+          ],
+          has_more: false
+        });
+
+      const result = await notionService.getAuditResult('page-id');
+
+      expect(mockNotionClient.blocks.children.list).toHaveBeenCalledTimes(3);
+      expect(result).not.toBeNull();
+      expect(result).toEqual(mockAuditResult);
+    });
+
+    it('should handle code blocks with multiple rich_text items (2000-char chunking)', async () => {
+      // saveAuditResult splits JSON into 2000-char rich_text chunks.
+      // A single code block can have up to 100 rich_text items.
+      const fullJson = JSON.stringify(mockAuditResult);
+      const chunkSize = 2000;
+      const richTextChunks = [];
+      for (let i = 0; i < fullJson.length; i += chunkSize) {
+        richTextChunks.push({ plain_text: fullJson.substring(i, i + chunkSize) });
+      }
+
+      mockNotionClient.blocks.children.list.mockResolvedValue({
+        results: [
+          {
+            type: 'code',
+            code: { language: 'json', rich_text: richTextChunks }
+          }
+        ],
+        has_more: false
+      });
+
+      const result = await notionService.getAuditResult('page-id');
+
+      expect(result).not.toBeNull();
+      expect(result).toEqual(mockAuditResult);
+    });
+
+    it('should ignore non-JSON code blocks interspersed between JSON blocks', async () => {
+      const fullJson = JSON.stringify(mockAuditResult);
+      const splitPoint = Math.floor(fullJson.length / 2);
+      const part1 = fullJson.substring(0, splitPoint);
+      const part2 = fullJson.substring(splitPoint);
+
+      mockNotionClient.blocks.children.list.mockResolvedValue({
+        results: [
+          {
+            type: 'code',
+            code: { language: 'json', rich_text: [{ plain_text: part1 }] }
+          },
+          {
+            // This JavaScript code block should be ignored
+            type: 'code',
+            code: { language: 'javascript', rich_text: [{ plain_text: 'console.log("not json");' }] }
+          },
+          {
+            type: 'code',
+            code: { language: 'json', rich_text: [{ plain_text: part2 }] }
+          }
+        ],
+        has_more: false
+      });
+
+      const result = await notionService.getAuditResult('page-id');
+
+      // Should only collect JSON code blocks, ignoring the JavaScript block
+      expect(result).toEqual(mockAuditResult);
+    });
+
+    it('should return null when no JSON code blocks exist', async () => {
+      mockNotionClient.blocks.children.list.mockResolvedValue({
+        results: [
+          { type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'No JSON here' }] } },
+          {
+            type: 'code',
+            code: { language: 'javascript', rich_text: [{ plain_text: 'const x = 1;' }] }
+          }
+        ],
+        has_more: false
+      });
+
+      const result = await notionService.getAuditResult('page-id');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when JSON is malformed even after reassembly', async () => {
+      mockNotionClient.blocks.children.list.mockResolvedValue({
+        results: [
+          {
+            type: 'code',
+            code: { language: 'json', rich_text: [{ plain_text: '{"broken": ' }] }
+          }
+        ],
+        has_more: false
+      });
+
+      const result = await notionService.getAuditResult('page-id');
+
+      expect(result).toBeNull();
+    });
   });
 
   describe('getAuditHistory', () => {
     it('should query database with Deleted=false filter and sort by Date', async () => {
-      mockNotionClient.databases.query.mockResolvedValue({
+      // The actual implementation uses this.notion.request() instead of databases.query
+      mockNotionClient.request = jest.fn().mockResolvedValue({
         results: [
           {
             id: 'page-1',
@@ -213,20 +353,23 @@ describe('NotionService', () => {
 
       const history = await notionService.getAuditHistory();
 
-      expect(mockNotionClient.databases.query).toHaveBeenCalledWith({
-        database_id: 'fake-db',
-        filter: {
-          property: 'Deleted',
-          checkbox: {
-            equals: false,
+      expect(mockNotionClient.request).toHaveBeenCalledWith({
+        path: `databases/fake-db/query`,
+        method: 'post',
+        body: {
+          filter: {
+            property: 'Deleted',
+            checkbox: {
+              equals: false,
+            },
           },
+          sorts: [
+            {
+              property: 'Date',
+              direction: 'descending',
+            },
+          ],
         },
-        sorts: [
-          {
-            property: 'Date',
-            direction: 'descending',
-          },
-        ],
       });
 
       expect(history).toHaveLength(1);

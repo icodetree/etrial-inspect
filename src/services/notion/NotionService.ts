@@ -12,24 +12,20 @@ export class NotionService {
 
   /**
    * Notion 페이지 ID로 진단 결과(JSON)를 조회
-   */
-  /**
-   * Notion 페이지 ID로 진단 결과(JSON)를 조회
+   *
+   * saveAuditResult는 JSON을 2000자 rich_text 청크로 분할하고,
+   * 100개 rich_text 항목마다 별도의 Code Block으로 저장한다.
+   * 따라서 이 메서드는 페이지 내 모든 JSON Code Block을 순서대로
+   * 수집하여 하나의 문자열로 합친 뒤 파싱한다.
    */
   async getAuditResult(pageId: string): Promise<AuditResult | null> {
-    console.log('NotionService keys:', Object.keys(this.notion));
-    if (this.notion.databases) {
-      console.log('NotionService.databases keys:', Object.keys(this.notion.databases));
-    } else {
-      console.log('NotionService.databases is undefined');
-    }
-
     try {
       let jsonContent = '';
       let hasMore = true;
       let startCursor: string | undefined = undefined;
 
-      // 페이지의 모든 블록을 순회하며 JSON 코드를 찾음 (청크로 나뉜 경우 모두 합침)
+      // 페이지의 모든 블록을 순회하며 JSON Code Block을 찾아 합침
+      // (saveAuditResult가 여러 Code Block으로 분할 저장하므로 break 금지)
       while (hasMore) {
         const response = await this.notion.blocks.children.list({
           block_id: pageId,
@@ -38,7 +34,8 @@ export class NotionService {
 
         for (const block of response.results) {
           if ('type' in block && block.type === 'code' && block.code.language === 'json') {
-            const chunk = block.code.rich_text.map(t => t.plain_text).join('');
+            // 각 Code Block 내의 rich_text 항목들을 모두 합침 (2000자 청킹 대응)
+            const chunk = block.code.rich_text.map((t: any) => t.plain_text).join('');
             jsonContent += chunk;
           }
         }
@@ -48,15 +45,16 @@ export class NotionService {
       }
 
       if (!jsonContent) {
-        console.error('No JSON block found in Notion page');
+        console.error('No JSON block found in Notion page:', pageId);
         return null;
       }
 
-      // 3. JSON 파싱
+      // JSON 파싱
       try {
         return JSON.parse(jsonContent);
       } catch (e) {
-        console.error('Failed to parse JSON from Notion:', e);
+        console.error('Failed to parse reassembled JSON from Notion:', e);
+        console.error('JSON content length:', jsonContent.length);
         return null;
       }
     } catch (error) {
@@ -109,7 +107,7 @@ export class NotionService {
         {
           object: 'block',
           type: 'bulleted_list_item',
-          bulleted_list_item: { rich_text: [{ text: { content: `SEO 점수: ${result.seoResult?.overallScore.seo || 0}점` } }] },
+          bulleted_list_item: { rich_text: [{ text: { content: `SEO 점수: ${result.seoResult?.score || 0}점` } }] },
         },
         {
           object: 'block',
@@ -213,7 +211,7 @@ export class NotionService {
           date: { start: new Date().toISOString() },
         },
         'Score (Total)': {
-          number: result.seoResult?.overallScore?.total ?? 0,
+          number: result.seoResult?.score ?? 0,
         },
         'Violations': {
           number: result.totalViolations ?? 0,

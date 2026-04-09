@@ -2,6 +2,7 @@ import { AuditConfig } from '@/types';
 import styles from '@/app/page.module.css'; // Might need to move or refactor styles later
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Asterisk } from 'lucide-react';
 
 interface AuditConfigFormProps {
   config: AuditConfig;
@@ -13,9 +14,12 @@ interface AuditConfigFormProps {
 
 export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isProcessing }: AuditConfigFormProps) => {
   return (
-    <Card className={styles.card} title="진단 설정">
+    <Card className={styles.card} title="">
       <div className="form-group">
-        <label>대상 URL *</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          대상 URL
+          <Asterisk size={10} color="#ef4444" strokeWidth={3} aria-label="필수 입력" style={{ marginBottom: '2px' }} />
+        </label>
         <input
           type="url"
           placeholder="https://example.com"
@@ -121,17 +125,16 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
         disabled={isProcessing}
         isLoading={isProcessing}
       >
-        {isProcessing ? '진행 중...' : '🚀 전수 검사 시작'}
+        {isProcessing ? '진행 중...' : '전체 검사'}
       </Button>
 
       {
         onGitHubStart && (
           <Button
             variant="secondary"
-            fullWidth
             onClick={onGitHubStart}
             disabled={isProcessing}
-            style={{ marginTop: '0.5rem', backgroundColor: '#24292e', color: 'white' }}
+            style={{ marginTop: '0.5rem', backgroundColor: '#24292e', color: 'white', width: '100%' }}
           >
             <span style={{ marginRight: '0.5rem' }}>⚡️</span>
             대규모 진단 (GitHub Actions)

@@ -8,20 +8,22 @@ export function useAIPrompt() {
   const [promptCopied, setPromptCopied] = useState(false);
 
   const handleAIPromptCopy = async (tool: AITool, result: SEOAuditResult) => {
+    const geo = result.categories?.geo?.data;
+    const meta = result.categories?.meta?.data;
+
     const promptData = {
       siteName: new URL(result.url).hostname,
       url: result.url,
-      llmsTxtContent: result.llmsTxt.exists
-        ? `(파일 존재, 점수: ${result.llmsTxt.score}/100)`
-        : result.llmsTxt.suggestedContent || '파일 없음',
-      ruleBasedScore: result.llmsTxt.score,
+      llmsTxtContent: geo?.llmsTxt?.exists
+        ? `(파일 존재, 점수: ${geo.score}/100)`
+        : geo?.llmsTxt?.suggestedContent || '파일 없음',
+      ruleBasedScore: geo?.score || 0,
       suggestedImprovements: [
-        !result.sitemap.exists && 'Sitemap.xml 파일 생성 필요',
-        !result.llmsTxt.exists && 'llms.txt 파일 생성 필요',
-        result.metadata.title.length === 0 && 'Title 태그 추가 필요',
-        result.metadata.description.length === 0 && 'Meta Description 추가 필요',
+        !geo?.llmsTxt?.exists && 'llms.txt 파일 생성 필요',
+        !meta?.title?.exists && 'Title 태그 추가 필요',
+        !meta?.description?.exists && 'Meta Description 추가 필요',
+        !meta?.canonical?.exists && 'Canonical URL 설정 필요',
       ].filter(Boolean) as string[],
-      professionalFindings: result.metadata.professionalFindings || [],
     };
 
     const success = await copyPromptAndOpenAI(tool, promptData);
