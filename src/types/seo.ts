@@ -285,7 +285,7 @@ export interface TechnicalData {
     lcp: number | null;
     fcp: number | null;
     cls: number | null;
-    fid: number | null;
+    fid: number | null; // FID는 실제 사용자 인터랙션 필요 — 자동화 측정 불가
     ttfb: number | null;
   };
   crawlability: {
@@ -299,6 +299,10 @@ export interface TechnicalData {
   validation: string[];
   security: { httpsLinks: number; httpLinks: number };
   doctype: { exists: boolean; name: string };
+  httpHeaders?: {
+    compression: string | null;  // gzip, br, identity 등
+    cacheControl: string | null;
+  };
 }
 
 export interface GeoData {

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { triggerAudit } from '@/services/AuditService';
 import { AuditConfig } from '@/types';
 
 // Set max duration for Vercel Serverless Function (Start with 60s, max 300s for Pro)

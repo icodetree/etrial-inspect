@@ -130,3 +130,50 @@ Tests: 12 passed, 12 total
 ### QA 검증 포인트
 - Notion에 대용량 감사 결과(200+ violations) 저장 후 getAuditResult로 조회 시 파싱 성공 여부
 - 실제 Notion 페이지에서 여러 Code Block으로 분할된 JSON이 정상 재조립되는지 E2E 확인
+
+---
+
+## 8. 데드코드 삭제 + SEO 기술 분석 실제 수집 구현 (2026-04-09)
+
+### Task A: 데드코드 삭제
+
+**삭제 파일:**
+- `src/services/AuditService.ts` - 미완성 플레이스홀더 (GitHub Actions 연동은 `src/app/api/github/dispatch/route.ts`에서 정상 구현 완료)
+
+**제거된 import:**
+- `src/app/api/audit/route.ts` 2번째 줄: `import { triggerAudit } from '@/services/AuditService';` 삭제 (실제 사용되지 않았음)
+
+### Task B: SEO 기술 분석 실제 수집 구현
+
+**변경 파일:**
+- `src/types/seo.ts` - TechnicalData에 `httpHeaders?: { compression, cacheControl }` 필드 추가
+- `src/lib/seo-analyzer.ts` - analyzeTechnical, analyzePage 수정
+
+**Before (analyzeTechnical):**
+- LCP: 항상 null (수집 로직 없음)
+- CLS: 항상 null (수집 로직 없음)
+- HTTP 헤더: page.evaluate 내부에서 접근 불가하여 미수집
+
+**After (analyzeTechnical):**
+- LCP: `performance.getEntriesByType('largest-contentful-paint')` 로 수집
+- CLS: `performance.getEntriesByType('layout-shift')` 로 합산 수집
+- FID: null 유지 (실제 사용자 인터랙션 필요, 주석 명시)
+- HTTP 헤더: analyzePage에서 `page.on('response')` 로 수집, responseHeaders 파라미터로 전달
+- 압축(GZIP/Brotli): 감지 시 passed, 미감지 시 info 이슈
+- Cache-Control: 설정됨 passed, 미설정 시 info 이슈
+- LCP > 2500ms 시 warning, CLS > 0.1 시 warning 추가
+
+**시그니처 변경:**
+- `analyzeTechnical(page: Page)` -> `analyzeTechnical(page: Page, responseHeaders?: Map<string, string>)`
+
+### 빌드 결과
+```
+✓ Compiled successfully
+✓ Generating static pages (12/12)
+TypeScript 에러 0건
+```
+
+### QA 검증 포인트
+- 실제 URL 감사 시 `categories.technical.data.coreWebVitals.lcp` 값이 null이 아닌 숫자로 반환되는지 확인
+- `categories.technical.data.httpHeaders.compression` 에 gzip/br 등이 채워지는지 확인
+- LCP/CLS가 빈 배열인 페이지(SPA 등)에서 null로 안전하게 처리되는지 확인

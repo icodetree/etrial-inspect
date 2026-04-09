@@ -809,7 +809,7 @@ async function analyzeSchema(page: Page): Promise<SEOCategory<SchemaData>> {
 // ---------------------------------------------------------------------------
 // 10. Technical
 // ---------------------------------------------------------------------------
-async function analyzeTechnical(page: Page): Promise<SEOCategory<TechnicalData>> {
+async function analyzeTechnical(page: Page, responseHeaders?: Map<string, string>): Promise<SEOCategory<TechnicalData>> {
   const start = Date.now();
   const data = await page.evaluate(() => {
     // Performance
@@ -819,11 +819,21 @@ async function analyzeTechnical(page: Page): Promise<SEOCategory<TechnicalData>>
     const paintEntries = performance.getEntriesByType('paint') as PerformancePaintTiming[];
     const fcpEntry = paintEntries.find(e => e.name === 'first-contentful-paint');
 
+    // LCP: PerformanceObserver 엔트리에서 추출 (이미 로드 완료된 경우)
+    const lcpEntries = performance.getEntriesByType('largest-contentful-paint') as any[];
+    const lcp = lcpEntries.length > 0 ? Math.round(lcpEntries[lcpEntries.length - 1].startTime) : null;
+
+    // CLS: LayoutShift 엔트리에서 합산
+    const clsEntries = performance.getEntriesByType('layout-shift') as any[];
+    const cls = clsEntries.length > 0
+      ? Math.round(clsEntries.reduce((sum: number, e: any) => sum + e.value, 0) * 1000) / 1000
+      : null;
+
     const coreWebVitals = {
-      lcp: null as number | null,
+      lcp,
       fcp: fcpEntry ? Math.round(fcpEntry.startTime) : null,
-      cls: null as number | null,
-      fid: null as number | null,
+      cls,
+      fid: null as number | null, // FID는 실제 사용자 인터랙션 필요 — 자동화 측정 불가
       ttfb: nav ? Math.round(nav.responseStart - nav.requestStart) : null,
     };
 
@@ -864,6 +874,11 @@ async function analyzeTechnical(page: Page): Promise<SEOCategory<TechnicalData>>
     } as TechnicalData;
   });
 
+  // HTTP 헤더 정보 병합
+  const compression = responseHeaders?.get('content-encoding') || null;
+  const cacheControl = responseHeaders?.get('cache-control') || null;
+  data.httpHeaders = { compression, cacheControl };
+
   const issues: SEOIssue[] = [];
   const passed: SEOPassed[] = [];
 
@@ -875,6 +890,38 @@ async function analyzeTechnical(page: Page): Promise<SEOCategory<TechnicalData>>
 
   if (data.coreWebVitals.ttfb !== null && data.coreWebVitals.ttfb > 800) {
     issues.push({ severity: 'warning', message: `TTFB가 느립니다 (${data.coreWebVitals.ttfb}ms)`, details: { ttfb: data.coreWebVitals.ttfb }, suggestion: '서버 응답 시간을 개선하세요 (목표: 800ms 이하)' });
+  }
+
+  // LCP 성능 평가
+  if (data.coreWebVitals.lcp !== null) {
+    if (data.coreWebVitals.lcp > 2500) {
+      issues.push({ severity: 'warning', message: `LCP가 느립니다 (${data.coreWebVitals.lcp}ms)`, details: { lcp: data.coreWebVitals.lcp }, suggestion: 'Largest Contentful Paint를 개선하세요 (목표: 2500ms 이하)' });
+    } else {
+      passed.push({ message: `LCP 양호 (${data.coreWebVitals.lcp}ms)`, details: { lcp: data.coreWebVitals.lcp } });
+    }
+  }
+
+  // CLS 평가
+  if (data.coreWebVitals.cls !== null) {
+    if (data.coreWebVitals.cls > 0.1) {
+      issues.push({ severity: 'warning', message: `CLS가 높습니다 (${data.coreWebVitals.cls})`, details: { cls: data.coreWebVitals.cls }, suggestion: 'Cumulative Layout Shift를 줄이세요 (목표: 0.1 이하)' });
+    } else {
+      passed.push({ message: `CLS 양호 (${data.coreWebVitals.cls})`, details: { cls: data.coreWebVitals.cls } });
+    }
+  }
+
+  // 압축(GZIP/Brotli) 확인
+  if (compression && (compression.includes('gzip') || compression.includes('br'))) {
+    passed.push({ message: `응답 압축 적용됨 (${compression})`, details: { encoding: compression } });
+  } else if (compression === null) {
+    issues.push({ severity: 'info', message: '응답 압축(GZIP/Brotli)이 감지되지 않았습니다', details: {}, suggestion: '서버에서 GZIP 또는 Brotli 압축을 활성화하세요' });
+  }
+
+  // Cache-Control 확인
+  if (cacheControl) {
+    passed.push({ message: `Cache-Control 헤더 설정됨 (${cacheControl})`, details: { cacheControl } });
+  } else {
+    issues.push({ severity: 'info', message: 'Cache-Control 헤더가 설정되지 않았습니다', details: {}, suggestion: '적절한 캐시 정책을 설정하세요' });
   }
 
   if (data.security.httpLinks > 0) {
@@ -1058,6 +1105,18 @@ export async function analyzePage(browser: Browser, url: string): Promise<SEOAna
   const page = await browser.newPage();
   const startTime = Date.now();
 
+  // 메인 페이지 응답의 HTTP 헤더 수집
+  const responseHeaders = new Map<string, string>();
+  page.on('response', (response) => {
+    const baseUrl = url.split('?')[0];
+    if (response.url() === url || response.url().startsWith(baseUrl)) {
+      const headers = response.headers();
+      if (headers['content-encoding']) responseHeaders.set('content-encoding', headers['content-encoding']);
+      if (headers['cache-control']) responseHeaders.set('cache-control', headers['cache-control']);
+      if (headers['x-cache']) responseHeaders.set('x-cache', headers['x-cache']);
+    }
+  });
+
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
@@ -1079,7 +1138,7 @@ export async function analyzePage(browser: Browser, url: string): Promise<SEOAna
       analyzeSemantic(page),
       analyzeAccessibility(page),
       analyzeSchema(page),
-      analyzeTechnical(page),
+      analyzeTechnical(page, responseHeaders),
       analyzeGeo(page, origin),
     ]);
 
