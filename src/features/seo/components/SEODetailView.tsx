@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
   FileText,
   List,
@@ -206,7 +206,7 @@ function CategoryCard({ catDef, category, isActive, onClick }: CategoryCardProps
       type="button"
       className={`${styles.categoryCard} ${isActive ? styles.categoryCardActive : ''}`}
       onClick={onClick}
-      aria-pressed={isActive}
+      aria-expanded={isActive}
       aria-label={`${catDef.label} 카테고리, 점수 ${score}점, ${label}`}
     >
       <div className={styles.cardTop}>
@@ -365,6 +365,34 @@ export default function SEODetailView({ result }: SEODetailViewProps) {
       ? availableCategories
       : availableCategories.filter((c) => c.label === activeTab);
 
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const handleTabKeyDown = useCallback(
+    (e: React.KeyboardEvent, currentIndex: number) => {
+      let nextIndex: number | null = null;
+
+      if (e.key === 'ArrowRight') {
+        nextIndex = (currentIndex + 1) % TAB_ITEMS.length;
+      } else if (e.key === 'ArrowLeft') {
+        nextIndex = (currentIndex - 1 + TAB_ITEMS.length) % TAB_ITEMS.length;
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        nextIndex = 0;
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        nextIndex = TAB_ITEMS.length - 1;
+      }
+
+      if (nextIndex !== null) {
+        e.preventDefault();
+        setActiveTab(TAB_ITEMS[nextIndex]);
+        setSelectedKey(null);
+        tabRefs.current[nextIndex]?.focus();
+      }
+    },
+    [],
+  );
+
   const handleCardClick = (key: CategoryKey) => {
     setSelectedKey(selectedKey === key ? null : key);
   };
@@ -393,25 +421,36 @@ export default function SEODetailView({ result }: SEODetailViewProps) {
       <PageSummary result={result} />
 
       {/* 카테고리 탭 */}
-      <nav className={styles.tabBar} aria-label="카테고리 필터">
-        {TAB_ITEMS.map((tab) => (
+      <div role="tablist" aria-label="카테고리 필터" className={styles.tabBar}>
+        {TAB_ITEMS.map((tab, index) => (
           <button
             key={tab}
+            role="tab"
             type="button"
+            id={`seo-tab-${tab}`}
+            ref={(el) => { tabRefs.current[index] = el; }}
             className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ''}`}
+            aria-selected={activeTab === tab}
+            aria-controls={`seo-tabpanel-${activeTab}`}
+            tabIndex={activeTab === tab ? 0 : -1}
             onClick={() => {
               setActiveTab(tab);
               setSelectedKey(null);
             }}
-            aria-pressed={activeTab === tab}
+            onKeyDown={(e) => handleTabKeyDown(e, index)}
           >
             {tab}
           </button>
         ))}
-      </nav>
+      </div>
 
-      {/* 카테고리 카드 그리드 */}
-      <div className={styles.categoryGrid}>
+      {/* 카테고리 카드 그리드 (탭패널) */}
+      <div
+        role="tabpanel"
+        id={`seo-tabpanel-${activeTab}`}
+        aria-labelledby={`seo-tab-${activeTab}`}
+        className={styles.categoryGrid}
+      >
         {visibleCategories.map((catDef) => {
           const category = cats[catDef.key];
           if (!category) return null;

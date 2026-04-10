@@ -55,7 +55,6 @@ export function HistoryList({ refreshTrigger }: HistoryListProps) {
   };
 
   if (isLoading) return <div className={styles.loading}>히스토리 불러오는 중...</div>;
-  if (isLoading) return <div className={styles.loading}>히스토리 불러오는 중...</div>;
 
   if (history.length === 0) {
     return (

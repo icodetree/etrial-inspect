@@ -13,6 +13,8 @@ export interface AuditConfig {
   platform: 'PC' | 'Mobile';
   inspector: string;
   excludePaths?: string;
+  maxPages?: number;   // 크롤링 최대 페이지 수 (미입력 시 환경별 기본값)
+  maxDepth?: number;   // 크롤링 최대 깊이 (미입력 시 환경별 기본값)
 }
 
 export interface PageInfo {

@@ -1,0 +1,59 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+}
+
+.icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--c-danger-bg);
+  border-radius: 50%;
+}
+
+.iconSvg {
+  width: 24px;
+  height: 24px;
+  color: var(--c-danger);
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-fg);
+}
+
+.message {
+  color: var(--c-fg-muted);
+  font-size: 14px;
+  text-align: center;
+  max-width: 400px;
+}
+
+.retryButton {
+  padding: 8px 20px;
+  background-color: var(--c-primary);
+  color: var(--c-white);
+  border-radius: var(--radius);
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.15s ease;
+}
+
+.retryButton:hover {
+  background-color: var(--c-primary-hover);
+}
+
+.retryButton:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}

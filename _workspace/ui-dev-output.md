@@ -63,3 +63,98 @@
 - 2.1.1 키보드 접근 (모든 인터랙티브 요소)
 - 1.4.3 명도 대비 (점수 색상, 탭 색상)
 - 4.1.2 이름/역할/값 (aria-pressed, aria-expanded, role="list")
+
+---
+
+## SEO 탭 컴포넌트 접근성 개선 (2026-04-09)
+
+### 변경 파일
+- `src/features/seo/components/SEODetailView.tsx`
+
+### 변경 내용
+
+#### 1. WAI-ARIA 탭 패턴 적용
+- `<nav>` 태그를 `<div role="tablist">` 로 변경
+- 각 탭 버튼에 `role="tab"`, `id="seo-tab-{tab}"`, `aria-selected`, `aria-controls` 추가
+- `aria-pressed` 제거하고 `aria-selected` 사용 (탭 패턴 표준)
+- 탭패널 영역에 `role="tabpanel"`, `id="seo-tabpanel-{activeTab}"`, `aria-labelledby` 추가
+
+#### 2. Roving Tabindex
+- `tabIndex={activeTab === tab ? 0 : -1}` 적용
+- 탭 그룹 내에서 Tab 키는 활성 탭에만 포커스, 비활성 탭은 Arrow 키로 이동
+
+#### 3. 키보드 Arrow Key 네비게이션
+- `handleTabKeyDown` 핸들러 추가
+- ArrowLeft / ArrowRight: 이전/다음 탭으로 순환 이동 + 포커스 이동
+- Home: 첫 번째 탭으로 이동
+- End: 마지막 탭으로 이동
+- `useRef`로 탭 버튼 배열 참조하여 `tabRefs.current[index]?.focus()` 호출
+
+#### 4. 카테고리 카드 aria-expanded
+- `aria-pressed` 를 `aria-expanded` 로 변경 (상세 패널 열림/닫힘 의미에 적합)
+
+### QA 검증 요청
+- 컴포넌트: SEODetailView 탭바
+- 검증 항목: 키보드 접근 (ArrowLeft/Right/Home/End), 스크린리더 (role=tablist/tab/tabpanel, aria-selected)
+- 관련 KWCAG: 2.1.1 키보드 접근, 4.1.2 이름/역할/값
+
+---
+
+## AuditConfigForm: maxPages/maxDepth 입력 필드 추가 (2026-04-09)
+
+### 변경 파일
+- `src/features/audit/components/AuditConfigForm.tsx`
+
+### 변경 내용
+- "제외 경로" 아래, 버튼 위에 2열 그리드(`styles.row`)로 두 개의 숫자 입력 필드 추가
+- **최대 페이지 수** (`maxPages`): `type="number"`, min=1, max=1000, placeholder="기본값 (Vercel: 5 / 로컬: 1000)"
+- **최대 깊이** (`maxDepth`): `type="number"`, min=1, max=20, placeholder="기본값 (Vercel: 2 / 로컬: 10)"
+- 빈 값 시 `parseInt(value) || undefined`로 처리하여 config에 포함하지 않음
+- `label htmlFor` + `input id` 연결로 접근성 확보 (`audit-max-pages`, `audit-max-depth`)
+- 기존 `styles.row` (2열 grid) 재사용으로 플랫폼/점검자 행과 일관된 레이아웃
+
+### 빌드 결과
+- `npm run build` 성공 확인
+
+### QA 검증 요청
+- 컴포넌트: AuditConfigForm maxPages/maxDepth 필드
+- 검증 항목: 키보드 접근 (Tab 이동, 숫자 입력), 스크린리더 (label 연결), 빈 값 처리
+- 관련 KWCAG: 1.3.1 정보와 관계, 2.1.1 키보드 접근, 3.3.2 레이블 또는 설명
+
+---
+
+## /report/[id] Loading/Error UI 추가 (2026-04-09)
+
+### 변경 파일
+- `src/app/report/[id]/loading.tsx` (신규) - Suspense 로딩 UI
+- `src/app/report/[id]/loading.module.css` (신규) - 로딩 스타일
+- `src/app/report/[id]/error.tsx` (신규) - 런타임 에러 바운더리
+- `src/app/report/[id]/error.module.css` (신규) - 에러 스타일
+- `src/app/report/[id]/page.tsx` (수정) - try/catch 에러 처리 보강
+
+### 변경 내용
+
+#### loading.tsx
+- CSS spinner 애니메이션 (CSS 변수 `--c-border`, `--c-primary` 활용)
+- `role="status"` + `aria-label="리포트 로딩 중"` -- 스크린리더가 로딩 상태 인식
+- 인라인 스타일 대신 CSS Module 사용
+
+#### error.tsx
+- `'use client'` 지시어 (Next.js error boundary 필수)
+- `role="alert"` -- 스크린리더가 에러 메시지 즉시 알림
+- SVG 경고 아이콘 `aria-hidden="true"` 처리
+- "다시 시도" 버튼 -- `reset()` 호출로 재렌더링
+- `:focus-visible` 아웃라인으로 키보드 포커스 시각화
+- CSS 변수 활용 (`--c-danger`, `--c-danger-bg`, `--c-primary`, `--c-primary-hover`)
+
+#### page.tsx 개선
+- Notion 환경 변수 미설정 시 `<div>` 반환 대신 `throw new Error` -- error.tsx가 캐치
+- `notionService.getAuditResult()` 호출을 try/catch로 감싸고 상세 에러 메시지 포함
+
+### 빌드 결과
+- TypeScript 타입 체크 통과 (기존 browser-utils.test.ts 에러만 존재, 이번 작업 범위 밖)
+
+### QA 검증 요청
+- 컴포넌트: /report/[id] loading.tsx, error.tsx
+- 검증 항목: 스크린리더(role="status" 로딩 인식, role="alert" 에러 알림), 키보드(다시 시도 버튼 focus-visible), 색상 대비(spinner 색상, 에러 텍스트)
+- 관련 KWCAG: 1.3.1 정보와 관계, 2.1.1 키보드 접근, 4.1.3 상태 메시지

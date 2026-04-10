@@ -320,6 +320,10 @@ export interface GeoData {
     contentQuality: {
       hasSummary: boolean;
       hasKeywords: boolean;
+      hasContactInfo: boolean;
+      hasUrlDeclarations: boolean;
+      hasSocialLinks: boolean;
+      sectionCount: number;
       readabilityScore: number;
       structureScore: number;
     };

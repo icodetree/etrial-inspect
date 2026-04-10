@@ -118,6 +118,33 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
         <small>입력한 경로로 시작하는 URL은 검사에서 제외됩니다.</small>
       </div>
 
+      <div className={styles.row}>
+        <div className="form-group">
+          <label htmlFor="audit-max-pages">최대 페이지 수</label>
+          <input
+            id="audit-max-pages"
+            type="number"
+            placeholder="기본값 (Vercel: 5 / 로컬: 1000)"
+            min={1}
+            max={1000}
+            value={config.maxPages ?? ''}
+            onChange={(e) => setConfig({ ...config, maxPages: parseInt(e.target.value) || undefined })}
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="audit-max-depth">최대 깊이</label>
+          <input
+            id="audit-max-depth"
+            type="number"
+            placeholder="기본값 (Vercel: 2 / 로컬: 10)"
+            min={1}
+            max={20}
+            value={config.maxDepth ?? ''}
+            onChange={(e) => setConfig({ ...config, maxDepth: parseInt(e.target.value) || undefined })}
+          />
+        </div>
+      </div>
+
       <Button
         variant="primary"
         fullWidth

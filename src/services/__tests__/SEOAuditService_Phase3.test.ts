@@ -19,7 +19,7 @@ jest.mock('@/lib/seo-analyzer', () => ({
       technical: { name: '기술 분석', score: 85, issues: [], passed: [], data: {} },
       geo: { name: 'AI 최적화 (GEO)', score: 70, issues: [], passed: [], data: {
         llmsTxt: { exists: true, structure: { hasH1: true, hasH2: true, hasH3: false, paragraphCount: 3, wordCount: 150, codeBlockCount: 0 },
-          contentQuality: { hasSummary: true, hasKeywords: true, readabilityScore: 8, structureScore: 50 }, brokenLinks: [] },
+          contentQuality: { hasSummary: true, hasKeywords: true, hasContactInfo: false, hasUrlDeclarations: false, hasSocialLinks: false, sectionCount: 2, readabilityScore: 8, structureScore: 50 }, brokenLinks: [] },
         robotsAiCrawlers: { googleBot: true, gptBot: true, claudeBot: true, bingBot: true },
         score: 70,
       }},

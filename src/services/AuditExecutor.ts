@@ -57,8 +57,8 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     });
 
   const crawler = new WebCrawler({
-    maxDepth: isVercel ? 2 : 10,
-    maxPages: isVercel ? 5 : 1000,
+    maxDepth: config.maxDepth ?? (isVercel ? 2 : 10),
+    maxPages: config.maxPages ?? (isVercel ? 5 : 1000),
     headless: true,
     // 기본 제외 패턴 + 사용자 제외 경로를 병합 (spread로 덮어쓰기 방지)
     excludePatterns: [

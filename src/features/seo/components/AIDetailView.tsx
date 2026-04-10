@@ -242,11 +242,41 @@ export default function AIDetailView({ result }: AIDetailViewProps) {
                 )}
               </dd>
 
+              <dt className={styles.statusLabel}>연락처 정보</dt>
+              <dd className={styles.statusValue}>
+                {llms.contentQuality.hasContactInfo ? (
+                  <span className={`${styles.badge} ${styles.badgeGood}`}>포함</span>
+                ) : (
+                  <span className={`${styles.badge} ${styles.badgeBad}`}>없음</span>
+                )}
+              </dd>
+
+              <dt className={styles.statusLabel}>URL 선언</dt>
+              <dd className={styles.statusValue}>
+                {llms.contentQuality.hasUrlDeclarations ? (
+                  <span className={`${styles.badge} ${styles.badgeGood}`}>포함</span>
+                ) : (
+                  <span className={`${styles.badge} ${styles.badgeWarning}`}>없음</span>
+                )}
+              </dd>
+
+              <dt className={styles.statusLabel}>소셜 링크</dt>
+              <dd className={styles.statusValue}>
+                {llms.contentQuality.hasSocialLinks ? (
+                  <span className={`${styles.badge} ${styles.badgeGood}`}>포함</span>
+                ) : (
+                  <span className={`${styles.badge} ${styles.badgeWarning}`}>없음</span>
+                )}
+              </dd>
+
+              <dt className={styles.statusLabel}>H2 섹션 수</dt>
+              <dd className={styles.statusValue}>{llms.contentQuality.sectionCount ?? 0}개</dd>
+
               <dt className={styles.statusLabel}>가독성 점수</dt>
-              <dd className={styles.statusValue}>{llms.contentQuality.readabilityScore}/100</dd>
+              <dd className={styles.statusValue}>{llms.contentQuality.readabilityScore}/10</dd>
 
               <dt className={styles.statusLabel}>구조 점수</dt>
-              <dd className={styles.statusValue}>{llms.contentQuality.structureScore}/100</dd>
+              <dd className={styles.statusValue}>{llms.contentQuality.structureScore}/60</dd>
             </>
           )}
         </dl>

@@ -177,3 +177,74 @@ TypeScript 에러 0건
 - 실제 URL 감사 시 `categories.technical.data.coreWebVitals.lcp` 값이 null이 아닌 숫자로 반환되는지 확인
 - `categories.technical.data.httpHeaders.compression` 에 gzip/br 등이 채워지는지 확인
 - LCP/CLS가 빈 배열인 페이지(SPA 등)에서 null로 안전하게 처리되는지 확인
+
+---
+
+## 9. AuditExecutor 크롤링 제한 사용자 설정 지원 (2026-04-09)
+
+### 변경 파일
+- `src/types/index.ts` - AuditConfig에 `maxPages?: number`, `maxDepth?: number` 옵션 필드 추가
+- `src/services/AuditExecutor.ts` - WebCrawler 생성 시 `config.maxPages`, `config.maxDepth` 우선 사용 (nullish coalescing으로 환경별 기본값 fallback)
+
+### 동작
+- 사용자가 값을 입력하면 해당 값 사용
+- 미입력(undefined) 시 기존 환경별 기본값 유지 (Vercel: maxDepth=2/maxPages=5, 로컬: maxDepth=10/maxPages=1000)
+- CONCURRENCY_LIMIT(5)은 고정값 유지
+
+### 빌드 결과
+- `npm run build` 성공, TypeScript 에러 0건
+
+### ui-dev 알림
+- `AuditConfig` 타입에 `maxPages?: number`, `maxDepth?: number` 필드 추가됨
+- AuditConfigForm에서 해당 필드를 폼으로 노출하면 사용자 설정 가능
+
+---
+
+## 10. GEO 분석(analyzeGeo) 고도화 - llms.txt 참조 기반 (2026-04-09)
+
+### 변경 파일
+- `src/types/seo.ts` - GeoData.contentQuality에 4개 필드 추가
+- `src/lib/seo-analyzer.ts` - analyzeGeo 품질 평가/점수/이슈 개선, generateDefaultLlmsTxt 템플릿 개선
+- `src/lib/excel-generator.ts` - GEO 시트에 새 항목 추가
+- `src/features/seo/components/AIDetailView.tsx` - UI에 새 항목 표시
+- `src/services/__tests__/SEOAuditService_Phase3.test.ts` - 테스트 데이터에 새 필드 추가
+
+### GeoData.contentQuality 타입 변경 (ui-dev 알림)
+```typescript
+contentQuality: {
+  hasSummary: boolean;
+  hasKeywords: boolean;
+  hasContactInfo: boolean;     // 신규: 이메일/전화번호 존재 여부
+  hasUrlDeclarations: boolean; // 신규: URL 선언 존재 여부
+  hasSocialLinks: boolean;     // 신규: 소셜 미디어 링크 존재 여부
+  sectionCount: number;        // 신규: H2 섹션 수
+  readabilityScore: number;
+  structureScore: number;
+}
+```
+
+### 점수 체계 변경 (기존 -> 신규)
+- llms.txt 존재: 40점 -> 30점
+- 구조 점수: structureScore>=30이면 20점 -> structureScore>=50이면 20점, >=30이면 10점
+- 섹션 수: 없음 -> sectionCount>=3이면 10점
+- 요약: 10점 -> 5점
+- 연락처: 없음 -> 5점
+- URL 선언: 없음 -> 5점
+- 소셜 링크: 없음 -> 5점
+- 키워드: 10점 -> 0점 (다른 항목으로 재배분)
+- 크롤러 허용: 각 5점 x 4 = 20점 (유지)
+- 합계 최대 100점
+
+### generateDefaultLlmsTxt 개선
+- 기존: 단순 3섹션 템플릿
+- 변경: 실제 llms.txt 참조 구조 반영 (회사 개요, 웹사이트 구조, 주요 서비스, 포트폴리오, 연락처/소셜, 문의 안내)
+
+### 빌드 결과
+- `npm run build` 성공, TypeScript 에러 0건
+
+### QA 검증 포인트
+- llms.txt가 있는 사이트 감사 시 hasContactInfo/hasUrlDeclarations/hasSocialLinks/sectionCount 정상 판별
+- llms.txt가 없는 사이트 감사 시 suggestedContent가 새 템플릿 구조로 생성되는지 확인
+- 점수 체계가 100점 만점으로 정상 동작하는지 확인
+- AIDetailView에서 새 항목(연락처, URL 선언, 소셜 링크, H2 섹션 수) 정상 표시
+- Excel 보고서에 새 항목 포함 여부 확인
