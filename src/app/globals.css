@@ -219,6 +219,10 @@ input:focus, select:focus, textarea:focus {
 .form-group select,
 .form-group textarea { width: 100%; }
 
+.form-group span + label {
+  margin-bottom:0;
+}
+
 /* Toggle */
 .toggle-container { display: flex; align-items: center; gap: 0.75rem; }
 .toggle {

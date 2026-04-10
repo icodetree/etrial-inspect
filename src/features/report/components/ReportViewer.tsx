@@ -113,34 +113,37 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
         {/* Row 1: Title & Main Link */}
         <div className={styles['header-row']}>
           <div>
-            <h1 className={styles['report-title']}>📊 접근성 진단 리포트</h1>
+            <h1 className={styles['report-title']}>접근성 진단 리포트</h1>
             <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>
               진단 시간: {new Date(result.endTime).toLocaleString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
             </p>
           </div>
-          <a href="/" className="btn btn-secondary">
-            ← 메인으로
-          </a>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <a href="/" className="btn btn-secondary">
+              ← 메인으로
+            </a>
+            <button className="btn btn-secondary" onClick={handlePrint}>
+              인쇄
+            </button>
+          </div>
         </div>
 
 
         {/* Row 2: Action Buttons */}
         <div className={styles['action-row']}>
           <button className={`btn btn-warning ${styles['btn-warning-custom']}`} onClick={() => setShowCostModal(true)}>
-            💰 공수 산출
+            공수 산출
           </button>
           <button className="btn btn-success" onClick={handleExportExcel}>
-            📥 엑셀 다운로드
+            엑셀 다운로드
           </button>
           <button className={`btn btn-info ${styles['btn-info-custom']}`} onClick={handleExportJSON}>
-            📄 JSON 다운로드
-          </button>
-          <button className="btn btn-secondary" onClick={handlePrint}>
-            🖨️ 인쇄
+            JSON 다운로드
           </button>
           <a href="/report/checklist" className="btn btn-primary">
-            📋 33개 체크리스트
+            33개 체크리스트
           </a>
+
         </div>
       </header>
 
@@ -172,19 +175,19 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
               onClick={() => setActiveView('accessibility')}
               className={`${styles['tab-btn']} ${activeView === 'accessibility' ? styles['active-accessibility'] : ''}`}
             >
-              ♿ 접근성 분석
+              접근성 분석
             </button>
             <button
               onClick={() => setActiveView('seo')}
               className={`${styles['tab-btn']} ${activeView === 'seo' ? styles['active-seo'] : ''}`}
             >
-              🗺️ SEO 종합 분석
+              SEO 종합 분석
             </button>
             <button
               onClick={() => setActiveView('ai')}
               className={`${styles['tab-btn']} ${activeView === 'ai' ? styles['active-ai'] : ''}`}
             >
-              🤖 AI 최적화
+              AI 최적화
             </button>
           </div>
 
