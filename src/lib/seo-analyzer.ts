@@ -425,8 +425,9 @@ async function analyzeSocial(page: Page): Promise<SEOCategory<SocialData>> {
 async function analyzeContent(page: Page): Promise<SEOCategory<ContentData>> {
   const start = Date.now();
   const data = await page.evaluate(() => {
-    const bodyText = document.body.innerText || '';
-    const bodyHtml = document.body.innerHTML || '';
+    const body = document.body;
+    const bodyText = body ? (body.innerText || '') : '';
+    const bodyHtml = body ? (body.innerHTML || '') : '';
     const words = bodyText.split(/\s+/).filter(w => w.length > 0);
     const koreanWords = words.filter(w => /[\uAC00-\uD7A3]/.test(w)).length;
     const englishWords = words.filter(w => /^[a-zA-Z]+$/.test(w)).length;

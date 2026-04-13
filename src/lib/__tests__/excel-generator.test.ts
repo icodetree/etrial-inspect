@@ -96,7 +96,7 @@ function makeSEOResult(): SEOAuditResult {
         total: 3, images: [], stats: {
           missingAlt: 1, emptyAlt: 0, withTitle: 0, lazyLoading: 0,
           missingDimensions: 1, webpFormat: 0, avifFormat: 0,
-          largeFiles: 0, veryLargeFiles: 0, totalSize: 0,
+          meaningfulFilenames: 0, largeImages: 0, veryLargeImages: 0, totalSize: 0, avgSize: 0,
         },
       }},
       link: { name: '링크', score: 85, issues: [], passed: [], data: {} as any },
@@ -120,9 +120,10 @@ function makeSEOResult(): SEOAuditResult {
 // ---------------------------------------------------------------------------
 
 /** Buffer를 ExcelJS Workbook으로 파싱한다 */
-async function parseExcelBuffer(buffer: Buffer): Promise<ExcelJS.Workbook> {
+async function parseExcelBuffer(buffer: Buffer<ArrayBufferLike>): Promise<ExcelJS.Workbook> {
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await wb.xlsx.load(buffer as any);
   return wb;
 }
 
