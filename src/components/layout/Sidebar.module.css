@@ -41,13 +41,13 @@
 }
 
 .navItemActive {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--c-primary-bg);
+  color: var(--c-primary);
 }
 
 .navItemActive:hover {
-  background: #dbeafe;
-  color: #2563eb;
+  background: var(--c-primary-bg);
+  color: var(--c-primary);
 }
 
 .bottomArea {
@@ -65,7 +65,7 @@
 }
 
 .upgradeCard {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  background: linear-gradient(135deg, #F97316 0%, #EA580C 100%);
   border-radius: 10px;
   padding: 14px;
   color: #fff;
@@ -90,7 +90,7 @@
 .upgradeBtn {
   width: 100%;
   background: #fff;
-  color: #2563eb;
+  color: var(--c-primary);
   border: none;
   border-radius: 7px;
   padding: 7px 0;
@@ -101,5 +101,5 @@
 }
 
 .upgradeBtn:hover {
-  background: #eff6ff;
+  background: var(--c-primary-bg);
 }

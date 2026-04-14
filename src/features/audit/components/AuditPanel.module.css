@@ -1,0 +1,156 @@
+/* ============================================
+   AuditPanel — 하단 고정 진단 진행 패널
+   ============================================ */
+
+.panel {
+  position: fixed;
+  bottom: 0;
+  left: 220px;
+  right: 0;
+  z-index: 40;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(0);
+  transition: transform 0.3s ease-in-out;
+}
+
+.panelHidden {
+  display: none;
+}
+
+.panelEnter {
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* 헤더 바 — 항상 표시 */
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: #f9fafb;
+  cursor: pointer;
+  border-bottom: 1px solid #e5e7eb;
+  user-select: none;
+}
+
+.panelHeader:hover {
+  background: #f3f4f6;
+}
+
+/* 상태 표시 영역 */
+.panelStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.statusIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.statusText {
+  white-space: nowrap;
+}
+
+.progressInfo {
+  color: #6b7280;
+  font-weight: 400;
+  font-size: 0.8125rem;
+  margin-left: 4px;
+}
+
+/* 상태별 색상 */
+.statusCrawling {
+  color: var(--c-primary);
+}
+
+.statusAuditing {
+  color: var(--c-warning-em);
+}
+
+.statusPolling {
+  color: var(--c-primary);
+}
+
+.statusCompleted {
+  color: var(--c-success);
+}
+
+.statusError {
+  color: var(--c-danger);
+}
+
+/* 아이콘 회전 애니메이션 */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 액션 버튼 영역 */
+.panelActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.iconButton:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+
+/* 확장 콘텐츠 영역 */
+.panelBody {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* 반응형 — 모바일에서 사이드바 없음 */
+@media (max-width: 900px) {
+  .panel {
+    left: 0;
+  }
+}

@@ -5,11 +5,38 @@
   border-radius: 8px;
   border: 1px solid #e9ecef;
 
+  .historyHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
   .historyTitle {
     font-size: 1.2rem;
     font-weight: 700;
-    margin-bottom: 1.5rem;
     color: #333;
+    margin: 0;
+  }
+
+  .btnNotion {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.4rem 0.875rem;
+    background: var(--c-primary-bg);
+    color: var(--c-primary);
+    border: 1px solid var(--c-primary);
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.15s;
+
+    &:hover {
+      background: #FFEDD5;
+      text-decoration: none;
+    }
   }
 
   .loading,
@@ -61,7 +88,7 @@
       }
 
       .score {
-        color: #4c6ef5;
+        color: var(--c-primary);
         font-weight: 600;
       }
 
@@ -76,15 +103,15 @@
 
       .btnLink {
         padding: 0.4rem 0.8rem;
-        background-color: #e7f5ff;
-        color: #228be6;
+        background-color: var(--c-primary-bg);
+        color: var(--c-primary);
         border-radius: 4px;
         text-decoration: none;
         font-size: 0.9rem;
         font-weight: 500;
 
         &:hover {
-          background-color: #d0ebff;
+          background-color: #FFEDD5;
         }
       }
 

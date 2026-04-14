@@ -130,18 +130,18 @@
 }
 
 .tab:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 
 .tabActive {
-  background: #2563eb;
+  background: var(--c-primary);
   color: #fff;
-  border-color: #2563eb;
+  border-color: var(--c-primary);
 }
 
 .tabActive:hover {
-  background: #1d4ed8;
+  background: var(--c-primary-hover);
   color: #fff;
 }
 
@@ -180,13 +180,13 @@
 }
 
 .categoryCard:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 
 .categoryCardActive {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.15);
 }
 
 .cardTop {
@@ -276,7 +276,7 @@
 }
 
 .detailClose:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 
@@ -337,8 +337,8 @@
 }
 
 .issueInfo {
-  background: #eff6ff;
-  border-left: 3px solid #3b82f6;
+  background: var(--c-primary-bg);
+  border-left: 3px solid var(--c-primary);
 }
 
 .issueSeverity {
@@ -385,7 +385,7 @@
 }
 
 .passedToggle:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 

@@ -270,8 +270,8 @@
 }
 
 .issueInfo {
-  background: #eff6ff;
-  border-left: 3px solid #3b82f6;
+  background: var(--c-primary-bg);
+  border-left: 3px solid var(--c-primary);
 }
 
 .issueSeverity {
@@ -339,7 +339,7 @@
 }
 
 .aiButton {
-  background: #2563eb;
+  background: var(--c-primary);
   color: white;
   border: none;
   padding: 0.625rem 1.125rem;
@@ -354,11 +354,11 @@
 }
 
 .aiButton:hover {
-  background: #1d4ed8;
+  background: var(--c-primary-hover);
 }
 
 .aiButton:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 
@@ -394,7 +394,7 @@
 }
 
 .passedToggle:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 

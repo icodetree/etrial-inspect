@@ -86,9 +86,14 @@ export function Sidebar() {
         <ul className={styles.bottomList} role="list">
           {bottomNav.map((item) => {
             const Icon = item.icon;
+            const active = isActive(item.href);
             return (
               <li key={item.href}>
-                <Link href={item.href} className={styles.navItem}>
+                <Link
+                  href={item.href}
+                  className={`${styles.navItem} ${active ? styles.navItemActive : ''}`}
+                  aria-current={active ? 'page' : undefined}
+                >
                   <Icon size={17} aria-hidden="true" />
                   {item.label}
                 </Link>

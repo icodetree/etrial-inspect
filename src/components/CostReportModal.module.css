@@ -72,7 +72,7 @@
   font-weight: 600;
   color: #334155;
   margin-bottom: 1rem;
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid var(--c-primary);
   padding-left: 0.75rem;
 }
 
@@ -138,13 +138,13 @@
 
 .mm-badge {
   display: inline-block;
-  background: #3b82f6;
+  background: var(--c-primary);
   color: white;
   padding: 0.2rem 0.6rem;
   border-radius: 9999px;
   font-size: 0.85rem;
   margin-left: 0.5rem;
-  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 2px 4px rgba(249, 115, 22, 0.3);
 }
 
 /* Recommendations Grid */
@@ -190,7 +190,7 @@
 }
 
 .confirm-btn {
-  background: #3b82f6;
+  background: var(--c-primary);
   color: white;
   padding: 0.75rem 2rem;
   border: none;
@@ -201,5 +201,5 @@
 }
 
 .confirm-btn:hover {
-  background: #2563eb;
+  background: var(--c-primary-hover);
 }

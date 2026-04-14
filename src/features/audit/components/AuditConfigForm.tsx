@@ -15,47 +15,62 @@ interface AuditConfigFormProps {
 export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isProcessing }: AuditConfigFormProps) => {
   return (
     <Card className={styles.card} title="">
-      <div className="form-group">
-        <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-          대상 URL
-          <Asterisk size={10} color="#ef4444" strokeWidth={3} aria-label="필수 입력" style={{ marginBottom: '2px' }} />
-        </label>
-        <input
-          type="url"
-          placeholder="https://example.com"
-          value={config.targetUrl}
-          onChange={(e) => setConfig({ ...config, targetUrl: e.target.value })}
-        />
-      </div>
+      {/* 섹션 1: 대상 설정 */}
+      <fieldset className={styles.formSection}>
+        <legend className={styles.formSectionLegend}>대상 설정</legend>
 
-      <div className="form-group">
-        <div className="toggle-container">
-          <span
-            className={`toggle ${config.enableLogin ? 'active' : ''}`}
-            onClick={() => setConfig({ ...config, enableLogin: !config.enableLogin })}
-          />
-          <label className={styles['no-margin']}>로그인 필요</label>
-        </div>
-      </div>
-
-      {config.enableLogin && (
         <div className="form-group">
-          <label>로그인 URL</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            대상 URL
+            <Asterisk size={10} color="#ef4444" strokeWidth={3} aria-label="필수 입력" style={{ marginBottom: '2px' }} />
+          </label>
           <input
             type="url"
-            placeholder="https://example.com/login"
-            value={config.loginUrl}
-            onChange={(e) => setConfig({ ...config, loginUrl: e.target.value })}
+            placeholder="https://example.com"
+            value={config.targetUrl}
+            onChange={(e) => setConfig({ ...config, targetUrl: e.target.value })}
           />
-          <p className={styles['login-warning']}>
-            ⚠️ 검사가 시작되면 브라우저 창이 열립니다. 로그인 완료 후 <b>창을 닫아주세요</b>. 창을 닫으면 자동으로 검사가 시작됩니다.
-          </p>
         </div>
-      )}
 
-      {/* 진단 항목 선택 */}
-      <div className="form-group">
-        <label className={styles['form-label']}>진단 항목 선택</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+            <label>플랫폼</label>
+            <select
+              value={config.platform}
+              onChange={(e) => setConfig({ ...config, platform: e.target.value as 'PC' | 'Mobile' })}
+            >
+              <option value="PC">PC</option>
+              <option value="Mobile">Mobile</option>
+            </select>
+          </div>
+          <div className="toggle-container">
+            <span
+              className={`toggle ${config.enableLogin ? 'active' : ''}`}
+              onClick={() => setConfig({ ...config, enableLogin: !config.enableLogin })}
+            />
+            <label className={styles['no-margin']}>로그인 필요</label>
+          </div>
+        </div>
+
+        {config.enableLogin && (
+          <div className="form-group">
+            <label>로그인 URL</label>
+            <input
+              type="url"
+              placeholder="https://example.com/login"
+              value={config.loginUrl}
+              onChange={(e) => setConfig({ ...config, loginUrl: e.target.value })}
+            />
+            <p className={styles['login-warning']}>
+              ⚠️ 검사가 시작되면 브라우저 창이 열립니다. 로그인 완료 후 <b>창을 닫아주세요</b>. 창을 닫으면 자동으로 검사가 시작됩니다.
+            </p>
+          </div>
+        )}
+      </fieldset>
+
+      {/* 섹션 2: 진단 옵션 */}
+      <fieldset className={styles.formSection}>
+        <legend className={styles.formSectionLegend}>진단 옵션</legend>
 
         <div className="toggle-container" style={{ marginBottom: '0.5rem' }}>
           <span
@@ -80,19 +95,56 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
           />
           <label className={styles['no-margin']}>AI 친화도 (llms.txt, GEO)</label>
         </div>
-      </div>
+      </fieldset>
 
-      <div className={styles.row}>
-        <div className="form-group">
-          <label>플랫폼</label>
-          <select
-            value={config.platform}
-            onChange={(e) => setConfig({ ...config, platform: e.target.value as 'PC' | 'Mobile' })}
-          >
-            <option value="PC">PC</option>
-            <option value="Mobile">Mobile</option>
-          </select>
+      {/* 섹션 3: 크롤링 설정 */}
+      <fieldset className={styles.formSection}>
+        <legend className={styles.formSectionLegend}>크롤링 설정</legend>
+
+        <div className={styles.row}>
+          <div className="form-group">
+            <label htmlFor="audit-max-pages">최대 페이지 수</label>
+            <input
+              id="audit-max-pages"
+              type="number"
+              placeholder="기본값 (Vercel: 5 / 로컬: 1000)"
+              min={1}
+              max={1000}
+              value={config.maxPages ?? ''}
+              onChange={(e) => setConfig({ ...config, maxPages: parseInt(e.target.value) || undefined })}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="audit-max-depth">최대 깊이</label>
+            <input
+              id="audit-max-depth"
+              type="number"
+              placeholder="기본값 (Vercel: 2 / 로컬: 10)"
+              min={1}
+              max={20}
+              value={config.maxDepth ?? ''}
+              onChange={(e) => setConfig({ ...config, maxDepth: parseInt(e.target.value) || undefined })}
+            />
+          </div>
         </div>
+
+        <div className="form-group">
+          <label>제외 경로</label>
+          <textarea
+            placeholder={`제외할 경로를 한 줄씩 입력하세요.\n예시:\n/eng\n/kr/old`}
+            value={config.excludePaths || ''}
+            onChange={(e) => setConfig({ ...config, excludePaths: e.target.value })}
+            rows={3}
+            style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
+          />
+          <small>입력한 경로로 시작하는 URL은 검사에서 제외됩니다.</small>
+        </div>
+      </fieldset>
+
+      {/* 섹션 4: 기타 */}
+      <fieldset className={styles.formSection}>
+        <legend className={styles.formSectionLegend}>기타</legend>
+
         <div className="form-group">
           <label>점검자</label>
           <input
@@ -102,48 +154,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
             onChange={(e) => setConfig({ ...config, inspector: e.target.value })}
           />
         </div>
-      </div>
-
-
-
-      <div className="form-group">
-        <label>제외 경로</label>
-        <textarea
-          placeholder={`제외할 경로를 한 줄씩 입력하세요.\n예시:\n/eng\n/kr/old`}
-          value={config.excludePaths || ''}
-          onChange={(e) => setConfig({ ...config, excludePaths: e.target.value })}
-          rows={3}
-          style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
-        />
-        <small>입력한 경로로 시작하는 URL은 검사에서 제외됩니다.</small>
-      </div>
-
-      <div className={styles.row}>
-        <div className="form-group">
-          <label htmlFor="audit-max-pages">최대 페이지 수</label>
-          <input
-            id="audit-max-pages"
-            type="number"
-            placeholder="기본값 (Vercel: 5 / 로컬: 1000)"
-            min={1}
-            max={1000}
-            value={config.maxPages ?? ''}
-            onChange={(e) => setConfig({ ...config, maxPages: parseInt(e.target.value) || undefined })}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="audit-max-depth">최대 깊이</label>
-          <input
-            id="audit-max-depth"
-            type="number"
-            placeholder="기본값 (Vercel: 2 / 로컬: 10)"
-            min={1}
-            max={20}
-            value={config.maxDepth ?? ''}
-            onChange={(e) => setConfig({ ...config, maxDepth: parseInt(e.target.value) || undefined })}
-          />
-        </div>
-      </div>
+      </fieldset>
 
       <Button
         variant="primary"

@@ -1,0 +1,92 @@
+/* ============================================
+   설정 페이지 전용 스타일
+   ============================================ */
+
+.pageTitle {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--c-fg, #1f2328);
+  margin-bottom: 0.25rem;
+}
+
+.pageDesc {
+  color: var(--c-fg-muted, #636c76);
+  font-size: 0.9375rem;
+  margin-bottom: 2rem;
+}
+
+.sectionTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--c-fg, #1f2328);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid var(--c-border, #d0d7de);
+}
+
+/* 연동 상태 뱃지 */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.statusConnected {
+  background: var(--c-success-bg, #dafbe1);
+  color: var(--c-success, #1a7f37);
+}
+
+.statusDisconnected {
+  background: #f3f4f6;
+  color: var(--c-fg-muted, #636c76);
+}
+
+/* 연동 상태 행 */
+.integrationRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.integrationRow:last-child {
+  border-bottom: none;
+}
+
+.integrationLabel {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+/* 설정 항목 행 */
+.settingRow {
+  margin-bottom: 1.25rem;
+}
+
+.settingRow:last-child {
+  margin-bottom: 0;
+}
+
+/* 도움 텍스트 */
+.helpText {
+  font-size: 0.8125rem;
+  color: var(--c-fg-muted, #636c76);
+  margin-top: 0.25rem;
+}
+
+/* 카드 간격 */
+.sectionCard {
+  margin-bottom: 1.5rem;
+}
+
+/* 초기화 버튼 영역 */
+.resetArea {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: flex-end;
+}

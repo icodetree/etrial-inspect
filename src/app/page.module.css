@@ -104,3 +104,28 @@
   :global(.stat-card) { padding:.5rem!important; border:1px solid #ccc!important; }
   :global(.stat-label) { font-size:.7rem!important; color:#000!important; }
 }
+
+/* ============================================
+   폼 섹션 (fieldset/legend) 스타일
+   ============================================ */
+.formSection {
+  border: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--c-border, #e5e7eb);
+}
+.formSection:last-of-type {
+  border-bottom: none;
+  margin-bottom: 1rem;
+  padding-bottom: 0;
+}
+.formSectionLegend {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--c-fg-muted, #636c76);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 1rem;
+  padding: 0;
+}

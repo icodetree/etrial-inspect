@@ -26,7 +26,7 @@ interface SEODetailViewProps {
 /* ── 유틸 ── */
 
 function getScoreColor(score: number): string {
-  if (score >= 90) return '#3b82f6';
+  if (score >= 90) return '#F97316';
   if (score >= 70) return '#22c55e';
   if (score >= 50) return '#f59e0b';
   return '#ef4444';
@@ -255,7 +255,7 @@ function IssueItem({ issue }: { issue: SEOIssue }) {
       ? '#ef4444'
       : issue.severity === 'warning'
         ? '#f59e0b'
-        : '#3b82f6';
+        : '#F97316';
 
   return (
     <div className={`${styles.issueItem} ${severityStyle}`} role="listitem">

@@ -56,10 +56,19 @@ export function HistoryList({ refreshTrigger }: HistoryListProps) {
 
   if (isLoading) return <div className={styles.loading}>히스토리 불러오는 중...</div>;
 
+  const notionDbUrl = process.env.NEXT_PUBLIC_NOTION_URL || null;
+
   if (history.length === 0) {
     return (
       <div className={styles.historyWrap}>
-        <h3 className={styles.historyTitle}>📋 진단 이력 (Notion)</h3>
+        <div className={styles.historyHeader}>
+          <h3 className={styles.historyTitle}>진단 이력</h3>
+          {notionDbUrl && (
+            <a href={notionDbUrl} target="_blank" rel="noopener noreferrer" className={styles.btnNotion}>
+              Notion DB 보기 →
+            </a>
+          )}
+        </div>
         <div className={styles.emptyState}>저장된 이력이 없습니다.</div>
       </div>
     );
@@ -67,7 +76,14 @@ export function HistoryList({ refreshTrigger }: HistoryListProps) {
 
   return (
     <div className={styles.historyWrap}>
-      <h3 className={styles.historyTitle}>📋 진단 이력 (Notion)</h3>
+      <div className={styles.historyHeader}>
+        <h3 className={styles.historyTitle}>진단 이력</h3>
+        {notionDbUrl && (
+          <a href={notionDbUrl} target="_blank" rel="noopener noreferrer" className={styles.btnNotion}>
+            Notion DB 보기 →
+          </a>
+        )}
+      </div>
       <div className={styles.historyList}>
         {history.map(item => (
           <div key={item.id} className={styles.historyItem}>
@@ -78,15 +94,9 @@ export function HistoryList({ refreshTrigger }: HistoryListProps) {
               <span className={styles.violations}>위반 {item.violationCount}건</span>
             </div>
             <div className={styles.itemActions}>
-              {/* Notion 페이지 ID 기반 상세 리포트 */}
               <a href={`/report/${item.id}`} className={styles.btnLink}>
                 리포트 보기
               </a>
-              {item.reportLink && (
-                <a href={item.reportLink} target="_blank" rel="noopener noreferrer" className={styles.btnLink}>
-                  Notion
-                </a>
-              )}
               <button
                 onClick={() => handleDelete(item.id)}
                 className={styles.btnDelete}

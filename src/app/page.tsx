@@ -2,7 +2,7 @@
 
 import { useAudit } from '@/features/audit/hooks/useAudit';
 import { AuditConfigForm } from '@/features/audit/components/AuditConfigForm';
-import { AuditTerminal } from '@/features/audit/components/AuditTerminal';
+import { AuditPanel } from '@/features/audit/components/AuditPanel';
 import { HistoryList } from '@/features/history/components/HistoryList';
 import { useRouter } from 'next/navigation';
 import { useState, useCallback } from 'react';
@@ -139,35 +139,33 @@ export default function Home() {
         })}
       </div>
 
-      {/* 설정 + 터미널 2열 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        <section aria-label="진단 설정">
-          <AuditConfigForm
-            config={config}
-            setConfig={setConfig}
-            onStart={startAudit}
-            onGitHubStart={triggerGitHubAudit}
-            isProcessing={isProcessing}
-          />
-        </section>
-        <section aria-label="진단 로그">
-          <AuditTerminal
-            logs={logs}
-            progress={progress}
-            onExport={exportExcel}
-            onSaveToNotion={() => { if (auditResult) handleSaveToNotion(); }}
-            resultSummary={results}
-            latestReportId={latestReportId}
-            wasGitHubAudit={wasGitHubAudit}
-            onViewLatestReport={handleViewLatestReport}
-          />
-        </section>
-      </div>
+      {/* 진단 설정 */}
+      <section aria-label="진단 설정" style={{ maxWidth: '700px', marginBottom: '1.5rem' }}>
+        <AuditConfigForm
+          config={config}
+          setConfig={setConfig}
+          onStart={startAudit}
+          onGitHubStart={triggerGitHubAudit}
+          isProcessing={isProcessing}
+        />
+      </section>
 
       {/* 진단 이력 */}
       <section id="history" aria-label="진단 이력">
         <HistoryList refreshTrigger={historyRefreshTrigger} />
       </section>
+
+      {/* 진단 진행 패널 (하단 고정) */}
+      <AuditPanel
+        logs={logs}
+        progress={progress}
+        onExport={exportExcel}
+        onSaveToNotion={() => { if (auditResult) handleSaveToNotion(); }}
+        resultSummary={results}
+        latestReportId={latestReportId}
+        wasGitHubAudit={wasGitHubAudit}
+        onViewLatestReport={handleViewLatestReport}
+      />
     </div>
   );
 }

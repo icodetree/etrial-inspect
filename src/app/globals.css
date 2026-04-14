@@ -8,8 +8,8 @@
   --foreground: 222.2 84% 4.9%;
   --card: 0 0% 100%;
   --card-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
+  --primary: 25 95% 53%;
+  --primary-foreground: 0 0% 100%;
   --secondary: 210 40% 96.1%;
   --secondary-foreground: 222.2 47.4% 11.2%;
   --muted: 210 40% 96.1%;
@@ -20,7 +20,7 @@
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  --ring: 25 95% 53%;
   --radius: 0.5rem;
   --sidebar-background: 0 0% 98%;
   --sidebar-foreground: 240 5.3% 26.1%;
@@ -39,9 +39,9 @@
   --c-fg-muted: #636c76;
   --c-fg-subtle: #6e7781;
   --c-border: #d0d7de;
-  --c-primary: #0969da;
-  --c-primary-hover: #0550ae;
-  --c-primary-bg: #ddf4ff;
+  --c-primary: #F97316;
+  --c-primary-hover: #EA580C;
+  --c-primary-bg: #FFF7ED;
   --c-success: #1a7f37;
   --c-success-bg: #dafbe1;
   --c-danger: #cf222e;
@@ -119,7 +119,7 @@ select {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--c-primary);
-  box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.25);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.25);
 }
 
 /* ===================================================
@@ -139,6 +139,7 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid var(--c-border);
   border-radius: 8px;
   padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 
 /* Buttons */

@@ -109,7 +109,7 @@
 
 .open-link-btn {
   padding: 8px 16px;
-  background-color: #3b82f6;
+  background-color: var(--c-primary);
   color: white;
   border-radius: 6px;
   text-decoration: none;
@@ -118,5 +118,5 @@
 }
 
 .open-link-btn:hover {
-  background-color: #2563eb;
+  background-color: var(--c-primary-hover);
 }
