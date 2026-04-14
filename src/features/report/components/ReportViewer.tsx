@@ -107,6 +107,44 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
     }
   };
 
+  const [pdfExporting, setPdfExporting] = useState(false);
+
+  const handleExportPDF = async () => {
+    if (!result || pdfExporting) return;
+    setPdfExporting(true);
+    try {
+      const response = await fetch('/api/report/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          result,
+          options: {
+            title: '웹 접근성 진단 보고서',
+            includeScreenshots: true,
+          },
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'PDF 생성 실패' }));
+        throw new Error(err.error || 'PDF 생성 실패');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const domain = result.pages?.[0]?.url ? new URL(result.pages[0].url).hostname : 'report';
+      a.download = `accessibility-report-${domain}-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (error) {
+      alert(`PDF 다운로드 실패: ${error}`);
+    } finally {
+      setPdfExporting(false);
+    }
+  };
+
   return (
     <div className="container">
       <header className={`${styles['report-header']} ${styles['report-header-column']}`}>
@@ -139,6 +177,13 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
           </button>
           <button className={`btn btn-info ${styles['btn-info-custom']}`} onClick={handleExportJSON}>
             JSON 다운로드
+          </button>
+          <button
+            className={`btn ${styles['btn-pdf-custom']}`}
+            onClick={handleExportPDF}
+            disabled={pdfExporting}
+          >
+            {pdfExporting ? 'PDF 생성 중...' : 'PDF 보고서'}
           </button>
           <a href="/report/checklist" className="btn btn-primary">
             33개 체크리스트
@@ -181,13 +226,13 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
               onClick={() => setActiveView('seo')}
               className={`${styles['tab-btn']} ${activeView === 'seo' ? styles['active-seo'] : ''}`}
             >
-              SEO 종합 분석
+              SEO 분석
             </button>
             <button
               onClick={() => setActiveView('ai')}
               className={`${styles['tab-btn']} ${activeView === 'ai' ? styles['active-ai'] : ''}`}
             >
-              AI 최적화
+              GEO 분석
             </button>
           </div>
 
@@ -317,9 +362,20 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
                       )}
                     </p>
                   </div>
-                  <span className={`badge badge-${violation.impact}`}>
-                    {impactLabels[violation.impact] || violation.impact}
-                  </span>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                    {violation.screenshotPath && (
+                      <button
+                        onClick={() => setSelectedViolation(violation)}
+                        className={styles['screenshot-btn']}
+                        title="스크린샷 보기"
+                      >
+                        📷 스크린샷
+                      </button>
+                    )}
+                    <span className={`badge badge-${violation.impact}`}>
+                      {impactLabels[violation.impact] || violation.impact}
+                    </span>
+                  </div>
                 </div>
 
                 <p className={styles['violation-description']}>{violation.description}</p>
