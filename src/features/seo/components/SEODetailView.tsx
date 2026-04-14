@@ -187,11 +187,10 @@ function PageSummary({ result }: { result: SEOAnalysisResult }) {
 interface CategoryCardProps {
   catDef: CategoryDef;
   category: AnySEOCategory;
-  isActive: boolean;
   onClick: () => void;
 }
 
-function CategoryCard({ catDef, category, isActive, onClick }: CategoryCardProps) {
+function CategoryCard({ catDef, category, onClick }: CategoryCardProps) {
   const score = category.score ?? 0;
   const color = getScoreColor(score);
   const label = getScoreLabel(score);
@@ -204,9 +203,8 @@ function CategoryCard({ catDef, category, isActive, onClick }: CategoryCardProps
   return (
     <button
       type="button"
-      className={`${styles.categoryCard} ${isActive ? styles.categoryCardActive : ''}`}
+      className={styles.categoryCard}
       onClick={onClick}
-      aria-expanded={isActive}
       aria-label={`${catDef.label} 카테고리, 점수 ${score}점, ${label}`}
     >
       <div className={styles.cardTop}>
@@ -306,6 +304,8 @@ function PassedSection({ passed }: { passed: SEOPassed[] }) {
 function CategoryDetail({ catDef, category, onClose }: CategoryDetailProps) {
   const issues = category.issues ?? [];
   const passed = category.passed ?? [];
+  const score = category.score ?? 0;
+  const Icon = catDef.icon;
 
   return (
     <section
@@ -313,15 +313,24 @@ function CategoryDetail({ catDef, category, onClose }: CategoryDetailProps) {
       aria-label={`${catDef.label} 상세 분석`}
     >
       <div className={styles.detailHeader}>
-        <h3 className={styles.detailTitle}>{catDef.label} 상세</h3>
         <button
           type="button"
           className={styles.detailClose}
           onClick={onClose}
-          aria-label="상세 패널 닫기"
+          aria-label="전체 목록으로 돌아가기"
         >
-          닫기
+          ← 전체
         </button>
+        <h3 className={styles.detailTitle}>{catDef.label} 상세</h3>
+      </div>
+
+      {/* 점수 요약 */}
+      <div className={styles.detailSummary}>
+        <Icon size={24} aria-hidden="true" />
+        <span className={styles.detailScoreValue} style={{ color: getScoreColor(score) }}>
+          {score}
+        </span>
+        <span className={styles.detailScoreLabel}>{getScoreLabel(score)}</span>
       </div>
 
       {issues.length > 0 && (
@@ -348,7 +357,6 @@ function CategoryDetail({ catDef, category, onClose }: CategoryDetailProps) {
 
 export default function SEODetailView({ result }: SEODetailViewProps) {
   const [activeTab, setActiveTab] = useState('전체');
-  const [selectedKey, setSelectedKey] = useState<CategoryKey | null>(null);
 
   const cats = result.categories;
   if (!cats) return null;
@@ -359,11 +367,11 @@ export default function SEODetailView({ result }: SEODetailViewProps) {
 
   const totalCategories = availableCategories.length;
 
-  // 탭 필터링
-  const visibleCategories =
-    activeTab === '전체'
-      ? availableCategories
-      : availableCategories.filter((c) => c.label === activeTab);
+  // 활성 카테고리 (전체가 아닌 경우)
+  const activeCatDef = activeTab !== '전체'
+    ? CATEGORIES.find((c) => c.label === activeTab) ?? null
+    : null;
+  const activeCatData: AnySEOCategory | null = activeCatDef ? cats[activeCatDef.key] : null;
 
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -386,21 +394,15 @@ export default function SEODetailView({ result }: SEODetailViewProps) {
       if (nextIndex !== null) {
         e.preventDefault();
         setActiveTab(TAB_ITEMS[nextIndex]);
-        setSelectedKey(null);
         tabRefs.current[nextIndex]?.focus();
       }
     },
     [],
   );
 
-  const handleCardClick = (key: CategoryKey) => {
-    setSelectedKey(selectedKey === key ? null : key);
+  const handleCardClick = (catDef: CategoryDef) => {
+    setActiveTab(catDef.label);
   };
-
-  const selectedDef = selectedKey
-    ? CATEGORIES.find((c) => c.key === selectedKey)
-    : null;
-  const selectedCategory: AnySEOCategory | null = selectedKey ? cats[selectedKey] : null;
 
   return (
     <div className={styles.container}>
@@ -435,7 +437,6 @@ export default function SEODetailView({ result }: SEODetailViewProps) {
             tabIndex={activeTab === tab ? 0 : -1}
             onClick={() => {
               setActiveTab(tab);
-              setSelectedKey(null);
             }}
             onKeyDown={(e) => handleTabKeyDown(e, index)}
           >
@@ -444,36 +445,36 @@ export default function SEODetailView({ result }: SEODetailViewProps) {
         ))}
       </div>
 
-      {/* 카테고리 카드 그리드 (탭패널) */}
+      {/* 탭패널: 전체=카드그리드, 개별=상세페이지 */}
       <div
         role="tabpanel"
         id={`seo-tabpanel-${activeTab}`}
         aria-labelledby={`seo-tab-${activeTab}`}
-        className={styles.categoryGrid}
+        className={activeTab === '전체' ? styles.categoryGrid : undefined}
       >
-        {visibleCategories.map((catDef) => {
-          const category = cats[catDef.key];
-          if (!category) return null;
-          return (
-            <CategoryCard
-              key={catDef.key}
-              catDef={catDef}
-              category={category}
-              isActive={selectedKey === catDef.key}
-              onClick={() => handleCardClick(catDef.key)}
+        {activeTab === '전체' ? (
+          availableCategories.map((catDef) => {
+            const category = cats[catDef.key];
+            if (!category) return null;
+            return (
+              <CategoryCard
+                key={catDef.key}
+                catDef={catDef}
+                category={category}
+                onClick={() => handleCardClick(catDef)}
+              />
+            );
+          })
+        ) : (
+          activeCatDef && activeCatData && (
+            <CategoryDetail
+              catDef={activeCatDef}
+              category={activeCatData}
+              onClose={() => setActiveTab('전체')}
             />
-          );
-        })}
+          )
+        )}
       </div>
-
-      {/* 선택된 카테고리 상세 패널 */}
-      {selectedDef && selectedCategory && (
-        <CategoryDetail
-          catDef={selectedDef}
-          category={selectedCategory}
-          onClose={() => setSelectedKey(null)}
-        />
-      )}
     </div>
   );
 }

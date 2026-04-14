@@ -280,6 +280,34 @@
   outline-offset: 2px;
 }
 
+/* 상세 점수 요약 */
+.detailSummary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #f3f4f6;
+}
+
+.detailSummary svg {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.detailScoreValue {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.detailScoreLabel {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
 .sectionLabel {
   font-size: 0.8125rem;
   font-weight: 600;
