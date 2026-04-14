@@ -129,3 +129,41 @@
   margin-bottom: 1rem;
   padding: 0;
 }
+
+/* 물음표 툴팁 */
+.tooltipWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.tooltipBubble {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: #f3f4f6;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 50;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.tooltipBubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1f2937;
+}
+.tooltipWrap:hover .tooltipBubble,
+.tooltipWrap:focus-within .tooltipBubble {
+  display: block;
+}

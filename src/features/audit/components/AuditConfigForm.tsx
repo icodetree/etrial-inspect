@@ -2,7 +2,7 @@ import { AuditConfig } from '@/types';
 import styles from '@/app/page.module.css'; // Might need to move or refactor styles later
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Asterisk } from 'lucide-react';
+import { Asterisk, HelpCircle } from 'lucide-react';
 
 interface AuditConfigFormProps {
   config: AuditConfig;
@@ -32,7 +32,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem' }}>
           <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
             <label>플랫폼</label>
             <select
@@ -43,7 +43,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
               <option value="Mobile">Mobile</option>
             </select>
           </div>
-          <div className="toggle-container">
+          <div className="toggle-container" style={{ height: '38px' }}>
             <span
               className={`toggle ${config.enableLogin ? 'active' : ''}`}
               onClick={() => setConfig({ ...config, enableLogin: !config.enableLogin })}
@@ -129,7 +129,22 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
         </div>
 
         <div className="form-group">
-          <label>제외 경로</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            제외 경로
+            <span className={styles.tooltipWrap}>
+              <HelpCircle
+                size={14}
+                color="#9ca3af"
+                style={{ cursor: 'pointer' }}
+                tabIndex={0}
+                aria-label="제외 경로 도움말"
+              />
+              <span className={styles.tooltipBubble}>
+                입력한 경로로 시작하는 URL은 검사에서 제외됩니다.
+                <br />예시: /eng, /kr/old
+              </span>
+            </span>
+          </label>
           <textarea
             placeholder={`제외할 경로를 한 줄씩 입력하세요.\n예시:\n/eng\n/kr/old`}
             value={config.excludePaths || ''}
@@ -137,7 +152,6 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
             rows={3}
             style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
           />
-          <small>입력한 경로로 시작하는 URL은 검사에서 제외됩니다.</small>
         </div>
       </fieldset>
 

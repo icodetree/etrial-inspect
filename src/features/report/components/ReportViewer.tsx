@@ -26,6 +26,7 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [activeView, setActiveView] = useState<'accessibility' | 'seo' | 'ai'>('accessibility');
+  const [pdfExporting, setPdfExporting] = useState(false);
 
   useEffect(() => {
     // If no initial result provided (e.g. standard /report page), try loading from localStorage
@@ -114,8 +115,6 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
     }
   };
 
-  const [pdfExporting, setPdfExporting] = useState(false);
-
   const handleExportPDF = async () => {
     if (!result || pdfExporting) return;
     setPdfExporting(true);
@@ -176,23 +175,23 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
 
         {/* Row 2: Action Buttons */}
         <div className={styles['action-row']}>
-          <button className={`btn btn-warning ${styles['btn-warning-custom']}`} onClick={() => setShowCostModal(true)}>
+          <button className="btn btn-secondary" onClick={() => setShowCostModal(true)}>
             공수 산출
           </button>
-          <button className="btn btn-success" onClick={handleExportExcel}>
+          <button className="btn btn-secondary" onClick={handleExportExcel}>
             엑셀 다운로드
           </button>
-          <button className={`btn btn-info ${styles['btn-info-custom']}`} onClick={handleExportJSON}>
+          <button className="btn btn-secondary" onClick={handleExportJSON}>
             JSON 다운로드
           </button>
           <button
-            className={`btn ${styles['btn-pdf-custom']}`}
+            className="btn btn-secondary"
             onClick={handleExportPDF}
             disabled={pdfExporting}
           >
             {pdfExporting ? 'PDF 생성 중...' : 'PDF 보고서'}
           </button>
-          <a href="/report/checklist" className="btn btn-primary">
+          <a href="/report/checklist" className="btn btn-secondary">
             33개 체크리스트
           </a>
 
