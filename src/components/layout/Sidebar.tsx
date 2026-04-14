@@ -26,7 +26,9 @@ export function Sidebar() {
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
     if (href.startsWith('/#')) return pathname === '/';
-    return pathname.startsWith(href);
+    // /report 는 정확히 /report 또는 /report/[id] 에만 매칭 (체크리스트 제외)
+    if (href === '/report') return pathname === '/report' || (pathname.startsWith('/report/') && !pathname.startsWith('/report/checklist'));
+    return pathname === href || pathname.startsWith(href + '/');
   };
 
   return (

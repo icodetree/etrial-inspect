@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { Sidebar } from "@/components/layout/Sidebar";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
+const jetbrainsMono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin"], weight: ["300", "400", "500"] });
 
 export const metadata: Metadata = {
   title: "E-able | 웹접근성 진단",
@@ -17,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className={inter.variable} style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f6f8fa' }}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable}`} style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f6f8fa' }}>
         <Sidebar />
         <main style={{ marginLeft: '220px', flex: 1, overflowX: 'hidden', minHeight: '100vh' }}>
           {children}

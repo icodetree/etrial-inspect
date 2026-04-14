@@ -30,18 +30,25 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
   useEffect(() => {
     // If no initial result provided (e.g. standard /report page), try loading from localStorage
     if (!initialResult) {
-      const savedResult = localStorage.getItem('auditResult');
-      if (savedResult) {
-        setResult(JSON.parse(savedResult));
+      try {
+        const savedResult = localStorage.getItem('auditResult');
+        if (savedResult) {
+          const parsed = JSON.parse(savedResult);
+          if (parsed && parsed.violations && parsed.summary) {
+            setResult(parsed);
+          }
+        }
+      } catch {
+        // localStorage 데이터 파싱 실패 시 무시
       }
     }
   }, [initialResult]);
 
-  if (!result) {
+  if (!result || !result.violations || !result.summary) {
     return (
       <main className="container">
         <section className={`card ${styles['empty-card']}`}>
-          <h2>📋 진단 결과가 없습니다</h2>
+          <h2>진단 결과가 없습니다</h2>
           <p className={styles['empty-text']}>
             먼저 메인 페이지에서 접근성 진단을 수행해주세요.
           </p>

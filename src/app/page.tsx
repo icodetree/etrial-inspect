@@ -150,6 +150,42 @@ export default function Home() {
         />
       </section>
 
+      {/* 진단 완료 후 결과 액션 바 */}
+      {progress.status === 'completed' && results && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '1rem 1.25rem',
+            marginBottom: '1.5rem',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: '10px',
+            borderLeft: '4px solid var(--c-success)',
+          }}
+        >
+          <span style={{ fontSize: '0.875rem', color: '#374151', fontWeight: 500 }}>
+            진단 완료 — {results.pages}페이지, 위반 {results.violations}건
+          </span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn-primary" onClick={() => handleViewLatestReport()} style={{ fontSize: '0.8125rem' }}>
+              리포트 보기
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={handleSaveToNotion}
+              style={{ fontSize: '0.8125rem', background: '#1a1a1a', color: '#fff', borderColor: '#1a1a1a' }}
+            >
+              Notion 저장
+            </button>
+            <button className="btn btn-secondary" onClick={exportExcel} style={{ fontSize: '0.8125rem' }}>
+              엑셀 다운로드
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 진단 이력 */}
       <section id="history" aria-label="진단 이력">
         <HistoryList refreshTrigger={historyRefreshTrigger} />
