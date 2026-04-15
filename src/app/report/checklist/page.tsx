@@ -157,7 +157,7 @@ export default function ChecklistPage() {
     <div className="container">
       <header className={styles['report-header']}>
         <div>
-          <h1 className={styles['report-title']}>📋 KWCAG 2.2 체크리스트</h1>
+          <h1 className={styles['report-title']}>KWCAG 2.2 체크리스트</h1>
           <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>
             33개 검사항목 전체 점검 결과
           </p>

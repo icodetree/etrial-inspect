@@ -3,11 +3,16 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
-  Home, FileText, Clock, CheckSquare,
-  Settings, HelpCircle, Sparkles,
+  Home, FileText, CheckSquare,
+  Settings, HelpCircle,
+  ChevronsLeft,
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
+
+const SIDEBAR_EXPANDED = 220;
+const SIDEBAR_COLLAPSED = 64;
 
 const mainNav = [
   { label: '진단',        href: '/',                 icon: Home },
@@ -22,44 +27,60 @@ const bottomNav = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('sidebar-collapsed');
+    if (saved === 'true') setCollapsed(true);
+  }, []);
+
+  useEffect(() => {
+    const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
+    document.documentElement.style.setProperty('--sidebar-width', `${width}px`);
+    localStorage.setItem('sidebar-collapsed', String(collapsed));
+  }, [collapsed]);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
     if (href.startsWith('/#')) return pathname === '/';
-    // /report 는 정확히 /report 또는 /report/[id] 에만 매칭 (체크리스트 제외)
     if (href === '/report') return pathname === '/report' || (pathname.startsWith('/report/') && !pathname.startsWith('/report/checklist'));
     return pathname === href || pathname.startsWith(href + '/');
   };
+
+  const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
 
   return (
     <aside
       role="navigation"
       aria-label="메인 내비게이션"
-      style={{
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        zIndex: 30,
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        width: '220px',
-        borderRight: '1px solid #e5e7eb',
-        backgroundColor: '#ffffff',
-      }}
+      className={styles.sidebar}
+      style={{ width: `${sidebarWidth}px` }}
     >
+      {/* 토글 버튼 — 사이드바 우측 상단 절대 위치 */}
+      <button
+        className={`${styles.toggleBtn} ${collapsed ? styles.toggleBtnCollapsed : ''}`}
+        onClick={() => setCollapsed(prev => !prev)}
+        aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+        title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+      >
+        <ChevronsLeft size={16} className={styles.toggleIcon} />
+      </button>
+
       {/* 로고 */}
-      <Link href="/" className={styles.brandArea}>
-        <Image
-          src="/images/logo.png"
-          alt="E-able 로고"
-          width={50}
-          height={32}
-          style={{ objectFit: 'contain', objectPosition: 'left' }}
-          priority
-        />
-        <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#111827' }}>E-able</span>
-      </Link>
+      {!collapsed && (
+        <Link href="/" className={styles.brandArea}>
+          <Image
+            src="/images/logo.png"
+            alt="E-able 로고"
+            width={50}
+            height={32}
+            style={{ objectFit: 'contain', objectPosition: 'left' }}
+            priority
+          />
+          <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#111827' }}>E-able</span>
+        </Link>
+      )}
+      {collapsed && <div className={styles.brandSpacer} />}
 
       {/* 메인 네비게이션 */}
       <nav className={styles.nav}>
@@ -71,11 +92,12 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`${styles.navItem} ${active ? styles.navItemActive : ''}`}
+                  className={`${styles.navItem} ${active ? styles.navItemActive : ''} ${collapsed ? styles.navItemCollapsed : ''}`}
                   aria-current={active ? 'page' : undefined}
+                  title={collapsed ? item.label : undefined}
                 >
                   <Icon size={17} aria-hidden="true" />
-                  {item.label}
+                  {!collapsed && <span>{item.label}</span>}
                 </Link>
               </li>
             );
@@ -93,17 +115,17 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`${styles.navItem} ${active ? styles.navItemActive : ''}`}
+                  className={`${styles.navItem} ${active ? styles.navItemActive : ''} ${collapsed ? styles.navItemCollapsed : ''}`}
                   aria-current={active ? 'page' : undefined}
+                  title={collapsed ? item.label : undefined}
                 >
                   <Icon size={17} aria-hidden="true" />
-                  {item.label}
+                  {!collapsed && <span>{item.label}</span>}
                 </Link>
               </li>
             );
           })}
         </ul>
-
       </div>
     </aside>
   );

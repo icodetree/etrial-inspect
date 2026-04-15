@@ -43,7 +43,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
               <option value="Mobile">Mobile</option>
             </select>
           </div>
-          <div className="toggle-container" style={{ height: '38px' }}>
+          <div className="toggle-container" style={{ height: '45px' }}>
             <span
               className={`toggle ${config.enableLogin ? 'active' : ''}`}
               onClick={() => setConfig({ ...config, enableLogin: !config.enableLogin })}

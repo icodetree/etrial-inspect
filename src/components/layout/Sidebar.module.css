@@ -1,11 +1,90 @@
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  border-right: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
 .brandArea {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 24px 20px 20px;
   text-decoration: none;
+  min-width: 0;
+  overflow: hidden;
 }
 
+.brandSpacer {
+  height: 60px;
+  flex-shrink: 0;
+}
+
+/* 토글 버튼 — 사이드바 우측 상단 절대 위치 */
+.toggleBtn {
+  position: absolute;
+  top: 35px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #9ca3af;
+  cursor: pointer;
+  z-index: 2;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+/* 사이드바 호버 시 버튼 노출 */
+.sidebar:hover .toggleBtn {
+  opacity: 1;
+}
+
+/* 접힌 상태에서는 항상 보이게 + 중앙 배치 */
+.toggleBtnCollapsed {
+  opacity: 1;
+  right: 50%;
+  top: 30px;
+  transform: translateX(50%);
+}
+
+.toggleBtn:hover {
+  background: #f3f4f6;
+  color: #111827;
+  border-color: #d1d5db;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transform: scale(1.08);
+}
+
+.toggleBtnCollapsed:hover {
+  transform: translateX(50%) scale(1.08);
+}
+
+/* 아이콘 회전 애니메이션 */
+.toggleIcon {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toggleBtnCollapsed .toggleIcon {
+  transform: rotate(180deg);
+}
 
 .nav {
   flex: 1;
@@ -32,6 +111,13 @@
   color: #6b7280;
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.navItemCollapsed {
+  justify-content: center;
+  padding: 9px;
 }
 
 .navItem:hover {

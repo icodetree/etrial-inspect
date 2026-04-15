@@ -140,7 +140,7 @@ export default function Home() {
       </div>
 
       {/* 진단 설정 */}
-      <section aria-label="진단 설정" style={{ maxWidth: '700px', marginBottom: '1.5rem' }}>
+      <section aria-label="진단 설정" style={{ marginBottom: '1.5rem' }}>
         <AuditConfigForm
           config={config}
           setConfig={setConfig}
