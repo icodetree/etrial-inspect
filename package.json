@@ -13,6 +13,7 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.0",
     "@axe-core/playwright": "^4.11.0",
     "@capyseo/core": "^0.1.2",
     "@houtini/geo-analyzer": "^2.1.0",
