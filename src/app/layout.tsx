@@ -17,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <body className={`${inter.variable} ${jetbrainsMono.variable}`} style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f6f8fa' }}>
         <Sidebar />
         <main style={{ marginLeft: 'var(--sidebar-width, 220px)', flex: 1, overflowX: 'hidden', minHeight: '100vh', transition: 'margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
