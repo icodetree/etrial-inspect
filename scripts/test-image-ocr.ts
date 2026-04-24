@@ -1,34 +1,47 @@
-import { analyzeImageWithVision, computeSimilarity } from './src/lib/alt-text-validator';
+import {
+  analyzeImageWithVision,
+  classifyImageType,
+  computeSimilarity,
+  judgeAltText,
+  shutdownSharedWorkerPool,
+} from '../src/lib/alt-text-validator';
 
 async function runTest() {
-  console.log('이미지 분석 테스트를 시작합니다...');
+  console.log('이미지 분석 테스트 (Tesseract.js + sharp 전처리)');
 
-  // 테스트할 이미지 URL (로컬 이미지 경로나 웹 URL)
-  // Tesseract.js는 URL이나 로컬 이미지 경로를 바로 처리할 수 있습니다.
   const testImageUrl = 'https://www.lottegrs.com/com/img/about_us/logo.jpg';
   const currentAltText = '테스트용 샘플 텍스트';
 
   try {
-    console.log(`[1/3] Tesseract.js로 로컬에서 텍스트 추출 중 (오프라인)...`);
-    const { extractedText, confidenceScore } = await analyzeImageWithVision(testImageUrl);
+    console.log('\n[1/4] OCR (전처리 + 워커 풀)...');
+    const vision = await analyzeImageWithVision(testImageUrl, { enablePreprocessing: true });
+    console.log(`  추출 텍스트: "${vision.extractedText}"`);
+    console.log(`  신뢰도: ${(vision.confidenceScore * 100).toFixed(1)}%`);
+    console.log(`  단어 수: ${vision.wordCount}`);
 
-    console.log(`✅ 추출된 텍스트: "${extractedText}"`);
+    console.log('\n[2/4] 이미지 유형 분류...');
+    const imageType = classifyImageType(vision);
+    console.log(`  유형: ${imageType}`);
 
-    console.log(`\n[2/3] 기존 alt 속성과 유사도 비교 중...`);
-    console.log(`기존 alt: "${currentAltText}"`);
-    const similarity = computeSimilarity(currentAltText, extractedText);
+    console.log('\n[3/4] 유사도 계산...');
+    const similarity = computeSimilarity(currentAltText, vision.extractedText);
+    console.log(`  alt: "${currentAltText}"`);
+    console.log(`  유사도: ${(similarity * 100).toFixed(1)}%`);
 
-    console.log(`✅ 유사도 점수: ${similarity} (1.0에 가까울수록 일치)`);
-
-    console.log(`\n[3/3] 최종 판별 결과`);
-    if (similarity >= 0.8) {
-      console.log('🟢 대체 텍스트가 이미지 내용과 적절히 일치합니다.');
-    } else {
-      console.log('🔴 대체 텍스트 불일치 (수정이 필요합니다.)');
-    }
-
+    console.log('\n[4/4] 최종 판정...');
+    const { judgment, reason } = judgeAltText({
+      altAttr: currentAltText,
+      imageType,
+      similarity,
+      ocrText: vision.extractedText,
+      threshold: 0.6,
+    });
+    console.log(`  판정: ${judgment}`);
+    console.log(`  사유: ${reason}`);
   } catch (error) {
-    console.error('테스트 중 오류 발생:', error);
+    console.error('테스트 중 오류:', error);
+  } finally {
+    await shutdownSharedWorkerPool();
   }
 }
 

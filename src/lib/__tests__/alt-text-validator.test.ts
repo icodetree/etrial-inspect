@@ -2,50 +2,86 @@ import {
   sanitizeExtractedText,
   computeSimilarity,
   extractImagesFromPage,
-  analyzeImageWithVision,
+  classifyImageType,
+  judgeAltText,
   scanPageForAltMismatches,
+  clearOcrCache,
 } from '../alt-text-validator';
+import type { VisionAnalysisResult } from '../../types/alt-text';
 
 // ---------------------------------------------------------------------------
-// Mock: @anthropic-ai/sdk
+// Mock: tesseract.js + sharp (네트워크/워커 호출 방지)
 // ---------------------------------------------------------------------------
 
-const mockCreate = jest.fn();
+const mockRecognize = jest.fn();
+const mockTerminate = jest.fn().mockResolvedValue(undefined);
 
-jest.mock('@anthropic-ai/sdk', () => {
-  return jest.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
-  }));
+jest.mock('tesseract.js', () => ({
+  createWorker: jest.fn().mockImplementation(async () => ({
+    recognize: mockRecognize,
+    terminate: mockTerminate,
+  })),
+}));
+
+jest.mock('sharp', () => {
+  const chain = {
+    metadata: jest.fn().mockResolvedValue({ width: 800, height: 600 }),
+    resize: jest.fn().mockReturnThis(),
+    grayscale: jest.fn().mockReturnThis(),
+    normalize: jest.fn().mockReturnThis(),
+    sharpen: jest.fn().mockReturnThis(),
+    threshold: jest.fn().mockReturnThis(),
+    png: jest.fn().mockReturnThis(),
+    toBuffer: jest.fn().mockResolvedValue(Buffer.from('preprocessed')),
+  };
+  return jest.fn(() => chain);
 });
+
+global.fetch = jest.fn().mockResolvedValue({
+  ok: true,
+  arrayBuffer: async () => new ArrayBuffer(8),
+}) as unknown as typeof fetch;
 
 // ---------------------------------------------------------------------------
 // Helper: Playwright Page stub
 // ---------------------------------------------------------------------------
 
 function makePageStub(
-  images: Array<{ id: string; src: string; alt: string | null }>,
+  images: Array<{ id: string; src: string; alt: string | null; w?: number; h?: number }>,
   url = 'https://example.com/',
 ) {
   return {
     url: () => url,
-    evaluate: jest.fn().mockImplementation((fn: Function, arg: unknown) => {
-      // Simulate page.evaluate by running the function in Node.js context
-      // We replicate the behaviour without a real browser.
+    evaluate: jest.fn().mockImplementation((_fn: Function, arg: { limit: number; minSize: number }) => {
+      const { limit, minSize } = arg;
       return images
         .filter((img) => {
-          if (img.alt === '') return false;
-          if (!img.src.startsWith('https://')) return false;
+          if (!img.src.startsWith('https://') && !img.src.startsWith('data:image/')) return false;
+          if ((img.w ?? 100) < minSize || (img.h ?? 100) < minSize) return false;
           return true;
         })
-        .slice(0, arg as number)
+        .slice(0, limit)
         .map((img) => ({
           elementId: img.id ? `#${img.id}` : `//html/body/img`,
           src: img.src,
-          alt: img.alt ?? '',
+          alt: img.alt,
+          naturalWidth: img.w ?? 100,
+          naturalHeight: img.h ?? 100,
         }));
     }),
   };
 }
+
+function mockOcr(text: string, confidencePct: number) {
+  mockRecognize.mockResolvedValueOnce({
+    data: { text, confidence: confidencePct },
+  });
+}
+
+beforeEach(() => {
+  mockRecognize.mockReset();
+  clearOcrCache();
+});
 
 // ---------------------------------------------------------------------------
 // sanitizeExtractedText
@@ -53,15 +89,11 @@ function makePageStub(
 
 describe('sanitizeExtractedText', () => {
   test('removes newlines and collapses whitespace', () => {
-    // 개행은 공백으로 변환, 연속 공백은 단일 공백으로 축약됨
     expect(sanitizeExtractedText('Hello\nWorld\r\n  Test')).toBe('Hello World Test');
   });
 
-  test('strips non-meaningful special characters, preserves meaningful punctuation', () => {
-    // `:` 등은 제거되지만 `!`, `%`는 의미 있는 문자로 보존됨
-    expect(sanitizeExtractedText('안녕하세요! 진단 결과: 100%')).toBe(
-      '안녕하세요! 진단 결과 100%',
-    );
+  test('preserves meaningful punctuation', () => {
+    expect(sanitizeExtractedText('안녕하세요! 진단 결과: 100%')).toBe('안녕하세요! 진단 결과 100%');
   });
 
   test('trims leading and trailing whitespace', () => {
@@ -73,13 +105,12 @@ describe('sanitizeExtractedText', () => {
   });
 
   test('preserves Korean characters', () => {
-    const input = '이미지 내 텍스트\n두 번째 줄';
-    expect(sanitizeExtractedText(input)).toContain('이미지 내 텍스트');
+    expect(sanitizeExtractedText('이미지 내 텍스트\n두 번째 줄')).toContain('이미지 내 텍스트');
   });
 });
 
 // ---------------------------------------------------------------------------
-// computeSimilarity
+// computeSimilarity (Jaccard + 부분 문자열 포함률 조합)
 // ---------------------------------------------------------------------------
 
 describe('computeSimilarity', () => {
@@ -94,31 +125,127 @@ describe('computeSimilarity', () => {
   test('empty strings return 0.0', () => {
     expect(computeSimilarity('', 'something')).toBe(0.0);
     expect(computeSimilarity('something', '')).toBe(0.0);
-  });
-
-  test('both empty strings return 0.0 (no meaningful content to compare)', () => {
     expect(computeSimilarity('', '')).toBe(0.0);
   });
 
   test('partial overlap returns value between 0 and 1', () => {
-    // 공유 토큰: "진단" → intersection 1, union 3
     const score = computeSimilarity('웹 접근성 진단', '진단 결과');
     expect(score).toBeGreaterThan(0);
     expect(score).toBeLessThan(1);
   });
 
-  test('case insensitive comparison', () => {
+  test('case insensitive', () => {
     expect(computeSimilarity('Hello World', 'hello world')).toBe(1.0);
   });
 
-  test('punctuation is normalised before comparison', () => {
+  test('punctuation is normalised', () => {
     expect(computeSimilarity('hello, world!', 'hello world')).toBe(1.0);
   });
 
-  test('superset returns non-zero score', () => {
-    // "KWCAG 진단 결과" contains all tokens of "진단 결과"
-    const score = computeSimilarity('KWCAG 진단 결과', '진단 결과');
-    expect(score).toBeGreaterThan(0.5);
+  test('containment ratio rescues partial alt coverage (회사로고 vs 회사)', () => {
+    // 부분 문자열 포함률: "회사"는 "회사로고"에 포함됨
+    const score = computeSimilarity('회사로고 상세페이지 배너', '회사');
+    expect(score).toBeGreaterThanOrEqual(0.5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyImageType
+// ---------------------------------------------------------------------------
+
+describe('classifyImageType', () => {
+  const make = (text: string, conf: number, words: number): VisionAnalysisResult => ({
+    extractedText: text,
+    confidenceScore: conf,
+    wordCount: words,
+  });
+
+  test('no text → photo', () => {
+    expect(classifyImageType(make('', 0, 0))).toBe('photo');
+  });
+
+  test('high confidence + many words → text-heavy', () => {
+    expect(classifyImageType(make('웹 접근성 진단 결과', 0.85, 5))).toBe('text-heavy');
+  });
+
+  test('low confidence → photo', () => {
+    expect(classifyImageType(make('x', 0.2, 1))).toBe('photo');
+  });
+
+  test('medium confidence + few words → mixed', () => {
+    expect(classifyImageType(make('로고', 0.55, 1))).toBe('mixed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// judgeAltText (4단계 판정)
+// ---------------------------------------------------------------------------
+
+describe('judgeAltText', () => {
+  test('missing alt attribute → missing_alt', () => {
+    const r = judgeAltText({
+      altAttr: null,
+      imageType: 'text-heavy',
+      similarity: 0,
+      ocrText: '텍스트',
+      threshold: 0.6,
+    });
+    expect(r.judgment).toBe('missing_alt');
+  });
+
+  test('alt="" on text-heavy image → decorative_mismatch', () => {
+    const r = judgeAltText({
+      altAttr: '',
+      imageType: 'text-heavy',
+      similarity: 0,
+      ocrText: '특별 할인',
+      threshold: 0.6,
+    });
+    expect(r.judgment).toBe('decorative_mismatch');
+  });
+
+  test('alt="" on photo image → pass (진짜 장식)', () => {
+    const r = judgeAltText({
+      altAttr: '',
+      imageType: 'photo',
+      similarity: 0,
+      ocrText: '',
+      threshold: 0.6,
+    });
+    expect(r.judgment).toBe('pass');
+  });
+
+  test('photo with alt text → review_needed', () => {
+    const r = judgeAltText({
+      altAttr: '풍경 사진',
+      imageType: 'photo',
+      similarity: 0,
+      ocrText: '',
+      threshold: 0.6,
+    });
+    expect(r.judgment).toBe('review_needed');
+  });
+
+  test('text-heavy with matching alt → pass', () => {
+    const r = judgeAltText({
+      altAttr: '접근성 진단',
+      imageType: 'text-heavy',
+      similarity: 0.9,
+      ocrText: '접근성 진단',
+      threshold: 0.6,
+    });
+    expect(r.judgment).toBe('pass');
+  });
+
+  test('text-heavy with mismatching alt → text_mismatch', () => {
+    const r = judgeAltText({
+      altAttr: '회사 로고',
+      imageType: 'text-heavy',
+      similarity: 0.1,
+      ocrText: '특별 할인 이벤트',
+      threshold: 0.6,
+    });
+    expect(r.judgment).toBe('text_mismatch');
   });
 });
 
@@ -127,24 +254,15 @@ describe('computeSimilarity', () => {
 // ---------------------------------------------------------------------------
 
 describe('extractImagesFromPage', () => {
-  test('excludes decorative images (alt="")', async () => {
+  test('filters out images smaller than minSizePx', async () => {
     const page = makePageStub([
-      { id: 'logo', src: 'https://example.com/logo.png', alt: 'Company logo' },
-      { id: 'deco', src: 'https://example.com/deco.png', alt: '' },
+      { id: 'icon', src: 'https://example.com/icon.png', alt: 'icon', w: 16, h: 16 },
+      { id: 'logo', src: 'https://example.com/logo.png', alt: '로고', w: 200, h: 80 },
     ]);
 
-    const result = await extractImagesFromPage(page as any);
+    const result = await extractImagesFromPage(page as any, 20, 32);
     expect(result).toHaveLength(1);
     expect(result[0].elementId).toBe('#logo');
-  });
-
-  test('uses #id as elementId when id attribute is present', async () => {
-    const page = makePageStub([
-      { id: 'banner', src: 'https://example.com/banner.jpg', alt: '배너' },
-    ]);
-
-    const result = await extractImagesFromPage(page as any);
-    expect(result[0].elementId).toBe('#banner');
   });
 
   test('respects maxImages limit', async () => {
@@ -154,167 +272,134 @@ describe('extractImagesFromPage', () => {
       alt: `Image ${i}`,
     }));
 
-    const page = makePageStub(images);
-    const result = await extractImagesFromPage(page as any, 3);
+    const result = await extractImagesFromPage(makePageStub(images) as any, 3);
     expect(result).toHaveLength(3);
   });
 
-  test('includes images with missing alt attribute (empty string fallback)', async () => {
+  test('preserves null alt (속성 없음)과 empty string("") 구분', async () => {
     const page = makePageStub([
       { id: 'noalt', src: 'https://example.com/noalt.png', alt: null },
+      { id: 'empty', src: 'https://example.com/empty.png', alt: '' },
     ]);
 
     const result = await extractImagesFromPage(page as any);
-    expect(result).toHaveLength(1);
-    expect(result[0].alt).toBe('');
+    expect(result).toHaveLength(2);
+    expect(result[0].alt).toBeNull();
+    expect(result[1].alt).toBe('');
   });
 });
 
 // ---------------------------------------------------------------------------
-// analyzeImageWithVision
-// ---------------------------------------------------------------------------
-
-describe('analyzeImageWithVision', () => {
-  beforeEach(() => mockCreate.mockReset());
-
-  test('returns extracted text from a successful Vision API response', async () => {
-    mockCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: '진단 결과\n100점' }],
-    });
-
-    const result = await analyzeImageWithVision('https://example.com/img.png');
-
-    expect(result.extractedText).toBe('진단 결과 100점');
-    expect(result.confidenceScore).toBe(0.9);
-  });
-
-  test('returns empty text with confidence 1.0 when model finds no text', async () => {
-    mockCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: '' }],
-    });
-
-    const result = await analyzeImageWithVision('https://example.com/photo.jpg');
-    expect(result.extractedText).toBe('');
-    expect(result.confidenceScore).toBe(1.0);
-  });
-
-  test('returns confidence 0 on API error', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('API error'));
-
-    const result = await analyzeImageWithVision('https://example.com/err.png');
-    expect(result.extractedText).toBe('');
-    expect(result.confidenceScore).toBe(0);
-  });
-
-  test('handles base64 data URL', async () => {
-    mockCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'Sample Text' }],
-    });
-
-    const dataUrl =
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-    const result = await analyzeImageWithVision(dataUrl);
-    expect(result.extractedText).toBe('Sample Text');
-
-    const callArg = mockCreate.mock.calls[0][0];
-    const imageContent = callArg.messages[0].content[0];
-    expect(imageContent.source.type).toBe('base64');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// scanPageForAltMismatches — integration
+// scanPageForAltMismatches — 통합
 // ---------------------------------------------------------------------------
 
 describe('scanPageForAltMismatches', () => {
-  beforeEach(() => mockCreate.mockReset());
-
-  test('reports mismatch when alt text differs significantly from extracted text', async () => {
+  test('text_mismatch 로 판정', async () => {
     const page = makePageStub([
-      {
-        id: 'banner',
-        src: 'https://example.com/banner.png',
-        alt: '회사 로고',
-      },
+      { id: 'banner', src: 'https://example.com/banner.png', alt: '회사 로고' },
     ]);
-
-    mockCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: '특별 할인 이벤트 50% OFF' }],
-    });
+    mockOcr('특별 할인 이벤트 50% OFF', 85);
 
     const result = await scanPageForAltMismatches(page as any, {
-      similarityThreshold: 0.8,
+      similarityThreshold: 0.6,
+      enablePreprocessing: false,
     });
 
+    expect(result.totalImagesScanned).toBe(1);
     expect(result.mismatchCount).toBe(1);
-    expect(result.mismatches[0]).toMatchObject({
-      elementId: '#banner',
-      imageUrl: 'https://example.com/banner.png',
-      currentAlt: '회사 로고',
-      extractedText: '특별 할인 이벤트 50% OFF',
-    });
+    expect(result.items[0].judgment).toBe('text_mismatch');
+    expect(result.countsByJudgment.text_mismatch).toBe(1);
   });
 
-  test('does NOT report when alt is sufficiently similar to extracted text', async () => {
+  test('pass 판정 (alt가 OCR과 일치)', async () => {
     const page = makePageStub([
-      {
-        id: 'title',
-        src: 'https://example.com/title.png',
-        alt: '웹 접근성 진단 결과',
-      },
+      { id: 'title', src: 'https://example.com/title.png', alt: '웹 접근성 진단 결과' },
     ]);
+    mockOcr('웹 접근성 진단 결과', 90);
 
-    mockCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: '웹 접근성 진단 결과' }],
-    });
-
-    const result = await scanPageForAltMismatches(page as any);
+    const result = await scanPageForAltMismatches(page as any, { enablePreprocessing: false });
     expect(result.mismatchCount).toBe(0);
+    expect(result.items[0].judgment).toBe('pass');
   });
 
-  test('skips image when Vision API returns empty (non-text image)', async () => {
+  test('사진 이미지는 review_needed', async () => {
     const page = makePageStub([
       { id: 'photo', src: 'https://example.com/photo.jpg', alt: '자연 사진' },
     ]);
+    mockOcr('', 20);
 
-    mockCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: '' }],
-    });
-
-    const result = await scanPageForAltMismatches(page as any);
-    expect(result.mismatchCount).toBe(0);
-    expect(result.totalImagesScanned).toBe(1);
+    const result = await scanPageForAltMismatches(page as any, { enablePreprocessing: false });
+    expect(result.items[0].judgment).toBe('review_needed');
+    expect(result.countsByJudgment.review_needed).toBe(1);
   });
 
-  test('returns correct metadata on the result object', async () => {
+  test('결과 메타데이터 확인', async () => {
     const page = makePageStub([], 'https://test.com/page');
-
-    const result = await scanPageForAltMismatches(page as any);
+    const result = await scanPageForAltMismatches(page as any, { enablePreprocessing: false });
 
     expect(result.pageUrl).toBe('https://test.com/page');
     expect(result.scannedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(result.totalImagesScanned).toBe(0);
-    expect(result.mismatches).toEqual([]);
+    expect(result.items).toEqual([]);
   });
 
-  test('processes multiple images and aggregates mismatches', async () => {
+  test('여러 이미지 판정 집계', async () => {
     const page = makePageStub([
       { id: 'img1', src: 'https://example.com/a.png', alt: '오래된 설명' },
       { id: 'img2', src: 'https://example.com/b.png', alt: '정확한 설명' },
-      { id: 'img3', src: 'https://example.com/c.png', alt: '잘못된 설명' },
+      { id: 'img3', src: 'https://example.com/c.png', alt: null },
     ]);
 
-    mockCreate
-      .mockResolvedValueOnce({ content: [{ type: 'text', text: '새로운 배너 문구' }] }) // mismatch
-      .mockResolvedValueOnce({ content: [{ type: 'text', text: '정확한 설명' }] }) // match
-      .mockResolvedValueOnce({ content: [{ type: 'text', text: '완전히 다른 내용' }] }); // mismatch
+    mockOcr('새로운 배너 문구', 85); // text_mismatch
+    mockOcr('정확한 설명', 90); // pass
+    mockOcr('어떤 텍스트', 85); // missing_alt (null alt)
 
     const result = await scanPageForAltMismatches(page as any, {
-      similarityThreshold: 0.8,
+      similarityThreshold: 0.6,
+      enablePreprocessing: false,
     });
 
     expect(result.totalImagesScanned).toBe(3);
     expect(result.mismatchCount).toBe(2);
-    expect(result.mismatches.map((m) => m.elementId)).toEqual(['#img1', '#img3']);
+    expect(result.countsByJudgment.pass).toBe(1);
+    expect(result.countsByJudgment.missing_alt).toBe(1);
+    expect(result.countsByJudgment.text_mismatch).toBe(1);
+  });
+
+  test('AbortSignal로 중단 가능', async () => {
+    const page = makePageStub([
+      { id: 'a', src: 'https://example.com/a.png', alt: 'a' },
+      { id: 'b', src: 'https://example.com/b.png', alt: 'b' },
+    ]);
+    mockOcr('content a', 85);
+    mockOcr('content b', 85);
+
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await scanPageForAltMismatches(page as any, {
+      abortSignal: controller.signal,
+      enablePreprocessing: false,
+    });
+
+    expect(result.totalImagesScanned).toBe(0);
+  });
+
+  test('progress 콜백 호출', async () => {
+    const page = makePageStub([
+      { id: 'a', src: 'https://example.com/a.png', alt: 'a' },
+      { id: 'b', src: 'https://example.com/b.png', alt: 'b' },
+    ]);
+    mockOcr('content', 85);
+    mockOcr('content', 85);
+
+    const onProgress = jest.fn();
+    await scanPageForAltMismatches(page as any, {
+      onProgress,
+      enablePreprocessing: false,
+    });
+
+    expect(onProgress).toHaveBeenCalledTimes(2);
+    expect(onProgress).toHaveBeenLastCalledWith(2, 2, 'https://example.com/b.png');
   });
 });
