@@ -1,7 +1,12 @@
 import { Page } from 'playwright-core';
 import path from 'path';
+import { createRequire } from 'node:module';
 import { createWorker, Worker } from 'tesseract.js';
 import sharp from 'sharp';
+
+// Next.js(Turbopack) 번들러가 tesseract.js worker-script 경로를 재작성하는 문제 방지
+// 런타임에 실제 설치된 node_modules 경로를 직접 해석한다.
+const nodeRequire = createRequire(path.join(process.cwd(), 'package.json'));
 import {
   AltTextJudgment,
   AltTextMismatch,
@@ -37,6 +42,8 @@ class TesseractWorkerPool {
   private workers: PooledWorker[] = [];
   private initialized = false;
   private initPromise: Promise<void> | null = null;
+  private initFailed = false;
+  private initError: Error | null = null;
   private readonly poolSize: number;
 
   constructor(poolSize: number) {
@@ -45,18 +52,37 @@ class TesseractWorkerPool {
 
   async init(): Promise<void> {
     if (this.initialized) return;
+    if (this.initFailed) {
+      throw this.initError ?? new Error('Tesseract worker pool init previously failed');
+    }
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
       const langPath = path.resolve(process.cwd(), 'public', 'tessdata');
-      for (let i = 0; i < this.poolSize; i++) {
-        const worker = await createWorker(['kor', 'eng'], 1, {
-          langPath,
-          gzip: false,
-        });
-        this.workers.push({ worker, busy: false });
+      try {
+        let workerPath: string | undefined;
+        try {
+          workerPath = nodeRequire.resolve('tesseract.js/src/worker-script/node/index.js');
+        } catch {
+          // 경로 해석 실패 시 tesseract.js 기본 로직에 위임
+          workerPath = undefined;
+        }
+        for (let i = 0; i < this.poolSize; i++) {
+          const worker = await createWorker(['kor', 'eng'], 1, {
+            langPath,
+            ...(workerPath ? { workerPath } : {}),
+            gzip: false,
+          });
+          this.workers.push({ worker, busy: false });
+        }
+        this.initialized = true;
+      } catch (error) {
+        this.initFailed = true;
+        this.initError = error instanceof Error ? error : new Error(String(error));
+        await Promise.all(this.workers.map((p) => p.worker.terminate().catch(() => {})));
+        this.workers = [];
+        throw this.initError;
       }
-      this.initialized = true;
     })();
 
     return this.initPromise;
@@ -85,10 +111,12 @@ class TesseractWorkerPool {
   }
 
   async terminate(): Promise<void> {
-    await Promise.all(this.workers.map((p) => p.worker.terminate()));
+    await Promise.all(this.workers.map((p) => p.worker.terminate().catch(() => {})));
     this.workers = [];
     this.initialized = false;
     this.initPromise = null;
+    this.initFailed = false;
+    this.initError = null;
   }
 }
 

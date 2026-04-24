@@ -20,11 +20,18 @@ const nextConfig: NextConfig = {
     "@capyseo/core",
     "@houtini/geo-analyzer",
     "@sparticuz/chromium",
-    "llms-txt-generator"
+    "llms-txt-generator",
+    "tesseract.js",
+    "sharp"
   ],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   outputFileTracingIncludes: {
-    '/api/**/*': ['./node_modules/@sparticuz/chromium/bin/**/*'],
+    '/api/**/*': [
+      './node_modules/@sparticuz/chromium/bin/**/*',
+      './node_modules/tesseract.js/**/*',
+      './node_modules/tesseract.js-core/**/*',
+      './public/tessdata/**/*',
+    ],
   } as any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   outputFileTracingExcludes: {
