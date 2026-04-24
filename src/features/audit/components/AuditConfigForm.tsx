@@ -88,13 +88,51 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
           <label className={styles['no-margin']}>SEO 최적화 (Sitemap, Meta)</label>
         </div>
 
-        <div className="toggle-container">
+        <div className="toggle-container" style={{ marginBottom: '0.5rem' }}>
           <span
             className={`toggle ${config.enableAICheck ? 'active' : ''}`}
             onClick={() => setConfig({ ...config, enableAICheck: !config.enableAICheck })}
           />
           <label className={styles['no-margin']}>AI 친화도 (llms.txt, GEO)</label>
         </div>
+
+        <div className="toggle-container">
+          <span
+            className={`toggle ${config.enableAltTextScan ? 'active' : ''}`}
+            onClick={() => setConfig({ ...config, enableAltTextScan: !config.enableAltTextScan })}
+          />
+          <label className={styles['no-margin']}>이미지 대체텍스트 OCR 검증 (KWCAG 1.1.1)</label>
+        </div>
+
+        {config.enableAltTextScan && (
+          <div style={{ marginTop: '0.75rem', paddingLeft: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="alt-text-mode" style={{ fontSize: '0.85rem' }}>OCR 실행 모드</label>
+              <select
+                id="alt-text-mode"
+                value={config.altTextExecutionMode ?? 'separate'}
+                onChange={(e) => setConfig({ ...config, altTextExecutionMode: e.target.value as 'integrated' | 'separate' })}
+                style={{ fontSize: '0.85rem' }}
+              >
+                <option value="separate">별도 단계 (기본, 진행률 분리)</option>
+                <option value="integrated">통합 (감사와 함께 실행, 가장 빠름)</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="alt-text-max-images" style={{ fontSize: '0.85rem' }}>페이지당 최대 이미지 수</label>
+              <input
+                id="alt-text-max-images"
+                type="number"
+                min={1}
+                max={100}
+                placeholder="20"
+                value={config.altTextMaxImagesPerPage ?? ''}
+                onChange={(e) => setConfig({ ...config, altTextMaxImagesPerPage: parseInt(e.target.value) || undefined })}
+                style={{ fontSize: '0.85rem' }}
+              />
+            </div>
+          </div>
+        )}
       </fieldset>
 
       {/* 섹션 3: 크롤링 설정 */}
