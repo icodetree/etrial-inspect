@@ -2,11 +2,13 @@ import { WebCrawler } from '@/lib/crawler';
 import { AccessibilityAuditor } from '@/lib/accessibility-auditor';
 import { Violation, AuditResult, PageInfo, AuditConfig } from '@/types';
 import type { SEOAnalysisResult } from '@/types/seo';
+import type { AltTextScanResult } from '@/types/alt-text';
 import * as fs from 'fs';
 import * as path from 'path';
 import { seoAuditService } from './SEOAuditService';
 import { getBrowserErrorGuide, getBrowserLaunchOptions } from '@/lib/browser-utils';
 import { chromium } from 'playwright-core';
+import { scanPageForAltMismatches, shutdownSharedWorkerPool } from '@/lib/alt-text-validator';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function runAudit(config: AuditConfig, onProgress?: (data: any) => void): Promise<AuditResult> {
@@ -74,10 +76,17 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     ],
   });
 
+  const altTextMode = config.altTextExecutionMode ?? 'separate';
+  const altTextMaxImages = config.altTextMaxImagesPerPage ?? 20;
+
   const auditor = new AccessibilityAuditor({
     enableDynamicCheck: true,
     screenshotOnViolation: true,
-    headless: true
+    headless: true,
+    enableAltTextScan: config.enableAltTextScan === true && altTextMode === 'integrated',
+    altTextScanOptions: {
+      maxImages: altTextMaxImages,
+    },
   });
 
   try {
@@ -103,9 +112,53 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
     const pages: PageInfo[] = crawlResult.pages;
     const violations: Violation[] = [];
+    const altTextScans: AltTextScanResult[] = [];
     let violationNumber = 0;
 
+    const pushAltTextViolations = (page: PageInfo, scan: AltTextScanResult) => {
+      for (const item of scan.items) {
+        if (item.judgment === 'pass') continue;
+        const signature = `alt-text-${item.judgment}||${item.elementId}||${scan.pageUrl}`;
+        if (uniqueViolationMap.has(signature)) continue;
+
+        violationNumber++;
+        const impact = item.judgment === 'missing_alt' ? 'critical'
+          : item.judgment === 'text_mismatch' ? 'serious'
+          : item.judgment === 'decorative_mismatch' ? 'serious'
+          : 'moderate'; // review_needed
+
+        const violation: Violation = {
+          pageUrl: page.url,
+          pageTitle: page.title,
+          depth1: page.depth1,
+          depth2: page.depth2,
+          depth3: page.depth3,
+          depth4: page.depth4,
+          platform: config.platform || 'PC',
+          inspector: config.inspector || '시스템',
+          inspectionDate: new Date().toLocaleDateString('ko-KR'),
+          violationNumber,
+          kwcagId: '1.1.1',
+          kwcagName: '적절한 대체 텍스트 제공',
+          principle: '인식의 용이성',
+          axeRuleId: `alt-text-${item.judgment}`,
+          description: item.reason,
+          impact,
+          affectedCode: `<img src="${item.imageUrl}" alt="${item.currentAlt ?? ''}">`,
+          help: item.reason,
+          helpUrl: 'https://www.kwacc.or.kr/Board/Post/101',
+          selector: item.elementId,
+          occurrenceCount: 1,
+          isCommon: false,
+        };
+
+        uniqueViolationMap.set(signature, violation);
+        violations.push(violation);
+      }
+    };
+
     // 4. Accessibility Check
+    const uniqueViolationMap = new Map<string, Violation>();
     if (config.enableAccessibilityCheck) {
       log('♿ 접근성 검사 시작...');
       try {
@@ -119,7 +172,6 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
         await auditor.loadStorageState(authStatePath);
       }
 
-      const uniqueViolationMap = new Map<string, Violation>();
       const COMMON_UI_REGEX = /(header|footer|nav|gnb|lnb|sidebar|aside|menu|global)/i;
 
       // Concurrency Control
@@ -179,6 +231,12 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
               violations.push(violation);
             }
           }
+
+          // integrated 모드: auditPage가 altTextScan 결과를 함께 반환
+          if (auditResult.altTextScan) {
+            altTextScans.push(auditResult.altTextScan);
+            pushAltTextViolations(page, auditResult.altTextScan);
+          }
         } catch (error) {
           console.error(`  ❌ 검사 오류 (${page.url}):`, error);
           log(`❌ 검사 오류: ${page.url}`);
@@ -210,6 +268,67 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     }
 
     log('✅ 크롤링 및 접근성 검사 완료');
+
+    // 4-B. separate 모드: 감사 종료 후 별도 단계로 페이지 재방문하며 OCR 실행
+    if (config.enableAltTextScan === true && altTextMode === 'separate') {
+      log('🖼️ 이미지 대체 텍스트 OCR 스캔 시작 (별도 단계)...');
+      try {
+        let browser = auditor.getBrowser();
+        let ownBrowser = false;
+        if (!browser) {
+          const launchOptions = await getBrowserLaunchOptions(true);
+          browser = await chromium.launch(launchOptions);
+          ownBrowser = true;
+        }
+        try {
+          const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+          if (config.enableLogin && fs.existsSync(authStatePath)) {
+            await ctx.close();
+          }
+          const scanContext = config.enableLogin && fs.existsSync(authStatePath)
+            ? await browser.newContext({ storageState: authStatePath, viewport: { width: 1280, height: 800 } })
+            : await browser.newContext({ viewport: { width: 1280, height: 800 } });
+
+          let ocrDone = 0;
+          for (const page of pages) {
+            const ocrPage = await scanContext.newPage();
+            try {
+              await ocrPage.goto(page.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+              try {
+                await ocrPage.waitForLoadState('networkidle', { timeout: 8000 });
+              } catch {}
+              const scan = await scanPageForAltMismatches(ocrPage, { maxImages: altTextMaxImages });
+              altTextScans.push(scan);
+              pushAltTextViolations(page, scan);
+              log(`  🖼️ OCR 완료 (${++ocrDone}/${pages.length}): ${page.url} — 이미지 ${scan.totalImagesScanned}장, 불일치 ${scan.mismatchCount}건`);
+              if (onProgress) {
+                onProgress({ type: 'alt-text-progress', current: ocrDone, total: pages.length, url: page.url });
+              }
+            } catch (e) {
+              console.error(`[AltText/separate] ${page.url}:`, e);
+              log(`  ⚠️ OCR 오류 (${page.url}): ${e instanceof Error ? e.message : e}`);
+            } finally {
+              await ocrPage.close();
+            }
+          }
+          await scanContext.close();
+        } finally {
+          if (ownBrowser && browser) {
+            await browser.close();
+          }
+        }
+        log('✅ 이미지 OCR 스캔 완료');
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`❌ 이미지 OCR 스캔 실패: ${errorMsg}`);
+      } finally {
+        await shutdownSharedWorkerPool();
+      }
+    } else if (config.enableAltTextScan === true && altTextMode === 'integrated') {
+      // integrated 모드에서도 worker pool은 마지막에 정리
+      await shutdownSharedWorkerPool();
+    }
+
     await crawler.close();
 
     // 5. SEO & AI Audit
@@ -259,6 +378,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       endTime,
       totalPages: pages.length,
       totalViolations: violations.length,
+      altTextScans: altTextScans.length > 0 ? altTextScans : undefined,
       pages,
       violations,
       seoResult,
@@ -273,4 +393,43 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     try { await auditor.close(); } catch { }
     throw error;
   }
+}
+
+/**
+ * standalone 모드: 감사 없이 특정 URL들만 OCR 스캔
+ * Phase 4에서 추가됨 — /api/alt-text-scan 엔드포인트에서 사용
+ */
+export async function runStandaloneAltTextScan(
+  urls: string[],
+  options: { maxImagesPerPage?: number } = {},
+): Promise<AltTextScanResult[]> {
+  const maxImagesPerPage = options.maxImagesPerPage ?? 20;
+  const launchOptions = await getBrowserLaunchOptions(true);
+  const browser = await chromium.launch(launchOptions);
+  const results: AltTextScanResult[] = [];
+
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    for (const url of urls) {
+      const page = await ctx.newPage();
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        try {
+          await page.waitForLoadState('networkidle', { timeout: 8000 });
+        } catch {}
+        const scan = await scanPageForAltMismatches(page, { maxImages: maxImagesPerPage });
+        results.push(scan);
+      } catch (e) {
+        console.error(`[Standalone AltText] ${url}:`, e);
+      } finally {
+        await page.close();
+      }
+    }
+    await ctx.close();
+  } finally {
+    await browser.close();
+    await shutdownSharedWorkerPool();
+  }
+
+  return results;
 }

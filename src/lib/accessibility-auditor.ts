@@ -6,6 +6,8 @@ import koLocale from 'axe-core/locales/ko.json';
 import { getBrowserLaunchOptions } from './browser-utils';
 import { convertAxeToKWCAG, KWCAGViolation } from './kwcag-mapping';
 import { CUSTOM_RULE_SCRIPT } from './custom-rules';
+import { scanPageForAltMismatches } from './alt-text-validator';
+import type { AltTextScanOptions, AltTextScanResult } from '../types/alt-text';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -14,6 +16,10 @@ export interface AuditOptions {
   screenshotOnViolation?: boolean;
   screenshotDir?: string;
   headless?: boolean;
+  /** integrated 모드에서 Axe 스캔 직후 alt OCR 스캔 실행 여부 */
+  enableAltTextScan?: boolean;
+  /** alt OCR 스캔 옵션 (integrated 모드 전용) */
+  altTextScanOptions?: AltTextScanOptions;
 }
 
 export interface PageAuditResult {
@@ -22,6 +28,7 @@ export interface PageAuditResult {
   violations: KWCAGViolation[];
   screenshotPaths: string[];
   timestamp: string;
+  altTextScan?: AltTextScanResult;
 }
 
 export class AccessibilityAuditor {
@@ -266,12 +273,23 @@ export class AccessibilityAuditor {
       // KWCAG 형식으로 변환 (boundingBox가 포함된 상태로 전달됨)
       const kwcagViolations = convertAxeToKWCAG({ violations: allViolations });
 
+      // integrated 모드: Axe 스캔 직후 같은 페이지 컨텍스트에서 OCR 실행
+      let altTextScan: AltTextScanResult | undefined;
+      if (this.options.enableAltTextScan) {
+        try {
+          altTextScan = await scanPageForAltMismatches(page, this.options.altTextScanOptions);
+        } catch (e) {
+          console.error(`[AltText] scan failed for ${url}:`, e);
+        }
+      }
+
       return {
         url,
         title,
         violations: kwcagViolations,
         screenshotPaths: [publicScreenshotPath], // Use array for consistency
         timestamp: new Date().toISOString(),
+        altTextScan,
       };
     } catch (error) {
       console.error(`Error auditing ${url}:`, error);
