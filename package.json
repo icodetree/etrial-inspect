@@ -13,6 +13,7 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.0",
     "@axe-core/playwright": "^4.11.0",
     "@capyseo/core": "^0.1.2",
     "@houtini/geo-analyzer": "^2.1.0",
@@ -41,8 +42,8 @@
     "playwright": "^1.57.0",
     "sass": "^1.97.2",
     "ts-jest": "^29.4.6",
-    "tsx": "^4.19.0",
     "tsc-alias": "^1.8.16",
+    "tsx": "^4.19.0",
     "typescript": "^5"
   }
 }
