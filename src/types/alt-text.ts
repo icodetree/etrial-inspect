@@ -125,3 +125,40 @@ export interface ImageMetadata {
   naturalWidth: number;
   naturalHeight: number;
 }
+
+/**
+ * 이미지 진단 단일 보고서 — 여러 URL을 묶어 한 번의 진단으로 처리한 결과.
+ * Notion 저장·다운로드·이력 조회의 정규 단위.
+ */
+export interface AltTextAuditResult {
+  startTime: string;
+  endTime: string;
+  /** 사용자가 입력한 URL 목록 */
+  targetUrls: string[];
+  inspector?: string;
+  totalUrls: number;
+  /** 모든 페이지에서 OCR이 실행된 이미지 수 합계 */
+  totalImagesScanned: number;
+  /** pass가 아닌 항목 수 합계 */
+  totalMismatches: number;
+  /** 판정별 카운트 합계 */
+  countsByJudgment: Record<AltTextJudgment, number>;
+  /** 페이지별 OCR 결과 (standalone API 응답 그대로) */
+  scans: AltTextScanResult[];
+  options?: {
+    maxImagesPerPage?: number;
+  };
+}
+
+/** Notion 이력 리스트 단일 항목 */
+export interface AltTextHistoryItem {
+  id: string;
+  /** 첫 URL 또는 "이미지 진단 - URL N개" */
+  title: string;
+  date: string;
+  totalUrls: number;
+  totalImages: number;
+  mismatches: number;
+  inspector: string | null;
+  reportLink: string | null;
+}
