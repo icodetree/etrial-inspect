@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { Violation, PageInfo, AuditResult } from '@/types';
 import type { SEOAuditResult } from '@/types/seo';
+import type { AltTextAuditResult, AltTextMismatch } from '@/types/alt-text';
 
 export interface ExcelGeneratorOptions {
   includeViolations: boolean;
@@ -511,6 +512,122 @@ export class ExcelGenerator {
     if (score >= 70) return '🟡 양호';
     if (score >= 50) return '🟠 보통';
     return '🔴 개선 필요';
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 이미지 진단(alt-text) 전용
+  // ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * 이미지 진단 단독 리포트 생성
+   * 시트: 요약 / 페이지별 상세(전체) / 불일치만(pass 제외)
+   */
+  async generateAltTextReport(result: AltTextAuditResult): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+
+    this.addAltTextSummarySheet(workbook, result);
+    this.addAltTextDetailSheet(workbook, result, { includePass: true, name: '페이지별 상세' });
+    this.addAltTextDetailSheet(workbook, result, { includePass: false, name: '불일치만' });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+
+  private addAltTextSummarySheet(workbook: ExcelJS.Workbook, result: AltTextAuditResult): void {
+    const sheet = workbook.addWorksheet('요약');
+    sheet.columns = [
+      { header: '항목', key: 'item', width: 30 },
+      { header: '값', key: 'value', width: 40 },
+    ];
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    sheet.addRow({ item: '진단 시작 시간', value: result.startTime });
+    sheet.addRow({ item: '진단 종료 시간', value: result.endTime });
+    if (result.inspector) sheet.addRow({ item: '점검자', value: result.inspector });
+    sheet.addRow({ item: '대상 URL 수', value: result.totalUrls });
+    sheet.addRow({ item: 'OCR 실행 이미지 수', value: result.totalImagesScanned });
+    sheet.addRow({ item: '불일치 (pass 제외)', value: result.totalMismatches });
+    sheet.addRow({ item: '', value: '' });
+    sheet.addRow({ item: '--- 판정별 카운트 ---', value: '' });
+
+    const c = result.countsByJudgment;
+    sheet.addRow({ item: '정상 (pass)', value: c.pass ?? 0 });
+    sheet.addRow({ item: 'alt 누락 (missing_alt)', value: c.missing_alt ?? 0 });
+    sheet.addRow({ item: '장식 오분류 (decorative_mismatch)', value: c.decorative_mismatch ?? 0 });
+    sheet.addRow({ item: '텍스트 불일치 (text_mismatch)', value: c.text_mismatch ?? 0 });
+    sheet.addRow({ item: '수동 검토 필요 (review_needed)', value: c.review_needed ?? 0 });
+
+    sheet.addRow({ item: '', value: '' });
+    sheet.addRow({ item: '--- 대상 URL ---', value: '' });
+    result.targetUrls.forEach((u, i) => sheet.addRow({ item: `URL ${i + 1}`, value: u }));
+  }
+
+  private addAltTextDetailSheet(
+    workbook: ExcelJS.Workbook,
+    result: AltTextAuditResult,
+    options: { includePass: boolean; name: string },
+  ): void {
+    const sheet = workbook.addWorksheet(options.name);
+    sheet.columns = [
+      { header: '페이지 URL', key: 'pageUrl', width: 50 },
+      { header: '요소', key: 'elementId', width: 30 },
+      { header: '이미지 URL', key: 'imageUrl', width: 50 },
+      { header: '현재 alt', key: 'currentAlt', width: 30 },
+      { header: 'OCR 텍스트', key: 'extractedText', width: 40 },
+      { header: '유사도', key: 'similarity', width: 10 },
+      { header: 'OCR 신뢰도', key: 'confidenceScore', width: 12 },
+      { header: '이미지 유형', key: 'imageType', width: 15 },
+      { header: '판정', key: 'judgment', width: 22 },
+      { header: '사유', key: 'reason', width: 40 },
+    ];
+
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E7D32' } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    const judgmentColors: Record<AltTextMismatch['judgment'], string> = {
+      pass: 'FF99CC00',
+      missing_alt: 'FFFF0000',
+      decorative_mismatch: 'FFFF6600',
+      text_mismatch: 'FFFFCC00',
+      review_needed: 'FF3B82F6',
+    };
+    const judgmentLabels: Record<AltTextMismatch['judgment'], string> = {
+      pass: '정상',
+      missing_alt: 'alt 누락',
+      decorative_mismatch: '장식 오분류',
+      text_mismatch: '텍스트 불일치',
+      review_needed: '수동 검토 필요',
+    };
+
+    for (const scan of result.scans) {
+      for (const item of scan.items) {
+        if (!options.includePass && item.judgment === 'pass') continue;
+        const row = sheet.addRow({
+          pageUrl: scan.pageUrl,
+          elementId: item.elementId,
+          imageUrl: item.imageUrl,
+          currentAlt: item.currentAlt ?? '(없음)',
+          extractedText: item.extractedText,
+          similarity: typeof item.similarity === 'number' ? item.similarity.toFixed(2) : '-',
+          confidenceScore: typeof item.confidenceScore === 'number' ? item.confidenceScore.toFixed(2) : '-',
+          imageType: item.imageType,
+          judgment: judgmentLabels[item.judgment],
+          reason: item.reason,
+        });
+        row.getCell('judgment').fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: judgmentColors[item.judgment] },
+        };
+      }
+    }
+
+    sheet.autoFilter = { from: 'A1', to: 'J1' };
   }
 }
 
