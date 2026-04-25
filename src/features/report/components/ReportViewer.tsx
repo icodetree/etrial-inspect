@@ -28,6 +28,7 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [activeView, setActiveView] = useState<'accessibility' | 'seo' | 'ai'>('accessibility');
   const [pdfExporting, setPdfExporting] = useState(false);
+  const [savingNotion, setSavingNotion] = useState(false);
 
   useEffect(() => {
     // If no initial result provided (e.g. standard /report page), try loading from localStorage
@@ -116,6 +117,28 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
     }
   };
 
+  const handleSaveToNotion = async () => {
+    if (!result || savingNotion) return;
+    setSavingNotion(true);
+    try {
+      const response = await fetch('/api/history/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result),
+      });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Notion 저장 실패');
+      }
+      const { reportUrl } = await response.json();
+      alert(`Notion에 저장되었습니다!\n${reportUrl ?? ''}`);
+    } catch (error) {
+      alert(`저장 실패: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSavingNotion(false);
+    }
+  };
+
   const handleExportPDF = async () => {
     if (!result || pdfExporting) return;
     setPdfExporting(true);
@@ -191,6 +214,14 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
             disabled={pdfExporting}
           >
             {pdfExporting ? 'PDF 생성 중...' : 'PDF 보고서'}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleSaveToNotion}
+            disabled={savingNotion}
+            style={{ background: '#1a1a1a', color: '#fff', borderColor: '#1a1a1a' }}
+          >
+            {savingNotion ? 'Notion 저장 중...' : 'Notion 저장'}
           </button>
           <a href="/report/checklist" className="btn btn-secondary">
             33개 체크리스트
