@@ -1,16 +1,96 @@
 'use client';
 
-/**
- * 이미지 진단 (alt-text OCR) 메인 페이지
- *
- * 입력 폼 + 진행 로그 + 결과 미리보기 + 이력 리스트가 들어갈 자리.
- * 실제 컴포넌트는 다음 단계에서 채워진다.
- */
+import { useState } from 'react';
+import { Sparkles } from 'lucide-react';
+import { useAltTextAudit } from '@/features/alttext/hooks/useAltTextAudit';
+import { AltTextAuditForm } from '@/features/alttext/components/AltTextAuditForm';
+import { AltTextResultViewer } from '@/features/alttext/components/AltTextResultViewer';
+import { AltTextHistoryList } from '@/features/alttext/components/AltTextHistoryList';
+
 export default function AltTextPage() {
+  const { config, setConfig, progress, logs, result, startScan } = useAltTextAudit();
+  const [historyRefreshTrigger] = useState(0);
+
+  const isProcessing = progress.status === 'running';
+
   return (
-    <main className="container">
-      <h1>이미지 진단</h1>
-      <p>이미지 대체 텍스트(OCR) 검증 입력 폼이 곧 추가됩니다.</p>
-    </main>
+    <div style={{ padding: '2rem' }}>
+      {/* 헤더 */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '1.5rem',
+        }}
+      >
+        <h1 style={{ fontSize: '1.8rem', fontWeight: 700, color: '#111827', margin: 0 }}>
+          이미지 진단 (대체 텍스트 OCR 검증)
+        </h1>
+        <button
+          className="btn btn-primary"
+          onClick={startScan}
+          disabled={isProcessing}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <Sparkles size={15} aria-hidden="true" />
+          <span>이미지 진단 시작</span>
+        </button>
+      </div>
+
+      {/* 입력 폼 */}
+      <section aria-label="이미지 진단 설정" style={{ marginBottom: '1.5rem' }}>
+        <AltTextAuditForm
+          config={config}
+          setConfig={setConfig}
+          onStart={startScan}
+          isProcessing={isProcessing}
+        />
+      </section>
+
+      {/* 진행 로그 */}
+      {(progress.status !== 'idle' || logs.length > 0) && (
+        <section
+          aria-label="진행 로그"
+          style={{
+            marginBottom: '1.5rem',
+            padding: '1rem 1.25rem',
+            background: '#0f172a',
+            color: '#e2e8f0',
+            borderRadius: '10px',
+            fontFamily: 'monospace',
+            fontSize: '0.85rem',
+            lineHeight: 1.6,
+            maxHeight: '240px',
+            overflowY: 'auto',
+          }}
+        >
+          {logs.map((log, i) => (
+            <div key={i}>
+              <span style={{ color: '#64748b' }}>[{log.time}]</span> {log.message}
+            </div>
+          ))}
+          {progress.status === 'running' && <div style={{ color: '#fbbf24' }}>실행 중...</div>}
+          {progress.status === 'completed' && (
+            <div style={{ color: '#34d399', marginTop: '0.5rem' }}>{progress.message}</div>
+          )}
+          {progress.status === 'error' && (
+            <div style={{ color: '#f87171', marginTop: '0.5rem' }}>오류: {progress.message}</div>
+          )}
+        </section>
+      )}
+
+      {/* 결과 뷰어 */}
+      {result && (
+        <section aria-label="이미지 진단 결과" style={{ marginBottom: '1.5rem' }}>
+          <AltTextResultViewer result={result} />
+        </section>
+      )}
+
+      {/* 이력 리스트 */}
+      <section aria-label="이미지 진단 이력">
+        <AltTextHistoryList refreshTrigger={historyRefreshTrigger} />
+      </section>
+    </div>
   );
 }

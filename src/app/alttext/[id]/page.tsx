@@ -1,15 +1,11 @@
-import { NotionService } from '@/services/notion/NotionService';
 import { notFound } from 'next/navigation';
+import { NotionService } from '@/services/notion/NotionService';
+import { AltTextResultViewer } from '@/features/alttext/components/AltTextResultViewer';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-/**
- * 이미지 진단 단건 보고서 페이지 (Notion에서 조회)
- *
- * 결과 뷰어 컴포넌트는 다음 단계에서 도입된다.
- */
 export default async function AltTextReportPage({ params }: PageProps) {
   const { id } = await params;
 
@@ -22,17 +18,20 @@ export default async function AltTextReportPage({ params }: PageProps) {
     process.env.NOTION_ALTTEXT_DATABASE_ID,
   );
 
-  const result = await notionService.getAltTextAuditResult(id);
+  let result;
+  try {
+    result = await notionService.getAltTextAuditResult(id);
+  } catch (err) {
+    throw new Error(
+      `Notion에서 이미지 진단 보고서(${id})를 조회하는 중 오류가 발생했습니다: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+
   if (!result) {
     notFound();
   }
 
-  return (
-    <main className="container">
-      <h1>이미지 진단 보고서</h1>
-      <p>저장된 보고서 ID: {id}</p>
-      <p>총 URL: {result.totalUrls}개 / 불일치: {result.totalMismatches}건</p>
-      <p>결과 뷰어 컴포넌트는 다음 단계에서 추가됩니다.</p>
-    </main>
-  );
+  return <AltTextResultViewer result={result} />;
 }
