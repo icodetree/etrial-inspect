@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useAltTextAudit } from '@/features/alttext/hooks/useAltTextAudit';
 import { AltTextAuditForm } from '@/features/alttext/components/AltTextAuditForm';
@@ -9,7 +9,31 @@ import { AltTextHistoryList } from '@/features/alttext/components/AltTextHistory
 
 export default function AltTextPage() {
   const { config, setConfig, progress, logs, result, startScan } = useAltTextAudit();
-  const [historyRefreshTrigger] = useState(0);
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
+  const [isSavingNotion, setIsSavingNotion] = useState(false);
+
+  const handleSaveToNotion = useCallback(async () => {
+    if (!result) return;
+    setIsSavingNotion(true);
+    try {
+      const res = await fetch('/api/alttext/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Notion 저장 실패');
+      }
+      const { reportUrl } = await res.json();
+      alert(`Notion에 저장되었습니다!\n${reportUrl ?? ''}`);
+      setHistoryRefreshTrigger(prev => prev + 1);
+    } catch (e) {
+      alert(`저장 실패: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    } finally {
+      setIsSavingNotion(false);
+    }
+  }, [result]);
 
   const isProcessing = progress.status === 'running';
 
@@ -83,7 +107,11 @@ export default function AltTextPage() {
       {/* 결과 뷰어 */}
       {result && (
         <section aria-label="이미지 진단 결과" style={{ marginBottom: '1.5rem' }}>
-          <AltTextResultViewer result={result} />
+          <AltTextResultViewer
+            result={result}
+            onSaveToNotion={handleSaveToNotion}
+            isSavingNotion={isSavingNotion}
+          />
         </section>
       )}
 
