@@ -22,14 +22,14 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
   };
 
   // 0. 옵션 검증 — 최소 한 가지 진단 옵션은 선택되어야 함
+  // 이미지 대체텍스트(OCR) 진단은 별도 페이지(/alttext)로 분리되었음
   const needsAccessibility = config.enableAccessibilityCheck === true;
-  const needsAltText = config.enableAltTextScan === true;
   const needsSEO = config.enableSEOCheck === true;
   const needsAI = config.enableAICheck === true;
-  if (!needsAccessibility && !needsAltText && !needsSEO && !needsAI) {
-    throw new Error('진단 옵션을 최소 한 가지 이상 선택해주세요. (웹접근성 / SEO / AI 친화도 / 이미지 대체텍스트)');
+  if (!needsAccessibility && !needsSEO && !needsAI) {
+    throw new Error('진단 옵션을 최소 한 가지 이상 선택해주세요. (웹접근성 / SEO / AI 친화도)');
   }
-  const needsCrawl = needsAccessibility || needsAltText;
+  const needsCrawl = needsAccessibility;
 
   // 1. Login Phase
   if (config.enableLogin && config.loginUrl) {
@@ -86,20 +86,10 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     ],
   });
 
-  const altTextMaxImages = config.altTextMaxImagesPerPage ?? 20;
-  // 자동 결정: 접근성 + OCR 둘 다이면 같은 페이지 컨텍스트에서 통합 실행(빠름),
-  // OCR만 단독 실행이면 별도 단계로 페이지를 재방문하며 OCR만 수행
-  const altTextMode: 'integrated' | 'separate' =
-    needsAccessibility && needsAltText ? 'integrated' : 'separate';
-
   const auditor = new AccessibilityAuditor({
     enableDynamicCheck: true,
     screenshotOnViolation: true,
     headless: true,
-    enableAltTextScan: needsAltText && altTextMode === 'integrated',
-    altTextScanOptions: {
-      maxImages: altTextMaxImages,
-    },
   });
 
   try {
@@ -139,50 +129,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     }
 
     const violations: Violation[] = [];
-    const altTextScans: AltTextScanResult[] = [];
     let violationNumber = 0;
-
-    const pushAltTextViolations = (page: PageInfo, scan: AltTextScanResult) => {
-      for (const item of scan.items) {
-        if (item.judgment === 'pass') continue;
-        const signature = `alt-text-${item.judgment}||${item.elementId}||${scan.pageUrl}`;
-        if (uniqueViolationMap.has(signature)) continue;
-
-        violationNumber++;
-        const impact = item.judgment === 'missing_alt' ? 'critical'
-          : item.judgment === 'text_mismatch' ? 'serious'
-          : item.judgment === 'decorative_mismatch' ? 'serious'
-          : 'moderate'; // review_needed
-
-        const violation: Violation = {
-          pageUrl: page.url,
-          pageTitle: page.title,
-          depth1: page.depth1,
-          depth2: page.depth2,
-          depth3: page.depth3,
-          depth4: page.depth4,
-          platform: config.platform || 'PC',
-          inspector: config.inspector || '시스템',
-          inspectionDate: new Date().toLocaleDateString('ko-KR'),
-          violationNumber,
-          kwcagId: '1.1.1',
-          kwcagName: '적절한 대체 텍스트 제공',
-          principle: '인식의 용이성',
-          axeRuleId: `alt-text-${item.judgment}`,
-          description: item.reason,
-          impact,
-          affectedCode: `<img src="${item.imageUrl}" alt="${item.currentAlt ?? ''}">`,
-          help: item.reason,
-          helpUrl: 'https://www.kwacc.or.kr/Board/Post/101',
-          selector: item.elementId,
-          occurrenceCount: 1,
-          isCommon: false,
-        };
-
-        uniqueViolationMap.set(signature, violation);
-        violations.push(violation);
-      }
-    };
 
     // 4. Accessibility Check
     const uniqueViolationMap = new Map<string, Violation>();
@@ -258,12 +205,6 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
               violations.push(violation);
             }
           }
-
-          // integrated 모드: auditPage가 altTextScan 결과를 함께 반환
-          if (auditResult.altTextScan) {
-            altTextScans.push(auditResult.altTextScan);
-            pushAltTextViolations(page, auditResult.altTextScan);
-          }
         } catch (error) {
           console.error(`  ❌ 검사 오류 (${page.url}):`, error);
           log(`❌ 검사 오류: ${page.url}`);
@@ -296,66 +237,6 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
     if (needsAccessibility) {
       log('✅ 접근성 검사 완료');
-    }
-
-    // 4-B. separate 모드: 감사 종료 후 별도 단계로 페이지 재방문하며 OCR 실행
-    if (needsAltText && altTextMode === 'separate') {
-      log('🖼️ 이미지 대체 텍스트 OCR 스캔 시작 (별도 단계)...');
-      try {
-        let browser = auditor.getBrowser();
-        let ownBrowser = false;
-        if (!browser) {
-          const launchOptions = await getBrowserLaunchOptions(true);
-          browser = await chromium.launch(launchOptions);
-          ownBrowser = true;
-        }
-        try {
-          const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-          if (config.enableLogin && fs.existsSync(authStatePath)) {
-            await ctx.close();
-          }
-          const scanContext = config.enableLogin && fs.existsSync(authStatePath)
-            ? await browser.newContext({ storageState: authStatePath, viewport: { width: 1280, height: 800 } })
-            : await browser.newContext({ viewport: { width: 1280, height: 800 } });
-
-          let ocrDone = 0;
-          for (const page of pages) {
-            const ocrPage = await scanContext.newPage();
-            try {
-              await ocrPage.goto(page.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-              try {
-                await ocrPage.waitForLoadState('networkidle', { timeout: 8000 });
-              } catch {}
-              const scan = await scanPageForAltMismatches(ocrPage, { maxImages: altTextMaxImages });
-              altTextScans.push(scan);
-              pushAltTextViolations(page, scan);
-              log(`  🖼️ OCR 완료 (${++ocrDone}/${pages.length}): ${page.url} — 이미지 ${scan.totalImagesScanned}장, 불일치 ${scan.mismatchCount}건`);
-              if (onProgress) {
-                onProgress({ type: 'alt-text-progress', current: ocrDone, total: pages.length, url: page.url });
-              }
-            } catch (e) {
-              console.error(`[AltText/separate] ${page.url}:`, e);
-              log(`  ⚠️ OCR 오류 (${page.url}): ${e instanceof Error ? e.message : e}`);
-            } finally {
-              await ocrPage.close();
-            }
-          }
-          await scanContext.close();
-        } finally {
-          if (ownBrowser && browser) {
-            await browser.close();
-          }
-        }
-        log('✅ 이미지 OCR 스캔 완료');
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        log(`❌ 이미지 OCR 스캔 실패: ${errorMsg}`);
-      } finally {
-        await shutdownSharedWorkerPool();
-      }
-    } else if (needsAltText && altTextMode === 'integrated') {
-      // integrated 모드에서도 worker pool은 마지막에 정리
-      await shutdownSharedWorkerPool();
     }
 
     if (needsCrawl) {
@@ -413,7 +294,6 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       endTime,
       totalPages: pages.length,
       totalViolations: violations.length,
-      altTextScans: altTextScans.length > 0 ? altTextScans : undefined,
       pages,
       violations,
       seoResult,

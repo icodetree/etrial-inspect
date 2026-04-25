@@ -142,10 +142,9 @@ export function useAudit(onHistoryRefresh?: () => void) {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (progress.status === 'crawling' || progress.status === 'auditing') {
-      const needsCrawl = config.enableAccessibilityCheck || config.enableAltTextScan;
       const messages: string[] = [];
 
-      if (needsCrawl) {
+      if (config.enableAccessibilityCheck) {
         messages.push(
           `${config.targetUrl} 접속 중...`,
           'DOM 구조 분석 중...',
@@ -154,13 +153,9 @@ export function useAudit(onHistoryRefresh?: () => void) {
           'HTML 콘텐츠 파싱 중...',
           '내부 링크 식별 중...',
           '검사 대기열에 페이지 추가 중...',
+          'axe-core 스캐너 실행 중...',
+          '접근성 규칙 검증 중...',
         );
-      }
-      if (config.enableAccessibilityCheck) {
-        messages.push('axe-core 스캐너 실행 중...', '접근성 규칙 검증 중...');
-      }
-      if (config.enableAltTextScan) {
-        messages.push('이미지 OCR 엔진 준비 중...', '대체 텍스트 유사도 판정 중...');
       }
       if (config.enableSEOCheck) {
         messages.push('메타 태그 수집 중...', '헤딩 구조 분석 중...', 'robots.txt 확인 중...');
@@ -181,7 +176,6 @@ export function useAudit(onHistoryRefresh?: () => void) {
     progress.status,
     config.targetUrl,
     config.enableAccessibilityCheck,
-    config.enableAltTextScan,
     config.enableSEOCheck,
     config.enableAICheck,
     addLog,
@@ -196,10 +190,9 @@ export function useAudit(onHistoryRefresh?: () => void) {
     if (
       !config.enableAccessibilityCheck &&
       !config.enableSEOCheck &&
-      !config.enableAICheck &&
-      !config.enableAltTextScan
+      !config.enableAICheck
     ) {
-      alert('진단 옵션을 최소 한 가지 이상 선택해주세요.\n(웹접근성 · SEO · AI 친화도 · 이미지 대체텍스트)');
+      alert('진단 옵션을 최소 한 가지 이상 선택해주세요.\n(웹접근성 · SEO · AI 친화도)');
       return;
     }
 

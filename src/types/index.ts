@@ -1,6 +1,5 @@
 // TypeScript 타입 정의
 import { SEOAuditResult } from './seo';
-import type { AltTextScanResult } from './alt-text';
 
 export interface AuditConfig {
   targetUrl: string;
@@ -11,10 +10,6 @@ export interface AuditConfig {
   enableAccessibilityCheck: boolean;
   enableSEOCheck?: boolean;
   enableAICheck?: boolean;
-  /** 이미지 대체 텍스트 OCR 검증 활성화 (기본 false) */
-  enableAltTextScan?: boolean;
-  /** 페이지당 최대 OCR 이미지 수 */
-  altTextMaxImagesPerPage?: number;
   platform: 'PC' | 'Mobile';
   inspector: string;
   excludePaths?: string;
@@ -91,8 +86,6 @@ export interface AuditResult {
   pages: PageInfo[];
   violations: Violation[];
   seoResult?: SEOAuditResult;
-  /** 페이지별 이미지 대체 텍스트 OCR 스캔 결과 */
-  altTextScans?: AltTextScanResult[];
   artifactName?: string; // GitHub Actions Artifact 이름 (e.g., "screenshots-123456")
   screenshotUrl?: string; // GitHub Pages Screenshot URL
   summary: {

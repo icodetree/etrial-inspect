@@ -95,32 +95,6 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
           />
           <label className={styles['no-margin']}>AI 친화도 (llms.txt, GEO)</label>
         </div>
-
-        <div className="toggle-container">
-          <span
-            className={`toggle ${config.enableAltTextScan ? 'active' : ''}`}
-            onClick={() => setConfig({ ...config, enableAltTextScan: !config.enableAltTextScan })}
-          />
-          <label className={styles['no-margin']}>이미지 대체텍스트 OCR 검증 (KWCAG 1.1.1)</label>
-        </div>
-
-        {config.enableAltTextScan && (
-          <div style={{ marginTop: '0.75rem', paddingLeft: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label htmlFor="alt-text-max-images" style={{ fontSize: '0.85rem' }}>페이지당 최대 이미지 수</label>
-              <input
-                id="alt-text-max-images"
-                type="number"
-                min={1}
-                max={100}
-                placeholder="20"
-                value={config.altTextMaxImagesPerPage ?? ''}
-                onChange={(e) => setConfig({ ...config, altTextMaxImagesPerPage: parseInt(e.target.value) || undefined })}
-                style={{ fontSize: '0.85rem' }}
-              />
-            </div>
-          </div>
-        )}
       </fieldset>
 
       {/* 섹션 3: 크롤링 설정 */}

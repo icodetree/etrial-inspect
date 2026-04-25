@@ -9,7 +9,6 @@ import { getPlatformAuditService } from '@/services/platform/factory';
 import SEODetailView from '@/features/seo/components/SEODetailView';
 import AIDetailView from '@/features/seo/components/AIDetailView';
 import { ViolationDetailModal } from '@/components/ViolationDetailModal';
-import AltTextScanSection from './AltTextScanSection';
 
 interface ReportViewerProps {
   initialResult?: AuditResult | null;
@@ -472,11 +471,6 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
               </div>
             )}
           </div>
-
-          {/* 이미지 대체텍스트 OCR 검증 결과 */}
-          {result.altTextScans && result.altTextScans.length > 0 && (
-            <AltTextScanSection scans={result.altTextScans} />
-          )}
         </>
       )}
     </div>
