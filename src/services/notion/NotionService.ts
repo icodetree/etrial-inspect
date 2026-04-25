@@ -1,5 +1,9 @@
 import { Client } from '@notionhq/client';
 import { AuditResult } from '@/types';
+import type {
+  AltTextAuditResult,
+  AltTextHistoryItem,
+} from '@/types/alt-text';
 
 export class NotionService {
   private notion: Client;
@@ -378,6 +382,279 @@ export class NotionService {
     } catch (error) {
       console.error('Error soft deleting page:', error);
       return false;
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 이미지 진단(alt-text) 전용 — 별도 Notion DB(NOTION_ALTTEXT_DATABASE_ID) 대상
+  // ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * 이미지 진단 결과를 Notion 데이터베이스에 저장
+   */
+  async saveAltTextAuditResult(result: AltTextAuditResult, reportUrl?: string): Promise<string> {
+    const counts = result.countsByJudgment;
+    const titleText = result.targetUrls.length === 1
+      ? result.targetUrls[0]
+      : `이미지 진단 - URL ${result.targetUrls.length}개`;
+
+    // 본문 블록 구성
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const children: any[] = [
+      {
+        object: 'block',
+        type: 'heading_2',
+        heading_2: { rich_text: [{ text: { content: '🖼️ 이미지 진단 요약' } }] },
+      },
+      {
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ text: { content: `대상 URL: ${result.totalUrls}개` } }] },
+      },
+      {
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ text: { content: `OCR 실행 이미지: ${result.totalImagesScanned}장` } }] },
+      },
+      {
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ text: { content: `불일치(pass 제외): ${result.totalMismatches}건` } }] },
+      },
+      {
+        object: 'block',
+        type: 'heading_3',
+        heading_3: { rich_text: [{ text: { content: '판정별 카운트' } }] },
+      },
+      {
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ text: { content: `✅ pass: ${counts.pass ?? 0}` } }] },
+      },
+      {
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ text: { content: `🔴 missing_alt: ${counts.missing_alt ?? 0}` } }] },
+      },
+      {
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ text: { content: `🟠 decorative_mismatch: ${counts.decorative_mismatch ?? 0}` } }] },
+      },
+      {
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ text: { content: `🟠 text_mismatch: ${counts.text_mismatch ?? 0}` } }] },
+      },
+      {
+        object: 'block',
+        type: 'bulleted_list_item',
+        bulleted_list_item: { rich_text: [{ text: { content: `🟡 review_needed: ${counts.review_needed ?? 0}` } }] },
+      },
+      {
+        object: 'block',
+        type: 'heading_2',
+        heading_2: { rich_text: [{ text: { content: '🚨 페이지별 상세' } }] },
+      },
+    ];
+
+    // 페이지별 toggle 블록 — pass 제외 항목만 표시
+    for (const scan of result.scans) {
+      const mismatches = scan.items.filter(i => i.judgment !== 'pass');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detailChildren: any[] = mismatches.length === 0
+        ? [{
+            object: 'block',
+            type: 'paragraph',
+            paragraph: { rich_text: [{ text: { content: '불일치 없음 (모든 이미지 pass)' } }] },
+          }]
+        : mismatches.slice(0, 50).map(item => ({
+            object: 'block',
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [{
+                text: {
+                  content: `[${item.judgment}] alt="${item.currentAlt ?? '(없음)'}" / OCR="${item.extractedText.substring(0, 80)}" / ${item.reason}`,
+                },
+              }],
+            },
+          }));
+
+      children.push({
+        object: 'block',
+        type: 'toggle',
+        toggle: {
+          rich_text: [{ text: { content: `[${mismatches.length}건] ${scan.pageUrl}` } }],
+          children: detailChildren,
+        },
+      });
+    }
+
+    // 원본 JSON
+    children.push({
+      object: 'block',
+      type: 'heading_2',
+      heading_2: { rich_text: [{ text: { content: '💾 원본 데이터 (JSON)' } }] },
+    });
+    const jsonString = JSON.stringify(result, null, 2);
+    const jsonChunks = this.createRichTextChunks(jsonString);
+    const richTextLimit = 100;
+    for (let i = 0; i < jsonChunks.length; i += richTextLimit) {
+      const chunkBatch = jsonChunks.slice(i, i + richTextLimit);
+      children.push({
+        object: 'block',
+        type: 'code',
+        code: {
+          language: 'json',
+          rich_text: chunkBatch,
+          caption: i > 0 ? [{ text: { content: `(Part ${Math.floor(i / richTextLimit) + 1})` } }] : [],
+        },
+      });
+    }
+
+    // DB 속성
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const properties: Record<string, any> = {
+      'Page URL': {
+        title: [{ text: { content: titleText } }],
+      },
+      'Date': {
+        date: { start: result.endTime || new Date().toISOString() },
+      },
+      'Total URLs': { number: result.totalUrls },
+      'Total Images': { number: result.totalImagesScanned },
+      'Mismatches': { number: result.totalMismatches },
+      'Pass': { number: counts.pass ?? 0 },
+      'Missing Alt': { number: counts.missing_alt ?? 0 },
+      'Decorative Mismatch': { number: counts.decorative_mismatch ?? 0 },
+      'Text Mismatch': { number: counts.text_mismatch ?? 0 },
+      'Review Needed': { number: counts.review_needed ?? 0 },
+      'Report Link': { url: reportUrl || null },
+    };
+
+    if (result.inspector) {
+      properties['Inspector'] = {
+        rich_text: [{ text: { content: result.inspector } }],
+      };
+    }
+
+    const response = await this.notion.pages.create({
+      parent: { database_id: this.databaseId },
+      properties,
+      children: children.slice(0, 100),
+    });
+    const pageId = response.id;
+
+    // 100개 초과 블록은 추가 append
+    if (children.length > 100) {
+      const remainingBlocks = children.slice(100);
+      const chunkSize = 100;
+      for (let i = 0; i < remainingBlocks.length; i += chunkSize) {
+        const chunk = remainingBlocks.slice(i, i + chunkSize);
+        await this.notion.blocks.children.append({
+          block_id: pageId,
+          children: chunk,
+        });
+      }
+    }
+
+    return pageId;
+  }
+
+  /**
+   * 이미지 진단 결과 단건 조회 — JSON code block 재조립 후 파싱
+   */
+  async getAltTextAuditResult(pageId: string): Promise<AltTextAuditResult | null> {
+    try {
+      let jsonContent = '';
+      let hasMore = true;
+      let startCursor: string | undefined = undefined;
+
+      while (hasMore) {
+        const response = await this.notion.blocks.children.list({
+          block_id: pageId,
+          start_cursor: startCursor,
+        });
+
+        for (const block of response.results) {
+          if ('type' in block && block.type === 'code' && block.code.language === 'json') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const chunk = block.code.rich_text.map((t: any) => t.plain_text).join('');
+            jsonContent += chunk;
+          }
+        }
+
+        hasMore = response.has_more;
+        startCursor = response.next_cursor || undefined;
+      }
+
+      if (!jsonContent) {
+        console.error('No JSON block found in Notion alt-text page:', pageId);
+        return null;
+      }
+
+      try {
+        return JSON.parse(jsonContent);
+      } catch (e) {
+        console.error('Failed to parse alt-text JSON from Notion:', e);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching alt-text result from Notion:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 이미지 진단 이력 리스트 (Deleted=false)
+   */
+  async getAltTextHistory(): Promise<AltTextHistoryItem[]> {
+    const formatUUID = (id: string) => {
+      if (id.length === 32) {
+        return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20)}`;
+      }
+      return id;
+    };
+    const formattedDbId = formatUUID(this.databaseId);
+
+    try {
+      const response = await this.notion.request({
+        path: `databases/${formattedDbId}/query`,
+        method: 'post',
+        body: {
+          filter: {
+            property: 'Deleted',
+            checkbox: { equals: false },
+          },
+          sorts: [
+            { property: 'Date', direction: 'descending' },
+          ],
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any;
+
+      if (!response || !response.results) {
+        console.error('Invalid Notion response (alt-text history):', response);
+        return [];
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return response.results.map((page: any): AltTextHistoryItem => {
+        const props = page.properties;
+        return {
+          id: page.id,
+          title: props['Page URL']?.title?.[0]?.plain_text || '',
+          date: props['Date']?.date?.start || '',
+          totalUrls: props['Total URLs']?.number ?? 0,
+          totalImages: props['Total Images']?.number ?? 0,
+          mismatches: props['Mismatches']?.number ?? 0,
+          inspector: props['Inspector']?.rich_text?.[0]?.plain_text || null,
+          reportLink: props['Report Link']?.url || null,
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching alt-text history:', error);
+      return [];
     }
   }
 }
