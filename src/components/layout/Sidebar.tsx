@@ -8,6 +8,7 @@ import {
   Home, FileText, CheckSquare,
   Settings, HelpCircle,
   ChevronsLeft,
+  Image as ImageIcon,
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
 
@@ -15,9 +16,10 @@ const SIDEBAR_EXPANDED = 220;
 const SIDEBAR_COLLAPSED = 64;
 
 const mainNav = [
-  { label: '진단',        href: '/',                 icon: Home },
-  { label: '보고서',      href: '/report',            icon: FileText },
-  { label: '체크리스트',  href: '/report/checklist',  icon: CheckSquare },
+  { label: '진단',          href: '/',                 icon: Home },
+  { label: '보고서',        href: '/report',            icon: FileText },
+  { label: '이미지 진단',   href: '/alttext',           icon: ImageIcon },
+  { label: '체크리스트',    href: '/report/checklist',  icon: CheckSquare },
 ];
 
 const bottomNav = [
@@ -44,6 +46,7 @@ export function Sidebar() {
     if (href === '/') return pathname === '/';
     if (href.startsWith('/#')) return pathname === '/';
     if (href === '/report') return pathname === '/report' || (pathname.startsWith('/report/') && !pathname.startsWith('/report/checklist'));
+    if (href === '/alttext') return pathname === '/alttext' || pathname.startsWith('/alttext/');
     return pathname === href || pathname.startsWith(href + '/');
   };
 
