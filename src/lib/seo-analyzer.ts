@@ -1198,7 +1198,25 @@ function safeValue<T>(result: PromiseSettledResult<SEOCategory<T>>, defaultName:
   return { name: defaultName, score: 0, issues: [], passed: [], data: defaultData };
 }
 
-export async function analyzePage(browser: Browser, url: string): Promise<SEOAnalysisResult> {
+export interface AnalyzePageOptions {
+  /** SEO 카테고리(meta/heading/image/link/social/content/semantic/accessibility/schema/technical) 실행 여부 */
+  includeSEO?: boolean;
+  /** AI 친화도 카테고리(geo) 실행 여부 */
+  includeAI?: boolean;
+}
+
+function emptyCategory<T>(name: string, defaultData: T): SEOCategory<T> {
+  return { name, score: 0, issues: [], passed: [], data: defaultData, executionTime: 0 };
+}
+
+export async function analyzePage(
+  browser: Browser,
+  url: string,
+  options: AnalyzePageOptions = {},
+): Promise<SEOAnalysisResult> {
+  const includeSEO = options.includeSEO ?? true;
+  const includeAI = options.includeAI ?? true;
+
   const page = await browser.newPage();
   const startTime = Date.now();
 
@@ -1225,37 +1243,84 @@ export async function analyzePage(browser: Browser, url: string): Promise<SEOAna
     const pageTitle = await page.title();
     const origin = new URL(url).origin;
 
-    const results = await Promise.allSettled([
-      analyzeMeta(page),
-      analyzeHeading(page),
-      analyzeImage(page),
-      analyzeLink(page),
-      analyzeSocial(page),
-      analyzeContent(page),
-      analyzeSemantic(page),
-      analyzeAccessibility(page),
-      analyzeSchema(page),
-      analyzeTechnical(page, responseHeaders),
-      analyzeGeo(page, origin),
+    const seoTasks = includeSEO
+      ? [
+          analyzeMeta(page),
+          analyzeHeading(page),
+          analyzeImage(page),
+          analyzeLink(page),
+          analyzeSocial(page),
+          analyzeContent(page),
+          analyzeSemantic(page),
+          analyzeAccessibility(page),
+          analyzeSchema(page),
+          analyzeTechnical(page, responseHeaders),
+        ]
+      : [];
+    const aiTasks = includeAI ? [analyzeGeo(page, origin)] : [];
+
+    const [seoResults, aiResults] = await Promise.all([
+      Promise.allSettled(seoTasks),
+      Promise.allSettled(aiTasks),
     ]);
 
     const categories = {
-      meta: safeValue(results[0] as PromiseSettledResult<SEOCategory<MetaData>>, '메타 태그', {} as MetaData),
-      heading: safeValue(results[1] as PromiseSettledResult<SEOCategory<HeadingData>>, '헤딩 구조', {} as HeadingData),
-      image: safeValue(results[2] as PromiseSettledResult<SEOCategory<ImageData>>, '이미지', {} as ImageData),
-      link: safeValue(results[3] as PromiseSettledResult<SEOCategory<LinkData>>, '링크', {} as LinkData),
-      social: safeValue(results[4] as PromiseSettledResult<SEOCategory<SocialData>>, '소셜 미디어', {} as SocialData),
-      content: safeValue(results[5] as PromiseSettledResult<SEOCategory<ContentData>>, '콘텐츠', {} as ContentData),
-      semantic: safeValue(results[6] as PromiseSettledResult<SEOCategory<SemanticData>>, '시맨틱 구조', {} as SemanticData),
-      accessibility: safeValue(results[7] as PromiseSettledResult<SEOCategory<A11yData>>, '접근성', {} as A11yData),
-      schema: safeValue(results[8] as PromiseSettledResult<SEOCategory<SchemaData>>, '구조화 데이터', {} as SchemaData),
-      technical: safeValue(results[9] as PromiseSettledResult<SEOCategory<TechnicalData>>, '기술 분석', {} as TechnicalData),
-      geo: safeValue(results[10] as PromiseSettledResult<SEOCategory<GeoData>>, 'AI 최적화 (GEO)', {} as GeoData),
+      meta: includeSEO
+        ? safeValue(seoResults[0] as PromiseSettledResult<SEOCategory<MetaData>>, '메타 태그', {} as MetaData)
+        : emptyCategory('메타 태그', {} as MetaData),
+      heading: includeSEO
+        ? safeValue(seoResults[1] as PromiseSettledResult<SEOCategory<HeadingData>>, '헤딩 구조', {} as HeadingData)
+        : emptyCategory('헤딩 구조', {} as HeadingData),
+      image: includeSEO
+        ? safeValue(seoResults[2] as PromiseSettledResult<SEOCategory<ImageData>>, '이미지', {} as ImageData)
+        : emptyCategory('이미지', {} as ImageData),
+      link: includeSEO
+        ? safeValue(seoResults[3] as PromiseSettledResult<SEOCategory<LinkData>>, '링크', {} as LinkData)
+        : emptyCategory('링크', {} as LinkData),
+      social: includeSEO
+        ? safeValue(seoResults[4] as PromiseSettledResult<SEOCategory<SocialData>>, '소셜 미디어', {} as SocialData)
+        : emptyCategory('소셜 미디어', {} as SocialData),
+      content: includeSEO
+        ? safeValue(seoResults[5] as PromiseSettledResult<SEOCategory<ContentData>>, '콘텐츠', {} as ContentData)
+        : emptyCategory('콘텐츠', {} as ContentData),
+      semantic: includeSEO
+        ? safeValue(seoResults[6] as PromiseSettledResult<SEOCategory<SemanticData>>, '시맨틱 구조', {} as SemanticData)
+        : emptyCategory('시맨틱 구조', {} as SemanticData),
+      accessibility: includeSEO
+        ? safeValue(seoResults[7] as PromiseSettledResult<SEOCategory<A11yData>>, '접근성', {} as A11yData)
+        : emptyCategory('접근성', {} as A11yData),
+      schema: includeSEO
+        ? safeValue(seoResults[8] as PromiseSettledResult<SEOCategory<SchemaData>>, '구조화 데이터', {} as SchemaData)
+        : emptyCategory('구조화 데이터', {} as SchemaData),
+      technical: includeSEO
+        ? safeValue(seoResults[9] as PromiseSettledResult<SEOCategory<TechnicalData>>, '기술 분석', {} as TechnicalData)
+        : emptyCategory('기술 분석', {} as TechnicalData),
+      geo: includeAI
+        ? safeValue(aiResults[0] as PromiseSettledResult<SEOCategory<GeoData>>, 'AI 최적화 (GEO)', {} as GeoData)
+        : emptyCategory('AI 최적화 (GEO)', {} as GeoData),
     };
 
-    // 평균 점수
-    const scores = Object.values(categories).map(c => c.score);
-    const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    // 평균 점수 — 실제 실행된 카테고리만 대상
+    const executedScores: number[] = [];
+    if (includeSEO) {
+      executedScores.push(
+        categories.meta.score,
+        categories.heading.score,
+        categories.image.score,
+        categories.link.score,
+        categories.social.score,
+        categories.content.score,
+        categories.semantic.score,
+        categories.accessibility.score,
+        categories.schema.score,
+        categories.technical.score,
+      );
+    }
+    if (includeAI) executedScores.push(categories.geo.score);
+
+    const avgScore = executedScores.length
+      ? Math.round(executedScores.reduce((a, b) => a + b, 0) / executedScores.length)
+      : 0;
 
     return {
       score: avgScore,

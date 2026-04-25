@@ -138,22 +138,38 @@ export function useAudit(onHistoryRefresh?: () => void) {
     };
   }, [isPollingGitHub, githubRunId, addLog, onHistoryRefresh]);
 
-  // Fake logs generator for visual feedback during crawling
+  // 진행 상태 동안 시각 피드백용 페이크 로그 — 선택된 진단 옵션에 해당하는 메시지만 노출
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (progress.status === 'crawling' || progress.status === 'auditing') {
-      const messages = [
-        `${config.targetUrl} 접속 중...`,
-        'DOM 구조 분석 중...',
-        '링크 추출 중...',
-        'robots.txt 확인 중...',
-        '서버 응답 대기 중...',
-        'HTML 콘텐츠 파싱 중...',
-        '내부 링크 식별 중...',
-        '검사 대기열에 페이지 추가 중...',
-        'axe-core 스캐너 실행 중...',
-        '접근성 규칙 검증 중...',
-      ];
+      const needsCrawl = config.enableAccessibilityCheck || config.enableAltTextScan;
+      const messages: string[] = [];
+
+      if (needsCrawl) {
+        messages.push(
+          `${config.targetUrl} 접속 중...`,
+          'DOM 구조 분석 중...',
+          '링크 추출 중...',
+          '서버 응답 대기 중...',
+          'HTML 콘텐츠 파싱 중...',
+          '내부 링크 식별 중...',
+          '검사 대기열에 페이지 추가 중...',
+        );
+      }
+      if (config.enableAccessibilityCheck) {
+        messages.push('axe-core 스캐너 실행 중...', '접근성 규칙 검증 중...');
+      }
+      if (config.enableAltTextScan) {
+        messages.push('이미지 OCR 엔진 준비 중...', '대체 텍스트 유사도 판정 중...');
+      }
+      if (config.enableSEOCheck) {
+        messages.push('메타 태그 수집 중...', '헤딩 구조 분석 중...', 'robots.txt 확인 중...');
+      }
+      if (config.enableAICheck) {
+        messages.push('llms.txt 확인 중...', 'AI 크롤러 정책 점검 중...');
+      }
+
+      if (messages.length === 0) return;
 
       interval = setInterval(() => {
         const randomMsg = messages[Math.floor(Math.random() * messages.length)];
@@ -161,11 +177,29 @@ export function useAudit(onHistoryRefresh?: () => void) {
       }, 2000);
     }
     return () => clearInterval(interval);
-  }, [progress.status, config.targetUrl, addLog]);
+  }, [
+    progress.status,
+    config.targetUrl,
+    config.enableAccessibilityCheck,
+    config.enableAltTextScan,
+    config.enableSEOCheck,
+    config.enableAICheck,
+    addLog,
+  ]);
 
   const startAudit = useCallback(async () => {
     if (!config.targetUrl) {
       alert('대상 URL을 입력해주세요.');
+      return;
+    }
+
+    if (
+      !config.enableAccessibilityCheck &&
+      !config.enableSEOCheck &&
+      !config.enableAICheck &&
+      !config.enableAltTextScan
+    ) {
+      alert('진단 옵션을 최소 한 가지 이상 선택해주세요.\n(웹접근성 · SEO · AI 친화도 · 이미지 대체텍스트)');
       return;
     }
 

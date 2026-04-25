@@ -1,6 +1,6 @@
 // TypeScript 타입 정의
 import { SEOAuditResult } from './seo';
-import type { AltTextExecutionMode, AltTextScanResult } from './alt-text';
+import type { AltTextScanResult } from './alt-text';
 
 export interface AuditConfig {
   targetUrl: string;
@@ -13,12 +13,6 @@ export interface AuditConfig {
   enableAICheck?: boolean;
   /** 이미지 대체 텍스트 OCR 검증 활성화 (기본 false) */
   enableAltTextScan?: boolean;
-  /**
-   * OCR 실행 모드
-   * - integrated: Axe 감사 직후 같은 페이지 컨텍스트에서 연속 실행 (가장 빠름)
-   * - separate: 감사 종료 후 별도 단계로 페이지 재방문 (기본값, 진행률 분리)
-   */
-  altTextExecutionMode?: Extract<AltTextExecutionMode, 'integrated' | 'separate'>;
   /** 페이지당 최대 OCR 이미지 수 */
   altTextMaxImagesPerPage?: number;
   platform: 'PC' | 'Mobile';

@@ -21,6 +21,16 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     if (onProgress) onProgress({ type: 'log', message });
   };
 
+  // 0. 옵션 검증 — 최소 한 가지 진단 옵션은 선택되어야 함
+  const needsAccessibility = config.enableAccessibilityCheck === true;
+  const needsAltText = config.enableAltTextScan === true;
+  const needsSEO = config.enableSEOCheck === true;
+  const needsAI = config.enableAICheck === true;
+  if (!needsAccessibility && !needsAltText && !needsSEO && !needsAI) {
+    throw new Error('진단 옵션을 최소 한 가지 이상 선택해주세요. (웹접근성 / SEO / AI 친화도 / 이미지 대체텍스트)');
+  }
+  const needsCrawl = needsAccessibility || needsAltText;
+
   // 1. Login Phase
   if (config.enableLogin && config.loginUrl) {
     log('🔐 로그인 프로세스 시작... (브라우저 창을 확인하세요)');
@@ -76,41 +86,58 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     ],
   });
 
-  const altTextMode = config.altTextExecutionMode ?? 'separate';
   const altTextMaxImages = config.altTextMaxImagesPerPage ?? 20;
+  // 자동 결정: 접근성 + OCR 둘 다이면 같은 페이지 컨텍스트에서 통합 실행(빠름),
+  // OCR만 단독 실행이면 별도 단계로 페이지를 재방문하며 OCR만 수행
+  const altTextMode: 'integrated' | 'separate' =
+    needsAccessibility && needsAltText ? 'integrated' : 'separate';
 
   const auditor = new AccessibilityAuditor({
     enableDynamicCheck: true,
     screenshotOnViolation: true,
     headless: true,
-    enableAltTextScan: config.enableAltTextScan === true && altTextMode === 'integrated',
+    enableAltTextScan: needsAltText && altTextMode === 'integrated',
     altTextScanOptions: {
       maxImages: altTextMaxImages,
     },
   });
 
   try {
-    log('🕷️ 크롤러 초기화 중...');
-    try {
-      await crawler.init();
-    } catch (e) {
-      const guide = getBrowserErrorGuide(e);
-      throw new Error(`크롤러 초기화 실패: ${guide}`);
+    let pages: PageInfo[];
+    if (needsCrawl) {
+      log('🕷️ 크롤러 초기화 중...');
+      try {
+        await crawler.init();
+      } catch (e) {
+        const guide = getBrowserErrorGuide(e);
+        throw new Error(`크롤러 초기화 실패: ${guide}`);
+      }
+
+      if (config.enableLogin && fs.existsSync(authStatePath)) {
+        await crawler.loadStorageState(authStatePath);
+      }
+
+      // 3. Crawling
+      log(`🔍 페이지 크롤링 시작: ${config.targetUrl}`);
+      const crawlResult = await crawler.crawl(config.targetUrl, (progress) => {
+        log(`  크롤링: ${progress.current}/${progress.found} - ${progress.url}`);
+      });
+
+      log(`✅ 크롤링 완료: ${crawlResult.pages.length}개 페이지 발견`);
+      pages = crawlResult.pages;
+    } else {
+      // SEO/AI만 선택된 경우 — 크롤링 없이 targetUrl 1개만 분석 대상으로
+      log('ℹ️ 크롤링이 필요한 옵션이 없어 크롤링을 건너뜁니다 (대상 URL만 분석).');
+      pages = [{
+        url: config.targetUrl,
+        title: '',
+        depth1: '',
+        depth2: '',
+        depth3: '',
+        depth4: '',
+      }];
     }
 
-    if (config.enableLogin && fs.existsSync(authStatePath)) {
-      await crawler.loadStorageState(authStatePath);
-    }
-
-    // 3. Crawling
-    log(`🔍 페이지 크롤링 시작: ${config.targetUrl}`);
-    const crawlResult = await crawler.crawl(config.targetUrl, (progress) => {
-      log(`  크롤링: ${progress.current}/${progress.found} - ${progress.url}`);
-    });
-
-    log(`✅ 크롤링 완료: ${crawlResult.pages.length}개 페이지 발견`);
-
-    const pages: PageInfo[] = crawlResult.pages;
     const violations: Violation[] = [];
     const altTextScans: AltTextScanResult[] = [];
     let violationNumber = 0;
@@ -159,7 +186,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
     // 4. Accessibility Check
     const uniqueViolationMap = new Map<string, Violation>();
-    if (config.enableAccessibilityCheck) {
+    if (needsAccessibility) {
       log('♿ 접근성 검사 시작...');
       try {
         await auditor.init();
@@ -267,10 +294,12 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       await auditor.close();
     }
 
-    log('✅ 크롤링 및 접근성 검사 완료');
+    if (needsAccessibility) {
+      log('✅ 접근성 검사 완료');
+    }
 
     // 4-B. separate 모드: 감사 종료 후 별도 단계로 페이지 재방문하며 OCR 실행
-    if (config.enableAltTextScan === true && altTextMode === 'separate') {
+    if (needsAltText && altTextMode === 'separate') {
       log('🖼️ 이미지 대체 텍스트 OCR 스캔 시작 (별도 단계)...');
       try {
         let browser = auditor.getBrowser();
@@ -324,17 +353,20 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       } finally {
         await shutdownSharedWorkerPool();
       }
-    } else if (config.enableAltTextScan === true && altTextMode === 'integrated') {
+    } else if (needsAltText && altTextMode === 'integrated') {
       // integrated 모드에서도 worker pool은 마지막에 정리
       await shutdownSharedWorkerPool();
     }
 
-    await crawler.close();
+    if (needsCrawl) {
+      await crawler.close();
+    }
 
-    // 5. SEO & AI Audit
+    // 5. SEO & AI Audit — 각 옵션을 독립적으로 분리 실행
     let seoResult: SEOAnalysisResult | undefined;
-    if (config.enableSEOCheck || config.enableAICheck) {
-      log('🌐 SEO 및 AI 친화도 분석을 시작합니다...');
+    if (needsSEO || needsAI) {
+      const label = needsSEO && needsAI ? 'SEO · AI 친화도' : needsSEO ? 'SEO' : 'AI 친화도';
+      log(`🌐 ${label} 분석을 시작합니다...`);
       try {
         // 기존 auditor 브라우저 재사용, 없으면 새로 생성
         let browser = auditor.getBrowser();
@@ -345,8 +377,11 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
           ownBrowser = true;
         }
         try {
-          seoResult = await seoAuditService.runFullAudit(browser, config.targetUrl);
-          log(`✅ SEO 분석 완료 (종합 점수: ${seoResult.score})`);
+          seoResult = await seoAuditService.runFullAudit(browser, config.targetUrl, {
+            includeSEO: needsSEO,
+            includeAI: needsAI,
+          });
+          log(`✅ ${label} 분석 완료 (종합 점수: ${seoResult.score})`);
         } finally {
           if (ownBrowser && browser) {
             await browser.close();
@@ -354,7 +389,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        log(`❌ SEO/AI 분석 중 오류 발생: ${errorMsg}`);
+        log(`❌ ${label} 분석 중 오류 발생: ${errorMsg}`);
         console.error('SEO/AI Audit Error:', error);
       }
     }

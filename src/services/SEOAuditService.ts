@@ -1,5 +1,5 @@
 import type { Browser } from 'playwright-core';
-import { analyzePage } from '@/lib/seo-analyzer';
+import { analyzePage, type AnalyzePageOptions } from '@/lib/seo-analyzer';
 import type { SEOAnalysisResult } from '@/types/seo';
 
 /**
@@ -7,8 +7,12 @@ import type { SEOAnalysisResult } from '@/types/seo';
  * analyzePage() 엔진을 호출하는 얇은 래퍼
  */
 export class SEOAuditService {
-  async runFullAudit(browser: Browser, url: string): Promise<SEOAnalysisResult> {
-    return analyzePage(browser, url);
+  async runFullAudit(
+    browser: Browser,
+    url: string,
+    options?: AnalyzePageOptions,
+  ): Promise<SEOAnalysisResult> {
+    return analyzePage(browser, url, options);
   }
 }
 
