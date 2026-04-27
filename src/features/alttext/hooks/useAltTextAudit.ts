@@ -1,16 +1,14 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import type {
-  AltTextAuditResult,
-  AltTextJudgment,
-  AltTextScanResult,
-} from '@/types/alt-text';
+import type { AltTextAuditResult } from '@/types/alt-text';
 
 export interface AltTextConfig {
-  /** textarea 입력값 — 한 줄에 하나의 URL */
-  urlsText: string;
+  targetUrl: string;
   inspector: string;
+  maxPages?: number;
+  maxDepth?: number;
+  excludePaths?: string;
   maxImagesPerPage?: number;
 }
 
@@ -28,8 +26,11 @@ const STORAGE_KEY = 'altTextAuditResult';
 
 export function useAltTextAudit() {
   const [config, setConfig] = useState<AltTextConfig>({
-    urlsText: '',
+    targetUrl: '',
     inspector: '',
+    maxPages: undefined,
+    maxDepth: undefined,
+    excludePaths: '',
     maxImagesPerPage: undefined,
   });
   const [progress, setProgress] = useState<AltTextProgressState>({ status: 'idle', message: '' });
@@ -43,38 +44,30 @@ export function useAltTextAudit() {
       minute: '2-digit',
       second: '2-digit',
     });
-    setLogs(prev => [...prev.slice(-100), { time, message }]);
+    setLogs(prev => [...prev.slice(-200), { time, message }]);
   }, []);
 
   const startScan = useCallback(async () => {
-    const urls = config.urlsText
-      .split('\n')
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    if (urls.length === 0) {
-      alert('URL을 한 줄에 하나씩 입력해주세요.');
-      return;
-    }
-    if (urls.length > 50) {
-      alert('한 번에 최대 50개 URL까지 지원합니다.');
+    if (!config.targetUrl.trim()) {
+      alert('대상 URL을 입력해주세요.');
       return;
     }
 
     setLogs([]);
     setResult(null);
-    setProgress({ status: 'running', message: 'OCR 스캔 시작...' });
-    addLog(`📥 ${urls.length}개 URL 입력됨`);
-    addLog('🚀 OCR 스캔 요청 전송...');
-
-    const startTime = new Date().toISOString();
+    setProgress({ status: 'running', message: '크롤링 + OCR 시작...' });
+    addLog(`🚀 크롤링 + 이미지 진단 시작: ${config.targetUrl}`);
 
     try {
-      const res = await fetch('/api/alt-text-scan', {
+      const res = await fetch('/api/alttext/crawl-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          urls,
+          targetUrl: config.targetUrl.trim(),
+          inspector: config.inspector || undefined,
+          maxPages: config.maxPages,
+          maxDepth: config.maxDepth,
+          excludePaths: config.excludePaths,
           maxImagesPerPage: config.maxImagesPerPage,
         }),
       });
@@ -82,50 +75,19 @@ export function useAltTextAudit() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `HTTP ${res.status}`);
       }
-      const data: { scannedAt: string; totalUrls: number; results: AltTextScanResult[] } = await res.json();
-      const scans = data.results;
-
-      const counts: Record<AltTextJudgment, number> = {
-        pass: 0,
-        missing_alt: 0,
-        decorative_mismatch: 0,
-        text_mismatch: 0,
-        review_needed: 0,
-      };
-      let totalImages = 0;
-      let totalMismatches = 0;
-      for (const scan of scans) {
-        totalImages += scan.totalImagesScanned;
-        totalMismatches += scan.mismatchCount;
-        for (const k of Object.keys(scan.countsByJudgment) as AltTextJudgment[]) {
-          counts[k] += scan.countsByJudgment[k] ?? 0;
-        }
-        addLog(`✅ ${scan.pageUrl} — 이미지 ${scan.totalImagesScanned}장, 불일치 ${scan.mismatchCount}건`);
-      }
-
-      const audit: AltTextAuditResult = {
-        startTime,
-        endTime: new Date().toISOString(),
-        targetUrls: urls,
-        inspector: config.inspector || undefined,
-        totalUrls: urls.length,
-        totalImagesScanned: totalImages,
-        totalMismatches,
-        countsByJudgment: counts,
-        scans,
-        options: { maxImagesPerPage: config.maxImagesPerPage },
-      };
-
+      const audit: AltTextAuditResult = await res.json();
       setResult(audit);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(audit));
       } catch {
         // localStorage 용량 초과 등은 무시
       }
-      addLog('🎉 OCR 스캔 완료');
+      addLog(
+        `🎉 진단 완료 — 페이지 ${audit.totalUrls}개, 이미지 ${audit.totalImagesScanned}장, 불일치 ${audit.totalMismatches}건`,
+      );
       setProgress({
         status: 'completed',
-        message: `완료 — 이미지 ${totalImages}장, 불일치 ${totalMismatches}건`,
+        message: `완료 — 페이지 ${audit.totalUrls}개 / 이미지 ${audit.totalImagesScanned}장 / 불일치 ${audit.totalMismatches}건`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

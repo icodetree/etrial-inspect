@@ -2,7 +2,11 @@ import { WebCrawler } from '@/lib/crawler';
 import { AccessibilityAuditor } from '@/lib/accessibility-auditor';
 import { Violation, AuditResult, PageInfo, AuditConfig } from '@/types';
 import type { SEOAnalysisResult } from '@/types/seo';
-import type { AltTextScanResult } from '@/types/alt-text';
+import type {
+  AltTextAuditResult,
+  AltTextJudgment,
+  AltTextScanResult,
+} from '@/types/alt-text';
 import * as fs from 'fs';
 import * as path from 'path';
 import { seoAuditService } from './SEOAuditService';
@@ -347,4 +351,145 @@ export async function runStandaloneAltTextScan(
   }
 
   return results;
+}
+
+/**
+ * 대표 URL을 크롤링하여 발견된 모든 페이지에 OCR을 실행하고
+ * 단일 AltTextAuditResult로 합쳐 반환한다 — /api/alttext/crawl-scan에서 사용.
+ */
+export interface CrawlAltTextAuditConfig {
+  targetUrl: string;
+  inspector?: string;
+  maxPages?: number;
+  maxDepth?: number;
+  excludePaths?: string;
+  maxImagesPerPage?: number;
+}
+
+export async function runCrawlAltTextAudit(
+  config: CrawlAltTextAuditConfig,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onProgress?: (data: any) => void,
+): Promise<AltTextAuditResult> {
+  const startTime = new Date().toISOString();
+
+  const log = (message: string) => {
+    console.log(message);
+    if (onProgress) onProgress({ type: 'log', message });
+  };
+
+  const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+
+  const userExcludePatterns: RegExp[] = (config.excludePaths || '')
+    .split('\n')
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
+    .map(p => {
+      const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`${escaped}(\\/|$|\\?)`, 'i');
+    });
+
+  const crawler = new WebCrawler({
+    maxDepth: config.maxDepth ?? (isVercel ? 2 : 10),
+    maxPages: config.maxPages ?? (isVercel ? 5 : 1000),
+    headless: true,
+    excludePatterns: [
+      /\.(jpg|jpeg|png|gif|svg|webp|ico|pdf|zip|exe|dmg)$/i,
+      /logout/i,
+      /delete/i,
+      /signout/i,
+      /#$/,
+      /javascript:/i,
+      /mailto:/i,
+      /tel:/i,
+      ...userExcludePatterns,
+    ],
+  });
+
+  const maxImagesPerPage = config.maxImagesPerPage ?? 20;
+
+  log('🕷️ 크롤러 초기화 중...');
+  try {
+    await crawler.init();
+  } catch (e) {
+    const guide = getBrowserErrorGuide(e);
+    throw new Error(`크롤러 초기화 실패: ${guide}`);
+  }
+
+  let crawledPages: PageInfo[];
+  try {
+    log(`🔍 페이지 크롤링 시작: ${config.targetUrl}`);
+    const crawlResult = await crawler.crawl(config.targetUrl, (p) => {
+      log(`  크롤링: ${p.current}/${p.found} - ${p.url}`);
+    });
+    crawledPages = crawlResult.pages;
+    log(`✅ 크롤링 완료: ${crawledPages.length}개 페이지 발견`);
+  } finally {
+    try { await crawler.close(); } catch { /* ignore */ }
+  }
+
+  const launchOptions = await getBrowserLaunchOptions(true);
+  const browser = await chromium.launch(launchOptions);
+  const scans: AltTextScanResult[] = [];
+
+  try {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    let done = 0;
+    for (const page of crawledPages) {
+      const ocrPage = await ctx.newPage();
+      try {
+        await ocrPage.goto(page.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        try {
+          await ocrPage.waitForLoadState('networkidle', { timeout: 8000 });
+        } catch { /* proceed */ }
+        const scan = await scanPageForAltMismatches(ocrPage, { maxImages: maxImagesPerPage });
+        scans.push(scan);
+        done++;
+        log(`  🖼️ OCR 완료 (${done}/${crawledPages.length}): ${page.url} — 이미지 ${scan.totalImagesScanned}장, 불일치 ${scan.mismatchCount}건`);
+        if (onProgress) {
+          onProgress({ type: 'alt-text-progress', current: done, total: crawledPages.length, url: page.url });
+        }
+      } catch (e) {
+        console.error(`[CrawlAltText] ${page.url}:`, e);
+        log(`  ⚠️ OCR 오류 (${page.url}): ${e instanceof Error ? e.message : e}`);
+      } finally {
+        await ocrPage.close();
+      }
+    }
+    await ctx.close();
+  } finally {
+    await browser.close();
+    await shutdownSharedWorkerPool();
+  }
+
+  // 합산 — countsByJudgment, totalImages, totalMismatches
+  const counts: Record<AltTextJudgment, number> = {
+    pass: 0,
+    missing_alt: 0,
+    decorative_mismatch: 0,
+    text_mismatch: 0,
+    review_needed: 0,
+  };
+  let totalImages = 0;
+  let totalMismatches = 0;
+  for (const scan of scans) {
+    totalImages += scan.totalImagesScanned;
+    totalMismatches += scan.mismatchCount;
+    for (const k of Object.keys(scan.countsByJudgment) as AltTextJudgment[]) {
+      counts[k] += scan.countsByJudgment[k] ?? 0;
+    }
+  }
+
+  return {
+    startTime,
+    endTime: new Date().toISOString(),
+    targetUrls: [config.targetUrl],
+    inspector: config.inspector || undefined,
+    totalUrls: crawledPages.length,
+    totalImagesScanned: totalImages,
+    totalMismatches,
+    countsByJudgment: counts,
+    scans,
+    options: { maxImagesPerPage },
+  };
 }
