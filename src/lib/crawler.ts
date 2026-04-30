@@ -1,4 +1,5 @@
 import { chromium, Browser, BrowserContext, Page } from 'playwright-core';
+import { XMLParser } from 'fast-xml-parser';
 import { PageInfo } from '@/types';
 import { getBrowserLaunchOptions } from './browser-utils';
 
@@ -8,6 +9,7 @@ export interface CrawlerOptions {
   excludePatterns?: RegExp[];
   includePatterns?: RegExp[];
   headless?: boolean;
+  enableSitemap?: boolean; // 기본 true
 }
 
 export interface CrawlResult {
@@ -87,6 +89,114 @@ export class WebCrawler {
     // finally block removed as user closes the page
   }
 
+  /**
+   * sitemap.xml 기반 URL 수집
+   * robots.txt에서 Sitemap: 줄을 파싱하고, 없으면 /sitemap.xml을 fallback으로 사용한다.
+   * sitemapindex 재귀 지원 (최대 깊이 2)
+   */
+  private async fetchSitemapUrls(origin: string): Promise<string[]> {
+    const FETCH_TIMEOUT = 10_000;
+    const TOTAL_TIMEOUT = 15_000;
+    const MAX_SITEMAP_DEPTH = 2;
+    const urls: string[] = [];
+
+    const totalController = new AbortController();
+    const totalTimer = setTimeout(() => totalController.abort(), TOTAL_TIMEOUT);
+
+    const safeFetch = async (url: string): Promise<string | null> => {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+        // totalController가 abort되면 개별 fetch도 중단
+        const onTotalAbort = () => controller.abort();
+        totalController.signal.addEventListener('abort', onTotalAbort);
+
+        try {
+          const res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) return null;
+          return await res.text();
+        } finally {
+          clearTimeout(timer);
+          totalController.signal.removeEventListener('abort', onTotalAbort);
+        }
+      } catch {
+        return null;
+      }
+    };
+
+    const parseSitemap = async (sitemapUrl: string, depth: number): Promise<void> => {
+      if (depth > MAX_SITEMAP_DEPTH || totalController.signal.aborted) return;
+
+      const xml = await safeFetch(sitemapUrl);
+      if (!xml) return;
+
+      try {
+        const parser = new XMLParser();
+        const parsed = parser.parse(xml);
+
+        // <urlset><url><loc> 패턴
+        if (parsed?.urlset?.url) {
+          const entries = Array.isArray(parsed.urlset.url)
+            ? parsed.urlset.url
+            : [parsed.urlset.url];
+          for (const entry of entries) {
+            if (entry?.loc && typeof entry.loc === 'string') {
+              urls.push(entry.loc);
+            }
+          }
+        }
+
+        // <sitemapindex><sitemap><loc> 패턴 — 재귀
+        if (parsed?.sitemapindex?.sitemap) {
+          const sitemaps = Array.isArray(parsed.sitemapindex.sitemap)
+            ? parsed.sitemapindex.sitemap
+            : [parsed.sitemapindex.sitemap];
+          for (const sm of sitemaps) {
+            if (sm?.loc && typeof sm.loc === 'string') {
+              await parseSitemap(sm.loc, depth + 1);
+            }
+          }
+        }
+      } catch {
+        console.warn(`[Crawler] sitemap 파싱 실패: ${sitemapUrl}`);
+      }
+    };
+
+    try {
+      // 1. robots.txt에서 Sitemap: 줄 파싱
+      let sitemapEntrypoints: string[] = [];
+      const robotsTxt = await safeFetch(`${origin}/robots.txt`);
+
+      if (robotsTxt) {
+        const lines = robotsTxt.split('\n');
+        for (const line of lines) {
+          const match = line.match(/^\s*Sitemap:\s*(.+)/i);
+          if (match) {
+            sitemapEntrypoints.push(match[1].trim());
+          }
+        }
+      }
+
+      // 2. robots.txt에 Sitemap이 없으면 /sitemap.xml fallback
+      if (sitemapEntrypoints.length === 0) {
+        sitemapEntrypoints = [`${origin}/sitemap.xml`];
+      }
+
+      // 3. 각 sitemap 진입점 파싱
+      for (const entrypoint of sitemapEntrypoints) {
+        await parseSitemap(entrypoint, 0);
+      }
+    } catch {
+      console.warn('[Crawler] sitemap URL 수집 중 오류 발생');
+    } finally {
+      clearTimeout(totalTimer);
+    }
+
+    // 같은 도메인만 필터링 (isValidUrl 재사용)
+    return urls.filter((url) => this.isValidUrl(url));
+  }
+
   async crawl(
     startUrl: string,
     onProgress?: (progress: { current: number; found: number; url: string }) => void
@@ -103,6 +213,17 @@ export class WebCrawler {
     const queue: { url: string; depth: number; path: string[]; linkText?: string }[] = [
       { url: startUrl, depth: 1, path: [] },
     ];
+
+    // sitemap.xml에서 보충 URL 주입
+    if (this.options.enableSitemap !== false) {
+      const origin = new URL(startUrl).origin;
+      const sitemapUrls = await this.fetchSitemapUrls(origin);
+      for (const sitemapUrl of sitemapUrls) {
+        if (!this.visitedUrls.has(this.normalizeUrl(sitemapUrl))) {
+          queue.push({ url: sitemapUrl, depth: 1, path: [] });
+        }
+      }
+    }
 
     while (queue.length > 0 && pages.length < (this.options.maxPages || 500)) {
       const current = queue.shift();

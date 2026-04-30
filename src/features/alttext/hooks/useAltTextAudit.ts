@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { AltTextAuditResult } from '@/types/alt-text';
 
 export interface AltTextConfig {
@@ -95,6 +95,31 @@ export function useAltTextAudit() {
       setProgress({ status: 'error', message });
     }
   }, [config, addLog]);
+
+  // 실행 중 페이크 로그 — 일반 진단(useAudit.ts) 패턴 미러링
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (progress.status === 'running') {
+      const messages = [
+        `${config.targetUrl} 접속 중...`,
+        'DOM 구조 분석 중...',
+        '링크 추출 중...',
+        'sitemap.xml 확인 중...',
+        '서버 응답 대기 중...',
+        'HTML 콘텐츠 파싱 중...',
+        '내부 링크 식별 중...',
+        '이미지 OCR 엔진 준비 중...',
+        '대체 텍스트 유사도 판정 중...',
+        '이미지 전처리 중...',
+        'OCR 결과 분석 중...',
+      ];
+      interval = setInterval(() => {
+        const msg = messages[Math.floor(Math.random() * messages.length)];
+        addLog(msg);
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [progress.status, config.targetUrl, addLog]);
 
   return {
     config,
