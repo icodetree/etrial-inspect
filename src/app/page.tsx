@@ -3,14 +3,16 @@
 import { useAudit } from '@/features/audit/hooks/useAudit';
 import { AuditConfigForm } from '@/features/audit/components/AuditConfigForm';
 import { AuditPanel } from '@/features/audit/components/AuditPanel';
+import { AuditOverlay } from '@/features/audit/components/AuditOverlay';
 import { HistoryList } from '@/features/history/components/HistoryList';
 import { useRouter } from 'next/navigation';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, Gauge, Sparkles } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
+  const [overlayVisible, setOverlayVisible] = useState(false);
 
   const handleHistoryRefresh = useCallback(() => {
     setHistoryRefreshTrigger(prev => prev + 1);
@@ -44,6 +46,21 @@ export default function Home() {
   };
 
   const handleViewLatestReport = () => checkAndNavigateToLatestReport(router);
+
+  // 진단 시작 시 오버레이 자동 표시
+  const prevStatusRef = useRef(progress.status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = progress.status;
+    if (
+      (prev === 'idle' || prev === 'completed' || prev === 'error' || prev === 'cancelled') &&
+      (progress.status === 'crawling' || progress.status === 'auditing')
+    ) {
+      setOverlayVisible(true);
+    }
+  }, [progress.status]);
+
+  const handleOverlayClose = useCallback(() => setOverlayVisible(false), []);
 
   const isProcessing = progress.status === 'crawling' || progress.status === 'auditing' || progress.status === 'github_polling';
 
@@ -192,18 +209,34 @@ export default function Home() {
         <HistoryList refreshTrigger={historyRefreshTrigger} />
       </section>
 
-      {/* 진단 진행 패널 (하단 고정) */}
-      <AuditPanel
-        logs={logs}
-        progress={progress}
-        onExport={exportExcel}
-        onSaveToNotion={() => { if (auditResult) handleSaveToNotion(); }}
-        onCancel={cancelAudit}
-        resultSummary={results}
-        latestReportId={latestReportId}
-        wasGitHubAudit={wasGitHubAudit}
-        onViewLatestReport={handleViewLatestReport}
-      />
+      {/* 3D 로딩 오버레이 */}
+      {overlayVisible && progress.status !== 'idle' && (
+        <AuditOverlay
+          logs={logs}
+          progress={progress}
+          onExport={() => { exportExcel(); handleOverlayClose(); }}
+          onSaveToNotion={() => { if (auditResult) { handleSaveToNotion(); handleOverlayClose(); } }}
+          onCancel={cancelAudit}
+          resultSummary={results}
+          onViewLatestReport={() => { handleViewLatestReport(); handleOverlayClose(); }}
+          onClose={handleOverlayClose}
+        />
+      )}
+
+      {/* 진단 진행 패널 (하단 고정) — 오버레이 활성 시 숨김 */}
+      {!overlayVisible && (
+        <AuditPanel
+          logs={logs}
+          progress={progress}
+          onExport={exportExcel}
+          onSaveToNotion={() => { if (auditResult) handleSaveToNotion(); }}
+          onCancel={cancelAudit}
+          resultSummary={results}
+          latestReportId={latestReportId}
+          wasGitHubAudit={wasGitHubAudit}
+          onViewLatestReport={handleViewLatestReport}
+        />
+      )}
     </div>
   );
 }
