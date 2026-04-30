@@ -155,42 +155,23 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
         </div>
       </fieldset>
 
-      {/* 섹션 3-1: SPA 진단 옵션 */}
+      {/* 섹션 3-1: 고급 옵션 — SPA 자동 감지가 적용되므로 토글 없이 ready selector 만 노출 */}
       <fieldset className={styles.formSection}>
-        <legend className={styles.formSectionLegend}>SPA 진단 옵션</legend>
-
-        <div className="toggle-container" style={{ marginBottom: '0.75rem' }}>
-          <span
-            id="audit-spa-toggle"
-            role="switch"
-            tabIndex={0}
-            aria-checked={config.isSpa === true}
-            aria-labelledby="audit-spa-toggle-label"
-            className={`toggle ${config.isSpa ? 'active' : ''}`}
-            onClick={() => setConfig({ ...config, isSpa: !config.isSpa })}
-            onKeyDown={(e) => {
-              if (e.key === ' ' || e.key === 'Enter') {
-                e.preventDefault();
-                setConfig({ ...config, isSpa: !config.isSpa });
-              }
-            }}
-          />
-          <label id="audit-spa-toggle-label" htmlFor="audit-spa-toggle" className={styles['no-margin']}>
-            SPA 사이트 (React/Vue/Angular CSR)
-            <span className={styles.tooltipWrap} style={{ marginLeft: 4 }}>
-              <HelpCircle
-                size={14}
-                color="#9ca3af"
-                style={{ cursor: 'pointer' }}
-                tabIndex={0}
-                aria-label="SPA 모드 도움말"
-              />
-              <span className={styles.tooltipBubble}>
-                JS 실행 후 hydration 완료까지 대기하고, data-href/data-to 같은 클라이언트 라우팅 링크도 함께 수집합니다.
-              </span>
+        <legend className={styles.formSectionLegend}>
+          고급 옵션
+          <span className={styles.tooltipWrap} style={{ marginLeft: 4 }}>
+            <HelpCircle
+              size={14}
+              color="#9ca3af"
+              style={{ cursor: 'pointer' }}
+              tabIndex={0}
+              aria-label="고급 옵션 도움말"
+            />
+            <span className={styles.tooltipBubble}>
+              SPA(React/Vue/Angular) 사이트는 첫 페이지 분석 시 자동 감지되어 hydration 대기와 클라이언트 라우팅 자동 발견이 적용됩니다. 사이트가 특정 selector 가 보일 때 진단 시작이 필요하다면 아래에 입력하세요.
             </span>
-          </label>
-        </div>
+          </span>
+        </legend>
 
         <div className="form-group">
           <label htmlFor="audit-ready-selector">렌더링 완료 selector (선택)</label>

@@ -338,18 +338,20 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
               >
                 렌더 전략: {result.summary.spa.renderStrategy}
               </span>
-              {result.summary.spa.suspectedSpa && (
-                <span
-                  style={{
-                    background: '#fef3c7',
-                    color: '#92400e',
-                    padding: '0.25rem 0.6rem',
-                    borderRadius: 999,
-                  }}
-                >
-                  SPA 의심
-                </span>
-              )}
+              {result.summary.spa.suspectedSpa &&
+                result.summary.spa.detectedFramework === 'unknown' && (
+                  <span
+                    style={{
+                      background: '#fef3c7',
+                      color: '#92400e',
+                      padding: '0.25rem 0.6rem',
+                      borderRadius: 999,
+                    }}
+                    title="프레임워크는 감지되지 않았지만, DOM/라우트 패턴이 SPA 같은 신호를 보임"
+                  >
+                    SPA 의심
+                  </span>
+                )}
               <span
                 style={{
                   background: '#f1f5f9',

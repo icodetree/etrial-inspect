@@ -85,7 +85,6 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     maxDepth: config.maxDepth ?? (isVercel ? 2 : 10),
     maxPages: config.maxPages ?? (isVercel ? 5 : 1000),
     headless: true,
-    isSpa: config.isSpa === true,
     readySelector: config.readySelector,
     // 기본 제외 패턴 + 사용자 제외 경로를 병합 (spread로 덮어쓰기 방지)
     excludePatterns: [
@@ -101,13 +100,15 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     ],
   });
 
+  // SPA 자동 감지 흐름 — auditPage 가 페이지마다 waitForSpaReady 를 호출하므로
+  // 통일된 기본 타임아웃(15s/30s) 사용. 정적 사이트는 networkidle 이 빠르게 끝남.
   const auditor = new AccessibilityAuditor({
     enableDynamicCheck: true,
     screenshotOnViolation: true,
     headless: true,
     readySelector: config.readySelector,
-    networkIdleMs: config.isSpa ? 20000 : 15000,
-    maxWaitMs: config.isSpa ? 45000 : 30000,
+    networkIdleMs: 15000,
+    maxWaitMs: 30000,
   });
 
   // catch 블록(특히 abort) 에서 부분 결과를 만들 수 있도록 try 바깥에 누적 변수 선언
@@ -140,6 +141,9 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       );
 
       log(`✅ 크롤링 완료: ${crawlResult.pages.length}개 페이지 발견`);
+      if (crawlResult.detectedFramework !== 'unknown') {
+        log(`🔎 SPA 감지: ${crawlResult.detectedFramework} — 자동 발견 활성`);
+      }
       pages = crawlResult.pages;
       routeSourceCounts = crawlResult.sourceCounts;
     } else {

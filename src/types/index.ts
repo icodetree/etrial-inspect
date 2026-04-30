@@ -15,8 +15,6 @@ export interface AuditConfig {
   excludePaths?: string;
   maxPages?: number;   // 크롤링 최대 페이지 수 (미입력 시 환경별 기본값)
   maxDepth?: number;   // 크롤링 최대 깊이 (미입력 시 환경별 기본값)
-  /** SPA 모드 — hydration 대기 + History API hook + 보수적 메뉴 클릭 시뮬레이션 활성화 */
-  isSpa?: boolean;
   /** 페이지 진단 시 추가로 대기할 사용자 정의 selector (예: "#app .loaded") */
   readySelector?: string;
 }

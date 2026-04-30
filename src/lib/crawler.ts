@@ -2,7 +2,7 @@ import { chromium, Browser, BrowserContext, Page } from 'playwright-core';
 import { XMLParser } from 'fast-xml-parser';
 import { PageInfo } from '@/types';
 import { getBrowserLaunchOptions } from './browser-utils';
-import { waitForSpaReady } from './spa-readiness';
+import { waitForSpaReady, SpaFramework } from './spa-readiness';
 
 export interface CrawlerOptions {
   maxDepth?: number;
@@ -11,9 +11,7 @@ export interface CrawlerOptions {
   includePatterns?: RegExp[];
   headless?: boolean;
   enableSitemap?: boolean; // 기본 true
-  /** SPA 모드 — hydration 대기/라우트 발견 보강 */
-  isSpa?: boolean;
-  /** 사용자 정의 ready selector (SPA 모드에서 페이지마다 추가 대기) */
+  /** 사용자 정의 ready selector — 페이지마다 hydration 후 추가 대기 */
   readySelector?: string;
 }
 
@@ -28,6 +26,8 @@ export interface CrawlResult {
   errors: string[];
   /** 라우트 출처 카운트 — Audit summary 의 spa.routes* 로 사용 */
   sourceCounts: CrawlSourceCounts;
+  /** 첫 페이지 로드 시 자동 감지된 프레임워크 (자동 SPA 모드 결정에 사용) */
+  detectedFramework: SpaFramework;
 }
 
 export class WebCrawler {
@@ -39,6 +39,8 @@ export class WebCrawler {
   private baseDomain: string = '';
   /** 페이지 컨텍스트의 history.pushState/replaceState/popstate 가 호출되면 이 sink 로 URL 이 들어온다. crawl() 동안만 set. */
   private routeCaptureSink: ((url: string) => void) | null = null;
+  /** 첫 페이지 로드 시 감지된 프레임워크. 'unknown' 이외면 SPA 자동 모드 활성. */
+  private detectedFramework: SpaFramework = 'unknown';
 
   constructor(options: CrawlerOptions = {}) {
     this.options = {
@@ -66,8 +68,9 @@ export class WebCrawler {
       viewport: { width: 1920, height: 1080 },
     });
 
-    // SPA 모드: History API 가로채기 — 모든 page 에 자동 적용
-    if (this.options.isSpa) {
+    // History API 가로채기 — 모든 page 에 자동 적용 (정적 사이트에서도 부작용 0,
+    // pushState 가 호출되지 않을 뿐). SPA 자동 감지의 핵심 인프라.
+    {
       try {
         await this.context.exposeBinding(
           '__captureRoute',
@@ -287,6 +290,7 @@ export class WebCrawler {
     const urlObj = new URL(startUrl);
     this.baseDomain = urlObj.hostname;
     this.visitedUrls.clear();
+    this.detectedFramework = 'unknown';
 
     const pages: PageInfo[] = [];
     const errors: string[] = [];
@@ -346,24 +350,22 @@ export class WebCrawler {
         // Use domcontentloaded as primary wait condition
         await page.goto(normalizedUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-        if (this.options.isSpa) {
-          // SPA 모드: hydration 대기 + 프레임워크별 root 대기
-          try {
-            await waitForSpaReady(page, {
-              readySelector: this.options.readySelector,
-              networkIdleMs: 15000,
-              maxWaitMs: 30000,
-            });
-          } catch {
-            // readiness 자체 실패해도 계속 진행 (페이지 발견은 best-effort)
+        // 항상 hydration 대기 — 정적 사이트는 networkidle 이 빠르게 끝나고
+        // framework='unknown' 으로 빠져 추가 대기 거의 없음. SPA 는 framework
+        // 별 root selector 까지 대기.
+        try {
+          const ready = await waitForSpaReady(page, {
+            readySelector: this.options.readySelector,
+            networkIdleMs: 15000,
+            maxWaitMs: 30000,
+          });
+          // 시작 URL(첫 페이지) 처리 시 자동 감지된 프레임워크를 보존 →
+          // discoverByMenuClick / 외부 로그용
+          if (source === 'start' && this.detectedFramework === 'unknown') {
+            this.detectedFramework = ready.framework;
           }
-        } else {
-          // 정적 사이트: 기존 best-effort networkidle 유지
-          try {
-            await page.waitForLoadState('networkidle', { timeout: 10000 });
-          } catch {
-            // Ignore network idle timeout
-          }
+        } catch {
+          // readiness 자체 실패해도 계속 진행 (페이지 발견은 best-effort)
         }
 
         const realTitle = await page.title();
@@ -407,9 +409,13 @@ export class WebCrawler {
           }
         }
 
-        // SPA 모드 + 첫 페이지에서 보수적 메뉴 클릭 시뮬레이션 — History API hook 이
-        // 클라이언트 라우팅을 자동으로 큐에 push 한다.
-        if (this.options.isSpa && source === 'start' && depth === 1) {
+        // 첫 페이지에서 SPA 가 자동 감지되면 보수적 메뉴 클릭 시뮬레이션 실행 —
+        // History API hook 이 클라이언트 라우팅을 자동으로 큐에 push 한다.
+        if (
+          source === 'start' &&
+          depth === 1 &&
+          this.detectedFramework !== 'unknown'
+        ) {
           try {
             await this.discoverByMenuClick(page);
           } catch (e) {
@@ -431,6 +437,7 @@ export class WebCrawler {
       totalFound: this.visitedUrls.size,
       errors,
       sourceCounts,
+      detectedFramework: this.detectedFramework,
     };
   }
 
