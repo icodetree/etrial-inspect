@@ -2,6 +2,7 @@ import { chromium, Browser, BrowserContext, Page } from 'playwright-core';
 import { XMLParser } from 'fast-xml-parser';
 import { PageInfo } from '@/types';
 import { getBrowserLaunchOptions } from './browser-utils';
+import { waitForSpaReady } from './spa-readiness';
 
 export interface CrawlerOptions {
   maxDepth?: number;
@@ -10,12 +11,24 @@ export interface CrawlerOptions {
   includePatterns?: RegExp[];
   headless?: boolean;
   enableSitemap?: boolean; // 기본 true
+  /** SPA 모드 — hydration 대기/라우트 발견 보강 */
+  isSpa?: boolean;
+  /** 사용자 정의 ready selector (SPA 모드에서 페이지마다 추가 대기) */
+  readySelector?: string;
+}
+
+export interface CrawlSourceCounts {
+  fromSeed: number;
+  fromCrawl: number;
+  fromSitemap: number;
 }
 
 export interface CrawlResult {
   pages: PageInfo[];
   totalFound: number;
   errors: string[];
+  /** 라우트 출처 카운트 — Audit summary 의 spa.routes* 로 사용 */
+  sourceCounts: CrawlSourceCounts;
 }
 
 export class WebCrawler {
@@ -199,7 +212,8 @@ export class WebCrawler {
 
   async crawl(
     startUrl: string,
-    onProgress?: (progress: { current: number; found: number; url: string }) => void
+    onProgress?: (progress: { current: number; found: number; url: string }) => void,
+    extra?: { seedUrls?: string[] }
   ): Promise<CrawlResult> {
     if (!this.context) throw new Error('Crawler not initialized');
 
@@ -210,9 +224,28 @@ export class WebCrawler {
 
     const pages: PageInfo[] = [];
     const errors: string[] = [];
-    const queue: { url: string; depth: number; path: string[]; linkText?: string }[] = [
-      { url: startUrl, depth: 1, path: [] },
+    const sourceCounts: CrawlSourceCounts = { fromSeed: 0, fromCrawl: 0, fromSitemap: 0 };
+
+    type QueueItem = {
+      url: string;
+      depth: number;
+      path: string[];
+      linkText?: string;
+      source: 'start' | 'seed' | 'sitemap' | 'crawl';
+    };
+    const queue: QueueItem[] = [
+      { url: startUrl, depth: 1, path: [], source: 'start' },
     ];
+
+    // 시드 URL 주입 (사용자 입력) — start 직후, sitemap 전에 큐에 들어가도록
+    if (extra?.seedUrls && extra.seedUrls.length > 0) {
+      for (const seedUrl of extra.seedUrls) {
+        const normalized = this.normalizeUrl(seedUrl);
+        if (!this.visitedUrls.has(normalized) && this.isValidUrl(normalized)) {
+          queue.push({ url: seedUrl, depth: 1, path: [], source: 'seed' });
+        }
+      }
+    }
 
     // sitemap.xml에서 보충 URL 주입
     if (this.options.enableSitemap !== false) {
@@ -220,7 +253,7 @@ export class WebCrawler {
       const sitemapUrls = await this.fetchSitemapUrls(origin);
       for (const sitemapUrl of sitemapUrls) {
         if (!this.visitedUrls.has(this.normalizeUrl(sitemapUrl))) {
-          queue.push({ url: sitemapUrl, depth: 1, path: [] });
+          queue.push({ url: sitemapUrl, depth: 1, path: [], source: 'sitemap' });
         }
       }
     }
@@ -229,7 +262,7 @@ export class WebCrawler {
       const current = queue.shift();
       if (!current) break;
 
-      const { url, depth, path, linkText } = current;
+      const { url, depth, path, linkText, source } = current;
       const normalizedUrl = this.normalizeUrl(url);
 
       if (this.visitedUrls.has(normalizedUrl)) continue;
@@ -243,11 +276,24 @@ export class WebCrawler {
         // Use domcontentloaded as primary wait condition
         await page.goto(normalizedUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-        try {
-          // Best-effort wait for network idle
-          await page.waitForLoadState('networkidle', { timeout: 10000 });
-        } catch (e) {
-          // Ignore network idle timeout
+        if (this.options.isSpa) {
+          // SPA 모드: hydration 대기 + 프레임워크별 root 대기
+          try {
+            await waitForSpaReady(page, {
+              readySelector: this.options.readySelector,
+              networkIdleMs: 15000,
+              maxWaitMs: 30000,
+            });
+          } catch {
+            // readiness 자체 실패해도 계속 진행 (페이지 발견은 best-effort)
+          }
+        } else {
+          // 정적 사이트: 기존 best-effort networkidle 유지
+          try {
+            await page.waitForLoadState('networkidle', { timeout: 10000 });
+          } catch {
+            // Ignore network idle timeout
+          }
         }
 
         const realTitle = await page.title();
@@ -265,6 +311,11 @@ export class WebCrawler {
           depth4: depthPath[3] || '',
         });
 
+        // 라우트 출처 집계 — start 는 fromCrawl 로 계산하지 않고, seed/sitemap/crawl 만 카운트
+        if (source === 'seed') sourceCounts.fromSeed++;
+        else if (source === 'sitemap') sourceCounts.fromSitemap++;
+        else if (source === 'crawl') sourceCounts.fromCrawl++;
+
         onProgress?.({
           current: pages.length,
           found: this.visitedUrls.size + queue.length,
@@ -281,6 +332,7 @@ export class WebCrawler {
                 depth: depth + 1,
                 path: [...path, displayTitle],
                 linkText: link.text,
+                source: 'crawl',
               });
             }
           }
@@ -296,15 +348,44 @@ export class WebCrawler {
       pages,
       totalFound: this.visitedUrls.size,
       errors,
+      sourceCounts,
     };
   }
 
   private async collectLinks(page: Page): Promise<{ url: string; text: string }[]> {
-    const links = await page.$$eval('a[href]', (anchors) =>
-      anchors.map((a) => ({
-        url: (a as HTMLAnchorElement).href,
-        text: (a as HTMLAnchorElement).innerText || (a as HTMLAnchorElement).textContent || ''
-      }))
+    // a[href] 외에 SPA 라우터에서 흔히 쓰는 data 속성/role 도 수집
+    const links = await page.$$eval(
+      'a[href], [data-href], [data-to], [data-route], [role="link"]',
+      (els, origin) => {
+        const out: { url: string; text: string }[] = [];
+        for (const el of els as HTMLElement[]) {
+          let candidate: string | null = null;
+          if (el.tagName === 'A') {
+            candidate = (el as HTMLAnchorElement).href;
+          } else {
+            candidate =
+              el.getAttribute('data-href') ||
+              el.getAttribute('data-to') ||
+              el.getAttribute('data-route') ||
+              null;
+            // 상대경로면 origin 기준으로 절대경로화
+            if (candidate && !/^https?:\/\//i.test(candidate)) {
+              try {
+                candidate = new URL(candidate, origin).href;
+              } catch {
+                candidate = null;
+              }
+            }
+          }
+          if (!candidate) continue;
+          out.push({
+            url: candidate,
+            text: el.innerText || el.textContent || '',
+          });
+        }
+        return out;
+      },
+      this.baseUrl ? new URL(this.baseUrl).origin : ''
     );
 
     return links

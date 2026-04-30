@@ -15,6 +15,12 @@ export interface AuditConfig {
   excludePaths?: string;
   maxPages?: number;   // 크롤링 최대 페이지 수 (미입력 시 환경별 기본값)
   maxDepth?: number;   // 크롤링 최대 깊이 (미입력 시 환경별 기본값)
+  /** SPA 모드 — hydration 대기/라우트 발견 보강을 활성화 */
+  isSpa?: boolean;
+  /** 시드 URL — JS 라우터로 인해 a[href] 만으로 발견되지 않는 페이지를 직접 주입 */
+  seedUrls?: string[];
+  /** 페이지 진단 시 추가로 대기할 사용자 정의 selector (예: "#app .loaded") */
+  readySelector?: string;
 }
 
 export interface PageInfo {
@@ -78,6 +84,34 @@ export interface Violation {
   boundingBox?: BoundingBox; // Coordinates of the violation
 }
 
+export type SpaFrameworkLabel =
+  | 'react'
+  | 'next'
+  | 'vue'
+  | 'nuxt'
+  | 'angular'
+  | 'unknown';
+
+export type RenderStrategyLabel = 'CSR' | 'SSR' | 'SSG' | 'unknown';
+
+export interface AuditReliabilitySummary {
+  pagesAudited: number;
+  pagesFailed: number;
+  pagesPartial: number;
+  avgDomNodes: number;
+  avgHydrationMs: number;
+}
+
+export interface AuditSpaSummary {
+  detectedFramework: SpaFrameworkLabel;
+  renderStrategy: RenderStrategyLabel;
+  /** 휴리스틱 — 1) 프레임워크 감지됨 또는 2) 평균 DOM 매우 적음 + 단일 페이지 또는 3) 라우트 0개 */
+  suspectedSpa: boolean;
+  routesFromSeed: number;
+  routesFromCrawl: number;
+  routesFromSitemap: number;
+}
+
 export interface AuditResult {
   startTime: string;
   endTime: string;
@@ -88,10 +122,16 @@ export interface AuditResult {
   seoResult?: SEOAuditResult;
   artifactName?: string; // GitHub Actions Artifact 이름 (e.g., "screenshots-123456")
   screenshotUrl?: string; // GitHub Pages Screenshot URL
+  /** 사용자에게 노출할 경고 메시지 (예: "라우트 0개 — 시드 URL 입력 권장") */
+  warnings?: string[];
   summary: {
     byPrinciple: Record<string, number>;
     byImpact: Record<string, number>;
     byKwcagItem: Record<string, number>;
+    /** 진단 신뢰도 메트릭 — SPA 진단 결과의 정상/부분/실패 분포 */
+    reliability?: AuditReliabilitySummary;
+    /** SPA 감지/라우트 출처 메타데이터 */
+    spa?: AuditSpaSummary;
   };
 }
 

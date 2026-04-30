@@ -155,6 +155,75 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
         </div>
       </fieldset>
 
+      {/* 섹션 3-1: SPA 진단 옵션 */}
+      <fieldset className={styles.formSection}>
+        <legend className={styles.formSectionLegend}>SPA 진단 옵션</legend>
+
+        <div className="toggle-container" style={{ marginBottom: '0.75rem' }}>
+          <span
+            id="audit-spa-toggle"
+            role="switch"
+            tabIndex={0}
+            aria-checked={config.isSpa === true}
+            aria-labelledby="audit-spa-toggle-label"
+            className={`toggle ${config.isSpa ? 'active' : ''}`}
+            onClick={() => setConfig({ ...config, isSpa: !config.isSpa })}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                setConfig({ ...config, isSpa: !config.isSpa });
+              }
+            }}
+          />
+          <label id="audit-spa-toggle-label" htmlFor="audit-spa-toggle" className={styles['no-margin']}>
+            SPA 사이트 (React/Vue/Angular CSR)
+            <span className={styles.tooltipWrap} style={{ marginLeft: 4 }}>
+              <HelpCircle
+                size={14}
+                color="#9ca3af"
+                style={{ cursor: 'pointer' }}
+                tabIndex={0}
+                aria-label="SPA 모드 도움말"
+              />
+              <span className={styles.tooltipBubble}>
+                JS 실행 후 hydration 완료까지 대기하고, data-href/data-to 같은 클라이언트 라우팅 링크도 함께 수집합니다.
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="audit-seed-urls">시드 URL (선택)</label>
+          <textarea
+            id="audit-seed-urls"
+            placeholder={`a[href]로 발견되지 않는 SPA 라우트를 한 줄씩 입력하세요.\n예시:\nhttps://example.com/dashboard\nhttps://example.com/settings`}
+            value={(config.seedUrls || []).join('\n')}
+            onChange={(e) =>
+              setConfig({
+                ...config,
+                seedUrls: e.target.value
+                  .split('\n')
+                  .map((u) => u.trim())
+                  .filter((u) => u.length > 0),
+              })
+            }
+            rows={3}
+            style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="audit-ready-selector">렌더링 완료 selector (선택)</label>
+          <input
+            id="audit-ready-selector"
+            type="text"
+            placeholder="예: #app .loaded 또는 [data-test=ready]"
+            value={config.readySelector || ''}
+            onChange={(e) => setConfig({ ...config, readySelector: e.target.value || undefined })}
+          />
+        </div>
+      </fieldset>
+
       {/* 섹션 4: 기타 */}
       <fieldset className={styles.formSection}>
         <legend className={styles.formSectionLegend}>기타</legend>

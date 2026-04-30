@@ -1,6 +1,15 @@
 import { WebCrawler } from '@/lib/crawler';
-import { AccessibilityAuditor } from '@/lib/accessibility-auditor';
-import { Violation, AuditResult, PageInfo, AuditConfig } from '@/types';
+import { AccessibilityAuditor, PageAuditResult } from '@/lib/accessibility-auditor';
+import {
+  Violation,
+  AuditResult,
+  PageInfo,
+  AuditConfig,
+  AuditReliabilitySummary,
+  AuditSpaSummary,
+  SpaFrameworkLabel,
+  RenderStrategyLabel,
+} from '@/types';
 import type { SEOAnalysisResult } from '@/types/seo';
 import type {
   AltTextAuditResult,
@@ -76,6 +85,8 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     maxDepth: config.maxDepth ?? (isVercel ? 2 : 10),
     maxPages: config.maxPages ?? (isVercel ? 5 : 1000),
     headless: true,
+    isSpa: config.isSpa === true,
+    readySelector: config.readySelector,
     // 기본 제외 패턴 + 사용자 제외 경로를 병합 (spread로 덮어쓰기 방지)
     excludePatterns: [
       /\.(jpg|jpeg|png|gif|svg|webp|ico|pdf|zip|exe|dmg)$/i,
@@ -94,10 +105,19 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     enableDynamicCheck: true,
     screenshotOnViolation: true,
     headless: true,
+    readySelector: config.readySelector,
+    networkIdleMs: config.isSpa ? 20000 : 15000,
+    maxWaitMs: config.isSpa ? 45000 : 30000,
   });
+
+  // 시드 URL 정규화
+  const seedUrls = (config.seedUrls || [])
+    .map((u) => u.trim())
+    .filter((u) => u.length > 0);
 
   try {
     let pages: PageInfo[];
+    let routeSourceCounts = { fromSeed: 0, fromCrawl: 0, fromSitemap: 0 };
     if (needsCrawl) {
       log('🕷️ 크롤러 초기화 중...');
       try {
@@ -113,12 +133,20 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
       // 3. Crawling
       log(`🔍 페이지 크롤링 시작: ${config.targetUrl}`);
-      const crawlResult = await crawler.crawl(config.targetUrl, (progress) => {
-        log(`  크롤링: ${progress.current}/${progress.found} - ${progress.url}`);
-      });
+      if (seedUrls.length > 0) {
+        log(`  시드 URL ${seedUrls.length}개 주입`);
+      }
+      const crawlResult = await crawler.crawl(
+        config.targetUrl,
+        (progress) => {
+          log(`  크롤링: ${progress.current}/${progress.found} - ${progress.url}`);
+        },
+        { seedUrls }
+      );
 
       log(`✅ 크롤링 완료: ${crawlResult.pages.length}개 페이지 발견`);
       pages = crawlResult.pages;
+      routeSourceCounts = crawlResult.sourceCounts;
     } else {
       // SEO/AI만 선택된 경우 — 크롤링 없이 targetUrl 1개만 분석 대상으로
       log('ℹ️ 크롤링이 필요한 옵션이 없어 크롤링을 건너뜁니다 (대상 URL만 분석).');
@@ -134,6 +162,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
     const violations: Violation[] = [];
     let violationNumber = 0;
+    const pageAuditResults: PageAuditResult[] = [];
 
     // 4. Accessibility Check
     const uniqueViolationMap = new Map<string, Violation>();
@@ -162,6 +191,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
         try {
           const auditResult = await auditor.auditPage(page.url);
+          pageAuditResults.push(auditResult);
 
           for (const kwcagViolation of auditResult.violations) {
             for (const node of kwcagViolation.nodes) {
@@ -281,10 +311,90 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
     const endTime = new Date().toISOString();
 
-    const summary = {
+    // Reliability/SPA 메트릭 — pageAuditResults 가 있을 때만 계산
+    let reliability: AuditReliabilitySummary | undefined;
+    let spaSummary: AuditSpaSummary | undefined;
+    if (pageAuditResults.length > 0) {
+      const pagesAudited = pageAuditResults.length;
+      const pagesFailed = pageAuditResults.filter((r) => r.status === 'failed').length;
+      const pagesPartial = pageAuditResults.filter((r) => r.status === 'partial').length;
+
+      const domNodes = pageAuditResults
+        .map((r) => r.domNodeCount)
+        .filter((n): n is number => typeof n === 'number');
+      const hydrations = pageAuditResults
+        .map((r) => r.hydrationMs)
+        .filter((n): n is number => typeof n === 'number');
+      const avgDomNodes = domNodes.length
+        ? Math.round(domNodes.reduce((a, b) => a + b, 0) / domNodes.length)
+        : 0;
+      const avgHydrationMs = hydrations.length
+        ? Math.round(hydrations.reduce((a, b) => a + b, 0) / hydrations.length)
+        : 0;
+
+      reliability = {
+        pagesAudited,
+        pagesFailed,
+        pagesPartial,
+        avgDomNodes,
+        avgHydrationMs,
+      };
+
+      // 프레임워크 감지 — 다수결 (unknown 제외)
+      const frameworkCounts = new Map<SpaFrameworkLabel, number>();
+      const renderCounts = new Map<RenderStrategyLabel, number>();
+      for (const r of pageAuditResults) {
+        if (r.framework && r.framework !== 'unknown') {
+          frameworkCounts.set(r.framework, (frameworkCounts.get(r.framework) || 0) + 1);
+        }
+        if (r.renderStrategy && r.renderStrategy !== 'unknown') {
+          renderCounts.set(r.renderStrategy, (renderCounts.get(r.renderStrategy) || 0) + 1);
+        }
+      }
+      const detectedFramework: SpaFrameworkLabel =
+        [...frameworkCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'unknown';
+      const renderStrategy: RenderStrategyLabel =
+        [...renderCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'unknown';
+
+      const suspectedSpa =
+        detectedFramework !== 'unknown' ||
+        (avgDomNodes > 0 && avgDomNodes < 30 && pages.length === 1) ||
+        (routeSourceCounts.fromCrawl === 0 && routeSourceCounts.fromSeed === 0 && pages.length <= 1);
+
+      spaSummary = {
+        detectedFramework,
+        renderStrategy,
+        suspectedSpa,
+        routesFromSeed: routeSourceCounts.fromSeed,
+        routesFromCrawl: routeSourceCounts.fromCrawl,
+        routesFromSitemap: routeSourceCounts.fromSitemap,
+      };
+    }
+
+    // 0페이지 / 0위반 모호성 분기 → warnings 생성
+    const warnings: string[] = [];
+    if (needsCrawl && pages.length === 0) {
+      warnings.push(
+        '라우트를 발견하지 못했습니다. SPA 사이트라면 "SPA 모드"를 켜고 시드 URL을 입력해 다시 진단해주세요.'
+      );
+    } else if (
+      needsAccessibility &&
+      violations.length === 0 &&
+      spaSummary?.suspectedSpa &&
+      reliability &&
+      reliability.pagesPartial > 0
+    ) {
+      warnings.push(
+        'SPA로 의심되는 사이트에서 일부 페이지의 진단 신뢰도가 낮습니다. 결과의 "부분" 표시를 확인해주세요.'
+      );
+    }
+
+    const summary: AuditResult['summary'] = {
       byPrinciple: {} as Record<string, number>,
       byImpact: { critical: 0, serious: 0, moderate: 0, minor: 0 } as Record<string, number>,
       byKwcagItem: {} as Record<string, number>,
+      reliability,
+      spa: spaSummary,
     };
 
     violations.forEach((v) => {
@@ -301,6 +411,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       pages,
       violations,
       seoResult,
+      warnings: warnings.length > 0 ? warnings : undefined,
       summary,
     };
 

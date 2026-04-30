@@ -6,6 +6,11 @@ import koLocale from 'axe-core/locales/ko.json';
 import { getBrowserLaunchOptions } from './browser-utils';
 import { convertAxeToKWCAG, KWCAGViolation } from './kwcag-mapping';
 import { CUSTOM_RULE_SCRIPT } from './custom-rules';
+import {
+  waitForSpaReady,
+  SpaFramework,
+  RenderStrategy,
+} from './spa-readiness';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -14,7 +19,15 @@ export interface AuditOptions {
   screenshotOnViolation?: boolean;
   screenshotDir?: string;
   headless?: boolean;
+  /** SPA hydration 후 추가로 대기할 사용자 정의 selector */
+  readySelector?: string;
+  /** networkidle 타임아웃 (ms). 기본 15000 */
+  networkIdleMs?: number;
+  /** 전체 hydration 대기 상한 (ms). 기본 30000 */
+  maxWaitMs?: number;
 }
+
+export type PageAuditStatus = 'success' | 'partial' | 'failed';
 
 export interface PageAuditResult {
   url: string;
@@ -22,6 +35,17 @@ export interface PageAuditResult {
   violations: KWCAGViolation[];
   screenshotPaths: string[];
   timestamp: string;
+  /** 진단 신뢰도 — success: 정상, partial: 추출 부분 실패, failed: 페이지 로드/axe 실패 */
+  status: PageAuditStatus;
+  /** partial/failed 일 때의 사유 (예: 'low-dom-content', 'goto-failed', 'axe-throw') */
+  failureReason?: string;
+  /** 감지된 SPA 프레임워크 */
+  framework?: SpaFramework;
+  renderStrategy?: RenderStrategy;
+  /** networkidle 이후 hydration 대기까지 누적 ms */
+  hydrationMs?: number;
+  /** 진단 시점 DOM 전체 엘리먼트 개수 (정상/실패 구분 휴리스틱에 사용) */
+  domNodeCount?: number;
 }
 
 export class AccessibilityAuditor {
@@ -114,16 +138,49 @@ export class AccessibilityAuditor {
     const page = await this.context.newPage();
     const screenshotPaths: string[] = [];
 
+    let readyStatus: PageAuditStatus = 'success';
+    let readyFailureReason: string | undefined;
+    let framework: SpaFramework | undefined;
+    let renderStrategy: RenderStrategy | undefined;
+    let hydrationMs: number | undefined;
+    let domNodeCount: number | undefined;
+
     try {
       // Use domcontentloaded as primary wait condition to prevent timeouts on sites with persistent network activity
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-
       try {
-        // Best-effort wait for network idle to allow dynamic content to load
-        // If this times out, we proceed anyway as DOM is presumably ready enough for audit
-        await page.waitForLoadState('networkidle', { timeout: 10000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
       } catch (e) {
-        console.warn(`[Audit] Network idle timeout for ${url}, proceeding with DOM content`);
+        return {
+          url,
+          title: 'Error',
+          violations: [],
+          screenshotPaths: [],
+          timestamp: new Date().toISOString(),
+          status: 'failed',
+          failureReason: e instanceof Error ? `goto-failed: ${e.message}` : 'goto-failed',
+        };
+      }
+
+      // SPA hydration 대기 (프레임워크 감지 + 단계별 대기 + DOM 안정화)
+      try {
+        const ready = await waitForSpaReady(page, {
+          readySelector: this.options.readySelector,
+          networkIdleMs: this.options.networkIdleMs ?? 15000,
+          maxWaitMs: this.options.maxWaitMs ?? 30000,
+        });
+        framework = ready.framework;
+        renderStrategy = ready.renderStrategy;
+        hydrationMs = ready.hydrationMs;
+        domNodeCount = ready.domNodeCount;
+        if (ready.status !== 'ready') {
+          readyStatus = 'partial';
+          readyFailureReason = `readiness:${ready.status}:${ready.notes.join(',')}`;
+        }
+      } catch (e) {
+        // readiness 자체 실패는 치명적이지 않음 — 진단을 계속 시도하고 partial 로 표기
+        console.warn(`[Audit] SPA readiness check failed for ${url}:`, e);
+        readyStatus = 'partial';
+        readyFailureReason = 'readiness-error';
       }
 
       const title = await page.title();
@@ -266,12 +323,34 @@ export class AccessibilityAuditor {
       // KWCAG 형식으로 변환 (boundingBox가 포함된 상태로 전달됨)
       const kwcagViolations = convertAxeToKWCAG({ violations: allViolations });
 
+      // 정상 통과(0건)와 추출 실패 구분: 위반 0 + DOM 노드 비정상 적음 + 프레임워크 감지됨 → partial
+      let finalStatus: PageAuditStatus = readyStatus;
+      let finalReason = readyFailureReason;
+      const LOW_DOM_THRESHOLD = 30;
+      if (
+        finalStatus === 'success' &&
+        kwcagViolations.length === 0 &&
+        typeof domNodeCount === 'number' &&
+        domNodeCount < LOW_DOM_THRESHOLD &&
+        framework &&
+        framework !== 'unknown'
+      ) {
+        finalStatus = 'partial';
+        finalReason = 'low-dom-content';
+      }
+
       return {
         url,
         title,
         violations: kwcagViolations,
         screenshotPaths: [publicScreenshotPath], // Use array for consistency
         timestamp: new Date().toISOString(),
+        status: finalStatus,
+        failureReason: finalReason,
+        framework,
+        renderStrategy,
+        hydrationMs,
+        domNodeCount,
       };
     } catch (error) {
       console.error(`Error auditing ${url}:`, error);
@@ -281,6 +360,13 @@ export class AccessibilityAuditor {
         violations: [],
         screenshotPaths: [],
         timestamp: new Date().toISOString(),
+        status: 'failed',
+        failureReason:
+          error instanceof Error ? `audit-throw: ${error.message}` : 'audit-throw',
+        framework,
+        renderStrategy,
+        hydrationMs,
+        domNodeCount,
       };
     } finally {
       await page.close();

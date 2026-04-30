@@ -83,6 +83,21 @@ jest.mock('../custom-rules', () => ({
   CUSTOM_RULE_SCRIPT: '(function(){ return []; })()',
 }));
 
+// spa-readiness 는 별도 단위 테스트에서 검증한다.
+// 여기서는 기본적으로 ready 상태로 모킹해 기존 테스트 시나리오에 영향이 없도록 한다.
+const mockWaitForSpaReady = jest.fn().mockResolvedValue({
+  framework: 'unknown',
+  renderStrategy: 'unknown',
+  hydrationMs: 50,
+  domNodeCount: 200,
+  status: 'ready',
+  notes: [],
+});
+
+jest.mock('../spa-readiness', () => ({
+  waitForSpaReady: (...args: unknown[]) => mockWaitForSpaReady(...args),
+}));
+
 // ---------------------------------------------------------------------------
 // Import under test (after mocks are set up)
 // ---------------------------------------------------------------------------

@@ -283,6 +283,108 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
       {activeView === 'accessibility' && (
         <>
 
+          {/* 경고 배너 (라우트 0개 / SPA 신뢰도 낮음 등) */}
+          {result.warnings && result.warnings.length > 0 && (
+            <div
+              role="alert"
+              aria-live="polite"
+              style={{
+                background: '#fff7ed',
+                border: '1px solid #f97316',
+                color: '#9a3412',
+                padding: '0.75rem 1rem',
+                borderRadius: 8,
+                marginBottom: '1rem',
+              }}
+            >
+              <strong style={{ display: 'block', marginBottom: 4 }}>진단 신뢰도 경고</strong>
+              <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+                {result.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* SPA 메타 배지 (프레임워크 / 라우트 출처 / 신뢰도) */}
+          {result.summary.spa && (
+            <div
+              aria-label="SPA 진단 메타데이터"
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '0.5rem',
+                marginBottom: '1rem',
+                fontSize: '0.85rem',
+              }}
+            >
+              <span
+                style={{
+                  background: '#eef2ff',
+                  color: '#3730a3',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: 999,
+                }}
+              >
+                프레임워크: {result.summary.spa.detectedFramework}
+              </span>
+              <span
+                style={{
+                  background: '#ecfeff',
+                  color: '#155e75',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: 999,
+                }}
+              >
+                렌더 전략: {result.summary.spa.renderStrategy}
+              </span>
+              {result.summary.spa.suspectedSpa && (
+                <span
+                  style={{
+                    background: '#fef3c7',
+                    color: '#92400e',
+                    padding: '0.25rem 0.6rem',
+                    borderRadius: 999,
+                  }}
+                >
+                  SPA 의심
+                </span>
+              )}
+              <span
+                style={{
+                  background: '#f1f5f9',
+                  color: '#334155',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: 999,
+                }}
+                title="라우트 출처별 페이지 수"
+              >
+                라우트 — 시드 {result.summary.spa.routesFromSeed} · 크롤 {result.summary.spa.routesFromCrawl} · 사이트맵 {result.summary.spa.routesFromSitemap}
+              </span>
+              {result.summary.reliability && (
+                <span
+                  style={{
+                    background:
+                      result.summary.reliability.pagesFailed > 0 ||
+                      result.summary.reliability.pagesPartial > 0
+                        ? '#fef2f2'
+                        : '#ecfdf5',
+                    color:
+                      result.summary.reliability.pagesFailed > 0 ||
+                      result.summary.reliability.pagesPartial > 0
+                        ? '#991b1b'
+                        : '#065f46',
+                    padding: '0.25rem 0.6rem',
+                    borderRadius: 999,
+                  }}
+                  title="페이지 진단 신뢰도"
+                >
+                  신뢰도 — 성공 {result.summary.reliability.pagesAudited - result.summary.reliability.pagesFailed - result.summary.reliability.pagesPartial} / 부분 {result.summary.reliability.pagesPartial} / 실패 {result.summary.reliability.pagesFailed}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* 요약 통계 */}
           <div className="stats-grid">
             <div className="stat-card">
