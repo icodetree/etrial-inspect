@@ -13,6 +13,8 @@ export interface CrawlerOptions {
   enableSitemap?: boolean; // 기본 true
   /** 사용자 정의 ready selector — 페이지마다 hydration 후 추가 대기 */
   readySelector?: string;
+  /** 크롤링 동시성 (기본: 로컬 3, Vercel 1). 메모리 ≈ 페이지당 ~50MB × concurrency. */
+  crawlConcurrency?: number;
 }
 
 export interface CrawlSourceCounts {
@@ -331,47 +333,54 @@ export class WebCrawler {
       }
     }
 
-    while (queue.length > 0 && pages.length < (this.options.maxPages || 500)) {
-      if (signal?.aborted) break;
-      const current = queue.shift();
-      if (!current) break;
+    // ── 공통 헬퍼: 단일 페이지 처리 ──────────────────────────────
+    const maxPages = this.options.maxPages || 500;
+    const maxDepth = this.options.maxDepth || 4;
 
-      const { url, depth, path, linkText, source } = current;
+    const processPage = async (item: QueueItem, isFirstPage: boolean) => {
+      const { url, depth, path, linkText, source } = item;
       const normalizedUrl = this.normalizeUrl(url);
 
-      if (this.visitedUrls.has(normalizedUrl)) continue;
-      if (depth > (this.options.maxDepth || 4)) continue;
-      if (!this.isValidUrl(normalizedUrl)) continue;
+      if (this.visitedUrls.has(normalizedUrl)) return;
+      if (depth > maxDepth) return;
+      if (!this.isValidUrl(normalizedUrl)) return;
 
       this.visitedUrls.add(normalizedUrl);
 
+      const page = await this.context!.newPage();
       try {
-        const page = await this.context.newPage();
-        // Use domcontentloaded as primary wait condition
-        await page.goto(normalizedUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        // 첫 페이지: 60초, 이후: 30초
+        const gotoTimeout = isFirstPage ? 60000 : 30000;
+        await page.goto(normalizedUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
 
-        // 항상 hydration 대기 — 정적 사이트는 networkidle 이 빠르게 끝나고
-        // framework='unknown' 으로 빠져 추가 대기 거의 없음. SPA 는 framework
-        // 별 root selector 까지 대기.
-        try {
-          const ready = await waitForSpaReady(page, {
-            readySelector: this.options.readySelector,
-            networkIdleMs: 15000,
-            maxWaitMs: 30000,
-          });
-          // 시작 URL(첫 페이지) 처리 시 자동 감지된 프레임워크를 보존 →
-          // discoverByMenuClick / 외부 로그용
-          if (source === 'start' && this.detectedFramework === 'unknown') {
-            this.detectedFramework = ready.framework;
-          }
-        } catch {
-          // readiness 자체 실패해도 계속 진행 (페이지 발견은 best-effort)
+        // 적응형 SPA 대기 — 첫 페이지는 전체 파이프라인, 이후는 감지된 프레임워크에 따라 분기
+        if (isFirstPage) {
+          try {
+            const ready = await waitForSpaReady(page, {
+              readySelector: this.options.readySelector,
+              networkIdleMs: 15000,
+              maxWaitMs: 30000,
+            });
+            if (this.detectedFramework === 'unknown') {
+              this.detectedFramework = ready.framework;
+            }
+          } catch { /* best-effort */ }
+        } else if (this.detectedFramework === 'unknown') {
+          // 정적 HTML — networkidle만 짧게
+          await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+        } else {
+          // SPA — 축소된 타임아웃
+          try {
+            await waitForSpaReady(page, {
+              readySelector: this.options.readySelector,
+              networkIdleMs: 5000,
+              maxWaitMs: 10000,
+            });
+          } catch { /* best-effort */ }
         }
 
         const realTitle = await page.title();
-        // Use linkText if available (from button), otherwise fallback to page title
         const displayTitle = linkText ? linkText.trim() : (realTitle || 'Untitled');
-
         const depthPath = this.calculateDepthPath(path, displayTitle);
 
         pages.push({
@@ -383,7 +392,6 @@ export class WebCrawler {
           depth4: depthPath[3] || '',
         });
 
-        // 라우트 출처 집계 — start 는 카운트하지 않고, sitemap/crawl 만 카운트
         if (source === 'sitemap') sourceCounts.fromSitemap++;
         else if (source === 'crawl') sourceCounts.fromCrawl++;
 
@@ -394,7 +402,7 @@ export class WebCrawler {
         });
 
         // 링크 수집
-        if (depth < (this.options.maxDepth || 4)) {
+        if (depth < maxDepth) {
           const links = await this.collectLinks(page);
           for (const link of links) {
             if (!this.visitedUrls.has(link.url)) {
@@ -409,25 +417,56 @@ export class WebCrawler {
           }
         }
 
-        // 첫 페이지에서 SPA 가 자동 감지되면 보수적 메뉴 클릭 시뮬레이션 실행 —
-        // History API hook 이 클라이언트 라우팅을 자동으로 큐에 push 한다.
-        if (
-          source === 'start' &&
-          depth === 1 &&
-          this.detectedFramework !== 'unknown'
-        ) {
+        // SPA 메뉴 클릭 — 첫 페이지에서만 실행
+        if (isFirstPage && this.detectedFramework !== 'unknown') {
           try {
             await this.discoverByMenuClick(page);
           } catch (e) {
             console.warn('[Crawler] 메뉴 클릭 시뮬레이션 실패:', e);
           }
         }
-
-        await page.close();
       } catch (error) {
         errors.push(`Error crawling ${normalizedUrl}: ${error}`);
+      } finally {
+        await page.close();
       }
+    };
+
+    // ── 1단계: 첫 페이지 순차 처리 (SPA 감지 + 메뉴 클릭) ────────
+    const firstItem = queue.shift();
+    if (firstItem && !signal?.aborted) {
+      await processPage(firstItem, true);
     }
+
+    // ── 2단계: 나머지 페이지 병렬 워커 ────────────────────────────
+    const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+    const concurrency = this.options.crawlConcurrency ?? (isVercel ? 1 : 3);
+    let activeWorkers = 0;
+
+    const worker = async () => {
+      while (true) {
+        if (signal?.aborted) break;
+        if (pages.length >= maxPages) break;
+
+        const current = queue.shift();
+        if (!current) {
+          // 큐가 비었지만 다른 워커가 링크를 수집 중일 수 있음
+          if (activeWorkers === 0) break;
+          await new Promise((r) => setTimeout(r, 100));
+          continue;
+        }
+
+        activeWorkers++;
+        try {
+          await processPage(current, false);
+        } finally {
+          activeWorkers--;
+        }
+      }
+    };
+
+    const workerCount = Math.min(concurrency, Math.max(queue.length, 1));
+    await Promise.all(Array(workerCount).fill(null).map(() => worker()));
 
     // sink 해제 — close() 이후 binding 이 호출되지 않도록
     this.routeCaptureSink = null;
@@ -447,7 +486,7 @@ export class WebCrawler {
    * URL 변경은 History API hook 이 자동으로 큐에 push 하므로 여기서는 클릭만 한다.
    */
   private async discoverByMenuClick(page: Page): Promise<void> {
-    const MAX_CANDIDATES = 20;
+    const MAX_CANDIDATES = 10;
     const DANGER_PATTERN =
       /로그아웃|logout|로그인|login|회원가입|signup|join|삭제|delete|탈퇴|withdraw|결제|payment|구매|buy|submit|제출/i;
 
@@ -508,17 +547,17 @@ export class WebCrawler {
         const visible = await locator.isVisible({ timeout: 500 }).catch(() => false);
         if (!visible) continue;
 
-        await locator.click({ timeout: 1500, trial: false });
+        await locator.click({ timeout: 1000, trial: false });
         // URL 변경 감지 — 짧게 기다림
         await Promise.race([
-          page.waitForURL(() => page.url() !== beforeUrl, { timeout: 1500 }).catch(() => null),
-          page.waitForTimeout(800),
+          page.waitForURL(() => page.url() !== beforeUrl, { timeout: 1000 }).catch(() => null),
+          page.waitForTimeout(600),
         ]);
 
         // URL 이 시작 URL 과 달라졌으면 goBack 으로 복귀 (sink 가 이미 큐에 push 했음)
         if (page.url() !== startUrl) {
           try {
-            await page.goBack({ timeout: 2000, waitUntil: 'domcontentloaded' });
+            await page.goBack({ timeout: 1500, waitUntil: 'domcontentloaded' });
           } catch {
             // 복귀 실패 시 다시 startUrl 로 강제 이동 — 재진입 대신 그냥 break
             break;

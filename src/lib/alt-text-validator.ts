@@ -312,6 +312,30 @@ function substringContainmentRatio(alt: string, ocr: string): number {
   return containedCount / ocrTokens.length;
 }
 
+/**
+ * 문자 n-gram 기반 Jaccard 유사도.
+ * 한국어 조사("이미지를" vs "이미지")처럼 토큰 경계가 달라도
+ * 바이그램 단위로 겹치므로 높은 유사도를 반환한다.
+ */
+function charNgramSimilarity(a: string, b: string, n = 2): number {
+  const stripped = (s: string) => s.replace(/\s+/g, '');
+  const sa = stripped(a);
+  const sb = stripped(b);
+  if (sa.length < n || sb.length < n) return 0;
+
+  const ngrams = (s: string): Set<string> => {
+    const set = new Set<string>();
+    for (let i = 0; i <= s.length - n; i++) set.add(s.slice(i, i + n));
+    return set;
+  };
+
+  const setA = ngrams(sa);
+  const setB = ngrams(sb);
+  const intersection = [...setA].filter((g) => setB.has(g)).length;
+  const union = new Set([...setA, ...setB]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
 export function computeSimilarity(altText: string, ocrText: string): number {
   const na = normalizeForCompare(altText);
   const nb = normalizeForCompare(ocrText);
@@ -321,8 +345,9 @@ export function computeSimilarity(altText: string, ocrText: string): number {
 
   const jaccard = jaccardSimilarity(na, nb);
   const containment = substringContainmentRatio(na, nb);
+  const ngram = charNgramSimilarity(na, nb);
 
-  return Math.max(jaccard, containment);
+  return Math.max(jaccard, containment, ngram);
 }
 
 // ---------------------------------------------------------------------------
@@ -465,5 +490,14 @@ export async function scanPageForAltMismatches(
     mismatchCount,
     countsByJudgment,
     items,
+    siteInfo: options.spaReadyResult
+      ? {
+          framework: options.spaReadyResult.framework,
+          renderStrategy: options.spaReadyResult.renderStrategy,
+          hydrationMs: options.spaReadyResult.hydrationMs,
+          spaReadyStatus: options.spaReadyResult.status,
+          notes: options.spaReadyResult.notes,
+        }
+      : undefined,
   };
 }

@@ -3,6 +3,26 @@
  * 이미지 내 텍스트와 alt 속성 간 불일치 진단 데이터
  */
 
+import type { SpaFrameworkLabel, RenderStrategyLabel } from '@/types';
+
+/**
+ * 스캔 시점에 감지된 사이트 유형 정보.
+ * SPA/SSR/CSR 등 렌더링 환경을 결과에 함께 기록하여
+ * 사용자가 진단이 어떤 환경에서 수행되었는지 확인할 수 있게 한다.
+ */
+export interface AltTextScanSiteInfo {
+  /** 감지된 프레임워크 (react, next, vue, nuxt, angular, unknown) */
+  framework: SpaFrameworkLabel;
+  /** 렌더링 전략 (CSR, SSR, SSG, unknown) */
+  renderStrategy: RenderStrategyLabel;
+  /** 하이드레이션 대기 시간 (ms) */
+  hydrationMs: number;
+  /** SPA 준비 상태 */
+  spaReadyStatus: 'ready' | 'partial' | 'timeout';
+  /** 추가 참고 정보 (예: 'networkidle-timeout', 'dom-not-stabilized') */
+  notes: string[];
+}
+
 /**
  * 이미지 유형 분류
  * - text-heavy: 텍스트 중심 이미지 (로고, 배너, 타이포그래피)
@@ -92,6 +112,16 @@ export interface AltTextScanOptions {
    * 진행률 콜백.
    */
   onProgress?: (current: number, total: number, currentUrl: string) => void;
+  /**
+   * waitForSpaReady()의 결과를 전달하면 siteInfo에 매핑됨.
+   */
+  spaReadyResult?: {
+    framework: SpaFrameworkLabel;
+    renderStrategy: RenderStrategyLabel;
+    hydrationMs: number;
+    status: 'ready' | 'partial' | 'timeout';
+    notes: string[];
+  };
 }
 
 /** 페이지 단위 스캔 결과 */
@@ -106,6 +136,8 @@ export interface AltTextScanResult {
   countsByJudgment: Record<AltTextJudgment, number>;
   /** 개별 이미지 판정 결과 (pass 포함 전체) */
   items: AltTextMismatch[];
+  /** 스캔 시 감지된 사이트 유형 정보 */
+  siteInfo?: AltTextScanSiteInfo;
 }
 
 /** Vision 분석 단일 결과 (내부용) */
@@ -148,6 +180,8 @@ export interface AltTextAuditResult {
   options?: {
     maxImagesPerPage?: number;
   };
+  /** 대표 사이트 유형 정보 (첫 페이지 기준) */
+  siteInfo?: AltTextScanSiteInfo;
 }
 
 /** Notion 이력 리스트 단일 항목 */

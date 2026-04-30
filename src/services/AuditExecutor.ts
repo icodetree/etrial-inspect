@@ -22,6 +22,7 @@ import { seoAuditService } from './SEOAuditService';
 import { getBrowserErrorGuide, getBrowserLaunchOptions } from '@/lib/browser-utils';
 import { chromium } from 'playwright-core';
 import { scanPageForAltMismatches, shutdownSharedWorkerPool } from '@/lib/alt-text-validator';
+import { waitForSpaReady } from '@/lib/spa-readiness';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function runAudit(config: AuditConfig, onProgress?: (data: any) => void, signal?: AbortSignal): Promise<AuditResult> {
@@ -474,10 +475,11 @@ export async function runStandaloneAltTextScan(
       const page = await ctx.newPage();
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        try {
-          await page.waitForLoadState('networkidle', { timeout: 8000 });
-        } catch {}
-        const scan = await scanPageForAltMismatches(page, { maxImages: maxImagesPerPage });
+        const spaReady = await waitForSpaReady(page);
+        const scan = await scanPageForAltMismatches(page, {
+          maxImages: maxImagesPerPage,
+          spaReadyResult: spaReady,
+        });
         results.push(scan);
       } catch (e) {
         console.error(`[Standalone AltText] ${url}:`, e);
@@ -572,6 +574,7 @@ export async function runCrawlAltTextAudit(
   const launchOptions = await getBrowserLaunchOptions(true);
   const browser = await chromium.launch(launchOptions);
   const scans: AltTextScanResult[] = [];
+  let firstSpaReady: Awaited<ReturnType<typeof waitForSpaReady>> | null = null;
 
   try {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -580,10 +583,12 @@ export async function runCrawlAltTextAudit(
       const ocrPage = await ctx.newPage();
       try {
         await ocrPage.goto(page.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        try {
-          await ocrPage.waitForLoadState('networkidle', { timeout: 8000 });
-        } catch { /* proceed */ }
-        const scan = await scanPageForAltMismatches(ocrPage, { maxImages: maxImagesPerPage });
+        const spaReady = await waitForSpaReady(ocrPage);
+        if (!firstSpaReady) firstSpaReady = spaReady;
+        const scan = await scanPageForAltMismatches(ocrPage, {
+          maxImages: maxImagesPerPage,
+          spaReadyResult: spaReady,
+        });
         scans.push(scan);
         done++;
         log(`  🖼️ OCR 완료 (${done}/${crawledPages.length}): ${page.url} — 이미지 ${scan.totalImagesScanned}장, 불일치 ${scan.mismatchCount}건`);
@@ -632,5 +637,14 @@ export async function runCrawlAltTextAudit(
     countsByJudgment: counts,
     scans,
     options: { maxImagesPerPage },
+    siteInfo: firstSpaReady
+      ? {
+          framework: firstSpaReady.framework,
+          renderStrategy: firstSpaReady.renderStrategy,
+          hydrationMs: firstSpaReady.hydrationMs,
+          spaReadyStatus: firstSpaReady.status,
+          notes: firstSpaReady.notes,
+        }
+      : undefined,
   };
 }
