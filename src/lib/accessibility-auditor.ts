@@ -132,8 +132,21 @@ export class AccessibilityAuditor {
     }
   }
 
-  async auditPage(url: string): Promise<PageAuditResult> {
+  async auditPage(url: string, opts?: { signal?: AbortSignal }): Promise<PageAuditResult> {
     if (!this.context) throw new Error('Auditor not initialized');
+
+    const signal = opts?.signal;
+    if (signal?.aborted) {
+      return {
+        url,
+        title: '',
+        violations: [],
+        screenshotPaths: [],
+        timestamp: new Date().toISOString(),
+        status: 'failed',
+        failureReason: 'aborted',
+      };
+    }
 
     const page = await this.context.newPage();
     const screenshotPaths: string[] = [];

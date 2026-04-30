@@ -24,7 +24,7 @@ import { chromium } from 'playwright-core';
 import { scanPageForAltMismatches, shutdownSharedWorkerPool } from '@/lib/alt-text-validator';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function runAudit(config: AuditConfig, onProgress?: (data: any) => void): Promise<AuditResult> {
+export async function runAudit(config: AuditConfig, onProgress?: (data: any) => void, signal?: AbortSignal): Promise<AuditResult> {
   const startTime = new Date().toISOString();
   // TODO: Make this path configurable for Electron (userData)
   const authStatePath = path.resolve(process.cwd(), 'auth_state.json');
@@ -110,14 +110,12 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     maxWaitMs: config.isSpa ? 45000 : 30000,
   });
 
-  // 시드 URL 정규화
-  const seedUrls = (config.seedUrls || [])
-    .map((u) => u.trim())
-    .filter((u) => u.length > 0);
+  // catch 블록(특히 abort) 에서 부분 결과를 만들 수 있도록 try 바깥에 누적 변수 선언
+  let pages: PageInfo[] = [];
+  const violations: Violation[] = [];
 
   try {
-    let pages: PageInfo[];
-    let routeSourceCounts = { fromSeed: 0, fromCrawl: 0, fromSitemap: 0 };
+    let routeSourceCounts = { fromCrawl: 0, fromSitemap: 0 };
     if (needsCrawl) {
       log('🕷️ 크롤러 초기화 중...');
       try {
@@ -133,15 +131,12 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
       // 3. Crawling
       log(`🔍 페이지 크롤링 시작: ${config.targetUrl}`);
-      if (seedUrls.length > 0) {
-        log(`  시드 URL ${seedUrls.length}개 주입`);
-      }
       const crawlResult = await crawler.crawl(
         config.targetUrl,
         (progress) => {
           log(`  크롤링: ${progress.current}/${progress.found} - ${progress.url}`);
         },
-        { seedUrls }
+        signal
       );
 
       log(`✅ 크롤링 완료: ${crawlResult.pages.length}개 페이지 발견`);
@@ -160,7 +155,6 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       }];
     }
 
-    const violations: Violation[] = [];
     let violationNumber = 0;
     const pageAuditResults: PageAuditResult[] = [];
 
@@ -187,10 +181,11 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       let nextPageIndex = 0;
 
       const auditPageWrapper = async (page: PageInfo, index: number) => {
+        if (signal?.aborted) return;
         log(`  검사 시작 (${index + 1}/${pages.length}): ${page.url}`);
 
         try {
-          const auditResult = await auditor.auditPage(page.url);
+          const auditResult = await auditor.auditPage(page.url, { signal });
           pageAuditResults.push(auditResult);
 
           for (const kwcagViolation of auditResult.violations) {
@@ -253,6 +248,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
       const worker = async () => {
         while (nextPageIndex < pages.length) {
+          if (signal?.aborted) break;
           const currentIndex = nextPageIndex++;
           const page = pages[currentIndex];
           await auditPageWrapper(page, currentIndex);
@@ -279,7 +275,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
 
     // 5. SEO & AI Audit — 각 옵션을 독립적으로 분리 실행
     let seoResult: SEOAnalysisResult | undefined;
-    if (needsSEO || needsAI) {
+    if ((needsSEO || needsAI) && !signal?.aborted) {
       const label = needsSEO && needsAI ? 'SEO · AI 친화도' : needsSEO ? 'SEO' : 'AI 친화도';
       log(`🌐 ${label} 분석을 시작합니다...`);
       try {
@@ -359,13 +355,12 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       const suspectedSpa =
         detectedFramework !== 'unknown' ||
         (avgDomNodes > 0 && avgDomNodes < 30 && pages.length === 1) ||
-        (routeSourceCounts.fromCrawl === 0 && routeSourceCounts.fromSeed === 0 && pages.length <= 1);
+        (routeSourceCounts.fromCrawl === 0 && pages.length <= 1);
 
       spaSummary = {
         detectedFramework,
         renderStrategy,
         suspectedSpa,
-        routesFromSeed: routeSourceCounts.fromSeed,
         routesFromCrawl: routeSourceCounts.fromCrawl,
         routesFromSitemap: routeSourceCounts.fromSitemap,
       };
@@ -375,7 +370,7 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
     const warnings: string[] = [];
     if (needsCrawl && pages.length === 0) {
       warnings.push(
-        '라우트를 발견하지 못했습니다. SPA 사이트라면 "SPA 모드"를 켜고 시드 URL을 입력해 다시 진단해주세요.'
+        '라우트를 발견하지 못했습니다. SPA 사이트라면 "SPA 모드"를 켜고 다시 진단해주세요.'
       );
     } else if (
       needsAccessibility &&
@@ -403,6 +398,13 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       summary.byKwcagItem[v.kwcagId] = (summary.byKwcagItem[v.kwcagId] || 0) + 1;
     });
 
+    // 사용자 취소 시 그 시점까지의 결과를 부분 보고서로 반환
+    if (signal?.aborted) {
+      warnings.unshift(
+        `사용자가 진단을 취소했습니다. 현재까지 발견된 ${pages.length}개 페이지·${violations.length}건 위반만 표시됩니다.`
+      );
+    }
+
     const result: AuditResult = {
       startTime,
       endTime,
@@ -415,13 +417,37 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
       summary,
     };
 
-    log('✅ 진단 완료');
+    log(signal?.aborted ? '🛑 진단 취소됨 (부분 결과)' : '✅ 진단 완료');
     return result;
 
   } catch (error) {
+    // abort 흐름에서 어딘가가 throw 했어도 — 부분 결과를 반환할 수 있는 만큼 모아 반환
+    if (signal?.aborted) {
+      const endTime = new Date().toISOString();
+      const partial: AuditResult = {
+        startTime,
+        endTime,
+        totalPages: pages?.length ?? 0,
+        totalViolations: violations.length,
+        pages: pages ?? [],
+        violations,
+        warnings: [
+          `사용자가 진단을 취소했습니다. 현재까지 발견된 ${pages?.length ?? 0}개 페이지·${violations.length}건 위반만 표시됩니다.`,
+        ],
+        summary: {
+          byPrinciple: {},
+          byImpact: { critical: 0, serious: 0, moderate: 0, minor: 0 },
+          byKwcagItem: {},
+        },
+      };
+      log('🛑 진단 취소됨 (부분 결과 — 예외 흐름)');
+      return partial;
+    }
+    throw error;
+  } finally {
+    // 어떤 흐름이든 리소스 정리 보장
     try { await crawler.close(); } catch { }
     try { await auditor.close(); } catch { }
-    throw error;
   }
 }
 

@@ -18,7 +18,7 @@ export default function Home() {
 
   const {
     config, setConfig, progress, results, logs,
-    startAudit, triggerGitHubAudit, exportExcel,
+    startAudit, cancelAudit, triggerGitHubAudit, exportExcel,
     auditResult, latestReportId, wasGitHubAudit,
     checkAndNavigateToLatestReport,
   } = useAudit(handleHistoryRefresh);
@@ -50,6 +50,7 @@ export default function Home() {
   const statusLabel = {
     idle: '대기', crawling: '크롤링 중', auditing: '진단 중',
     completed: '완료', error: '오류', github_polling: '대기 중',
+    cancelling: '정지 중', cancelled: '취소됨',
   }[progress.status] ?? '대기';
 
   const stats = [
@@ -197,6 +198,7 @@ export default function Home() {
         progress={progress}
         onExport={exportExcel}
         onSaveToNotion={() => { if (auditResult) handleSaveToNotion(); }}
+        onCancel={cancelAudit}
         resultSummary={results}
         latestReportId={latestReportId}
         wasGitHubAudit={wasGitHubAudit}

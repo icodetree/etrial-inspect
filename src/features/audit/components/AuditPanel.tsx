@@ -1,7 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronUp, ChevronDown, X, Terminal, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import {
+  ChevronUp,
+  ChevronDown,
+  X,
+  Terminal,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+  Square,
+} from 'lucide-react';
 import { AuditTerminal } from './AuditTerminal';
 import { LogEntry, ProgressState } from '../hooks/useAudit';
 import styles from './AuditPanel.module.css';
@@ -11,6 +20,7 @@ interface AuditPanelProps {
   progress: ProgressState;
   onExport: () => void;
   onSaveToNotion: () => void;
+  onCancel?: () => void;
   resultSummary: { pages: number; violations: number } | null;
   latestReportId?: string | null;
   wasGitHubAudit?: boolean;
@@ -24,6 +34,8 @@ const STATUS_LABELS: Record<ProgressState['status'], string> = {
   completed: '진단 완료',
   error: '오류 발생',
   github_polling: 'GitHub 대기 중',
+  cancelling: '정지 중...',
+  cancelled: '취소됨',
 };
 
 const STATUS_STYLE_MAP: Record<string, string> = {
@@ -32,6 +44,8 @@ const STATUS_STYLE_MAP: Record<string, string> = {
   github_polling: styles.statusPolling,
   completed: styles.statusCompleted,
   error: styles.statusError,
+  cancelling: styles.statusError,
+  cancelled: styles.statusError,
 };
 
 function StatusIcon({ status }: { status: ProgressState['status'] }) {
@@ -39,10 +53,12 @@ function StatusIcon({ status }: { status: ProgressState['status'] }) {
     case 'crawling':
     case 'auditing':
     case 'github_polling':
+    case 'cancelling':
       return <Loader2 size={16} className={styles.spinning} aria-hidden="true" />;
     case 'completed':
       return <CheckCircle2 size={16} aria-hidden="true" />;
     case 'error':
+    case 'cancelled':
       return <AlertTriangle size={16} aria-hidden="true" />;
     default:
       return <Terminal size={16} aria-hidden="true" />;
@@ -54,6 +70,7 @@ export const AuditPanel = ({
   progress,
   onExport,
   onSaveToNotion,
+  onCancel,
   resultSummary,
   latestReportId,
   wasGitHubAudit,
@@ -109,6 +126,7 @@ export const AuditPanel = ({
   const statusLabel = STATUS_LABELS[progress.status] ?? '대기';
   const statusClassName = STATUS_STYLE_MAP[progress.status] ?? '';
   const isProcessing = progress.status === 'crawling' || progress.status === 'auditing' || progress.status === 'github_polling';
+  const canCancel = !!onCancel && (progress.status === 'crawling' || progress.status === 'auditing');
 
   const progressText = isProcessing
     ? `(${progress.processed}/${progress.totalFound || '?'})`
@@ -150,6 +168,28 @@ export const AuditPanel = ({
         </div>
 
         <div className={styles.panelActions}>
+          {canCancel && (
+            <button
+              type="button"
+              className={styles.iconButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancel?.();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCancel?.();
+                }
+              }}
+              aria-label="진단 정지"
+              title="진단 정지"
+              style={{ color: '#dc2626' }}
+            >
+              <Square size={16} aria-hidden="true" fill="currentColor" />
+            </button>
+          )}
           <button
             type="button"
             className={styles.iconButton}

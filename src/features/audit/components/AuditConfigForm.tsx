@@ -193,26 +193,6 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
         </div>
 
         <div className="form-group">
-          <label htmlFor="audit-seed-urls">시드 URL (선택)</label>
-          <textarea
-            id="audit-seed-urls"
-            placeholder={`a[href]로 발견되지 않는 SPA 라우트를 한 줄씩 입력하세요.\n예시:\nhttps://example.com/dashboard\nhttps://example.com/settings`}
-            value={(config.seedUrls || []).join('\n')}
-            onChange={(e) =>
-              setConfig({
-                ...config,
-                seedUrls: e.target.value
-                  .split('\n')
-                  .map((u) => u.trim())
-                  .filter((u) => u.length > 0),
-              })
-            }
-            rows={3}
-            style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
-          />
-        </div>
-
-        <div className="form-group">
           <label htmlFor="audit-ready-selector">렌더링 완료 selector (선택)</label>
           <input
             id="audit-ready-selector"

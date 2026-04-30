@@ -21,11 +21,18 @@ export async function POST(request: NextRequest) {
       throw new Error('Audit Engine module failed to load.');
     }
 
-    const result = await runAudit(config);
+    // 클라이언트가 fetch 를 abort 하면 (새로고침 / 탭 닫기 / 정지 버튼) request.signal 이 abort 된다.
+    // runAudit 안에서 이 signal 을 검사해 작업을 중단한다.
+    const result = await runAudit(config, undefined, request.signal);
 
     return NextResponse.json(result);
 
   } catch (error: any) {
+    // 클라이언트 abort 로 인한 종료는 정상 흐름 — 에러 응답 대신 짧은 로그
+    if (error?.name === 'AbortError' || request.signal.aborted) {
+      console.log('🛑 Audit aborted by client.');
+      return NextResponse.json({ aborted: true }, { status: 499 });
+    }
     console.error('Audit execution error:', error);
     return NextResponse.json(
       {

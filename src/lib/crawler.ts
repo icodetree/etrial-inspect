@@ -18,7 +18,6 @@ export interface CrawlerOptions {
 }
 
 export interface CrawlSourceCounts {
-  fromSeed: number;
   fromCrawl: number;
   fromSitemap: number;
 }
@@ -38,6 +37,8 @@ export class WebCrawler {
   private visitedUrls: Set<string> = new Set();
   private baseUrl: string = '';
   private baseDomain: string = '';
+  /** 페이지 컨텍스트의 history.pushState/replaceState/popstate 가 호출되면 이 sink 로 URL 이 들어온다. crawl() 동안만 set. */
+  private routeCaptureSink: ((url: string) => void) | null = null;
 
   constructor(options: CrawlerOptions = {}) {
     this.options = {
@@ -64,6 +65,71 @@ export class WebCrawler {
     this.context = await this.browser.newContext({
       viewport: { width: 1920, height: 1080 },
     });
+
+    // SPA 모드: History API 가로채기 — 모든 page 에 자동 적용
+    if (this.options.isSpa) {
+      try {
+        await this.context.exposeBinding(
+          '__captureRoute',
+          (_source, url: string) => {
+            if (this.routeCaptureSink && typeof url === 'string') {
+              this.routeCaptureSink(url);
+            }
+          }
+        );
+        await this.context.addInitScript(() => {
+          try {
+            const w = window as unknown as {
+              __captureRoute?: (url: string) => void;
+              history: History;
+            };
+            const send = (rawUrl: string | URL | null | undefined) => {
+              try {
+                if (!rawUrl) return;
+                const abs =
+                  typeof rawUrl === 'string'
+                    ? new URL(rawUrl, window.location.href).href
+                    : rawUrl.href;
+                if (typeof w.__captureRoute === 'function') {
+                  w.__captureRoute(abs);
+                }
+              } catch {
+                /* noop */
+              }
+            };
+
+            const origPush = w.history.pushState.bind(w.history);
+            const origReplace = w.history.replaceState.bind(w.history);
+
+            w.history.pushState = function (
+              data: unknown,
+              unused: string,
+              url?: string | URL | null
+            ) {
+              const ret = origPush(data, unused, url);
+              send(url ?? window.location.href);
+              return ret;
+            };
+            w.history.replaceState = function (
+              data: unknown,
+              unused: string,
+              url?: string | URL | null
+            ) {
+              const ret = origReplace(data, unused, url);
+              send(url ?? window.location.href);
+              return ret;
+            };
+            window.addEventListener('popstate', () => send(window.location.href));
+            window.addEventListener('hashchange', () => send(window.location.href));
+          } catch {
+            /* noop — 일부 사이트에서 history wrap 이 막혀있을 수 있음 */
+          }
+        });
+      } catch (e) {
+        // binding 등록 실패는 치명적이지 않음 — 일반 크롤은 계속 작동
+        console.warn('[Crawler] History API hook 등록 실패 (SPA 자동 발견 비활성):', e);
+      }
+    }
   }
 
   async close(): Promise<void> {
@@ -213,7 +279,7 @@ export class WebCrawler {
   async crawl(
     startUrl: string,
     onProgress?: (progress: { current: number; found: number; url: string }) => void,
-    extra?: { seedUrls?: string[] }
+    signal?: AbortSignal
   ): Promise<CrawlResult> {
     if (!this.context) throw new Error('Crawler not initialized');
 
@@ -224,28 +290,31 @@ export class WebCrawler {
 
     const pages: PageInfo[] = [];
     const errors: string[] = [];
-    const sourceCounts: CrawlSourceCounts = { fromSeed: 0, fromCrawl: 0, fromSitemap: 0 };
+    const sourceCounts: CrawlSourceCounts = { fromCrawl: 0, fromSitemap: 0 };
 
     type QueueItem = {
       url: string;
       depth: number;
       path: string[];
       linkText?: string;
-      source: 'start' | 'seed' | 'sitemap' | 'crawl';
+      source: 'start' | 'sitemap' | 'crawl';
     };
     const queue: QueueItem[] = [
       { url: startUrl, depth: 1, path: [], source: 'start' },
     ];
 
-    // 시드 URL 주입 (사용자 입력) — start 직후, sitemap 전에 큐에 들어가도록
-    if (extra?.seedUrls && extra.seedUrls.length > 0) {
-      for (const seedUrl of extra.seedUrls) {
-        const normalized = this.normalizeUrl(seedUrl);
-        if (!this.visitedUrls.has(normalized) && this.isValidUrl(normalized)) {
-          queue.push({ url: seedUrl, depth: 1, path: [], source: 'seed' });
-        }
+    // History API hook 의 sink 를 큐로 연결 (SPA 모드일 때만 init 에서 binding 이 등록됨)
+    this.routeCaptureSink = (rawUrl: string) => {
+      try {
+        if (!this.isValidUrl(rawUrl)) return;
+        const normalized = this.normalizeUrl(rawUrl);
+        if (this.visitedUrls.has(normalized)) return;
+        // 이미 큐에 같은 URL이 있는지는 visitedUrls 가 처리 시점에 거른다
+        queue.push({ url: rawUrl, depth: 2, path: [], source: 'crawl' });
+      } catch {
+        /* noop */
       }
-    }
+    };
 
     // sitemap.xml에서 보충 URL 주입
     if (this.options.enableSitemap !== false) {
@@ -259,6 +328,7 @@ export class WebCrawler {
     }
 
     while (queue.length > 0 && pages.length < (this.options.maxPages || 500)) {
+      if (signal?.aborted) break;
       const current = queue.shift();
       if (!current) break;
 
@@ -311,9 +381,8 @@ export class WebCrawler {
           depth4: depthPath[3] || '',
         });
 
-        // 라우트 출처 집계 — start 는 fromCrawl 로 계산하지 않고, seed/sitemap/crawl 만 카운트
-        if (source === 'seed') sourceCounts.fromSeed++;
-        else if (source === 'sitemap') sourceCounts.fromSitemap++;
+        // 라우트 출처 집계 — start 는 카운트하지 않고, sitemap/crawl 만 카운트
+        if (source === 'sitemap') sourceCounts.fromSitemap++;
         else if (source === 'crawl') sourceCounts.fromCrawl++;
 
         onProgress?.({
@@ -338,11 +407,24 @@ export class WebCrawler {
           }
         }
 
+        // SPA 모드 + 첫 페이지에서 보수적 메뉴 클릭 시뮬레이션 — History API hook 이
+        // 클라이언트 라우팅을 자동으로 큐에 push 한다.
+        if (this.options.isSpa && source === 'start' && depth === 1) {
+          try {
+            await this.discoverByMenuClick(page);
+          } catch (e) {
+            console.warn('[Crawler] 메뉴 클릭 시뮬레이션 실패:', e);
+          }
+        }
+
         await page.close();
       } catch (error) {
         errors.push(`Error crawling ${normalizedUrl}: ${error}`);
       }
     }
+
+    // sink 해제 — close() 이후 binding 이 호출되지 않도록
+    this.routeCaptureSink = null;
 
     return {
       pages,
@@ -350,6 +432,96 @@ export class WebCrawler {
       errors,
       sourceCounts,
     };
+  }
+
+  /**
+   * 보수적 메뉴 클릭 시뮬레이션 — 첫 페이지의 GNB/nav 영역에서 위험하지 않은 후보를
+   * 최대 N개까지 클릭해서 클라이언트 라우팅을 트리거한다.
+   * URL 변경은 History API hook 이 자동으로 큐에 push 하므로 여기서는 클릭만 한다.
+   */
+  private async discoverByMenuClick(page: Page): Promise<void> {
+    const MAX_CANDIDATES = 20;
+    const DANGER_PATTERN =
+      /로그아웃|logout|로그인|login|회원가입|signup|join|삭제|delete|탈퇴|withdraw|결제|payment|구매|buy|submit|제출/i;
+
+    type Candidate = { selector: string; text: string; href: string | null };
+    let candidates: Candidate[];
+    try {
+      candidates = await page.$$eval(
+        'header a, nav a, [role=navigation] a, .gnb a, .lnb a, [role=menuitem], [role=tab], header button, nav button, [role=navigation] button, .gnb button, .lnb button',
+        (els) => {
+          const out: { selector: string; text: string; href: string | null }[] = [];
+          for (let i = 0; i < els.length; i++) {
+            const el = els[i] as HTMLElement;
+            const tag = el.tagName;
+            // form submit 버튼 제외
+            if (tag === 'BUTTON') {
+              const btn = el as HTMLButtonElement;
+              if (btn.type === 'submit' || el.closest('form')) continue;
+            }
+            const text = (el.innerText || el.textContent || '').trim().slice(0, 80);
+            const href = tag === 'A' ? (el as HTMLAnchorElement).getAttribute('href') : null;
+            // selector 는 nth-of-type 기반 — 안정성보다 동작성 우선
+            // 클릭은 page.locator(selector).nth(...) 으로 해도 되므로 여기선 인덱스만 보존
+            out.push({
+              selector: `__menu_candidate_${i}__`,
+              text,
+              href,
+            });
+          }
+          return out;
+        }
+      );
+    } catch {
+      return;
+    }
+
+    // 후보 정제: 위험 텍스트 제외, anchor 의 href 가 mailto/tel/javascript 인 것 제외
+    const safe = candidates
+      .map((c, idx) => ({ ...c, idx }))
+      .filter((c) => !DANGER_PATTERN.test(c.text))
+      .filter((c) => {
+        if (!c.href) return true;
+        return !/^(mailto:|tel:|javascript:|#$)/i.test(c.href);
+      })
+      .slice(0, MAX_CANDIDATES);
+
+    if (safe.length === 0) return;
+
+    // 후보를 동일 selector 로 한 번에 잡고 인덱스로 click
+    const allSelector =
+      'header a, nav a, [role=navigation] a, .gnb a, .lnb a, [role=menuitem], [role=tab], header button, nav button, [role=navigation] button, .gnb button, .lnb button';
+    const startUrl = page.url();
+
+    for (const c of safe) {
+      try {
+        // 매 클릭 전 현재 URL 기록
+        const beforeUrl = page.url();
+        const locator = page.locator(allSelector).nth(c.idx);
+        const visible = await locator.isVisible({ timeout: 500 }).catch(() => false);
+        if (!visible) continue;
+
+        await locator.click({ timeout: 1500, trial: false });
+        // URL 변경 감지 — 짧게 기다림
+        await Promise.race([
+          page.waitForURL(() => page.url() !== beforeUrl, { timeout: 1500 }).catch(() => null),
+          page.waitForTimeout(800),
+        ]);
+
+        // URL 이 시작 URL 과 달라졌으면 goBack 으로 복귀 (sink 가 이미 큐에 push 했음)
+        if (page.url() !== startUrl) {
+          try {
+            await page.goBack({ timeout: 2000, waitUntil: 'domcontentloaded' });
+          } catch {
+            // 복귀 실패 시 다시 startUrl 로 강제 이동 — 재진입 대신 그냥 break
+            break;
+          }
+        }
+      } catch {
+        // 개별 후보 실패는 무시하고 다음 후보로
+        continue;
+      }
+    }
   }
 
   private async collectLinks(page: Page): Promise<{ url: string; text: string }[]> {

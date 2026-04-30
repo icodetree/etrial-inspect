@@ -1,18 +1,27 @@
 import { AuditConfig, AuditResult } from '@/types';
 
 export interface IPlatformAuditService {
-  startAudit(config: AuditConfig, onProgress?: (data: unknown) => void): Promise<AuditResult>;
+  startAudit(
+    config: AuditConfig,
+    onProgress?: (data: unknown) => void,
+    signal?: AbortSignal
+  ): Promise<AuditResult>;
   exportExcel(result: AuditResult): Promise<void>;
 }
 
 // WebAuditService: Simplified for Web-only architecture
 export class WebAuditService implements IPlatformAuditService {
-  async startAudit(config: AuditConfig, onProgress?: (data: unknown) => void): Promise<AuditResult> {
-    // Web implementation: simple fetch
+  async startAudit(
+    config: AuditConfig,
+    onProgress?: (data: unknown) => void,
+    signal?: AbortSignal
+  ): Promise<AuditResult> {
+    // Web implementation: simple fetch — signal 을 그대로 전달해 새로고침/탭닫기/정지버튼 시 서버까지 abort 가 전파된다.
     const response = await fetch('/api/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
+      signal,
     });
 
     if (!response.ok) {

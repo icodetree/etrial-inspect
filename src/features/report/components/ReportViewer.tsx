@@ -359,7 +359,7 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
                 }}
                 title="라우트 출처별 페이지 수"
               >
-                라우트 — 시드 {result.summary.spa.routesFromSeed} · 크롤 {result.summary.spa.routesFromCrawl} · 사이트맵 {result.summary.spa.routesFromSitemap}
+                라우트 — 크롤 {result.summary.spa.routesFromCrawl} · 사이트맵 {result.summary.spa.routesFromSitemap}
               </span>
               {result.summary.reliability && (
                 <span

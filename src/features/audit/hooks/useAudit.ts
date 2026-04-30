@@ -4,7 +4,15 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { AuditConfig, AuditResult } from '@/types';
 
 export interface ProgressState {
-  status: 'idle' | 'crawling' | 'auditing' | 'completed' | 'error' | 'github_polling';
+  status:
+    | 'idle'
+    | 'crawling'
+    | 'auditing'
+    | 'completed'
+    | 'error'
+    | 'github_polling'
+    | 'cancelling'
+    | 'cancelled';
   currentUrl: string;
   totalFound: number;
   processed: number;
@@ -45,12 +53,28 @@ export function useAudit(onHistoryRefresh?: () => void) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
 
+  // 진단 abort 컨트롤러 — 정지 버튼 / 새로고침 / 탭 닫기 시 서버 작업까지 중단
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   // GitHub Actions 폴링 상태
   const [githubRunId, setGithubRunId] = useState<string | null>(null);
   const [isPollingGitHub, setIsPollingGitHub] = useState(false);
   const [latestReportId, setLatestReportId] = useState<string | null>(null);
   const [wasGitHubAudit, setWasGitHubAudit] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 페이지 새로고침/탭 닫기 시 진행 중인 진단을 명시적으로 abort
+  useEffect(() => {
+    const handler = () => {
+      abortControllerRef.current?.abort();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+      // 컴포넌트 언마운트 시에도 abort
+      abortControllerRef.current?.abort();
+    };
+  }, []);
 
   const addLog = useCallback((message: string) => {
     const time = new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -209,22 +233,31 @@ export function useAudit(onHistoryRefresh?: () => void) {
       message: '크롤링 시작...',
     });
 
+    // 새 진단을 시작할 때마다 새 AbortController. 직전 컨트롤러는 startAudit 중복 호출 시 정리.
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const { requestAudit } = await import('@/lib/audit-client');
 
-      const data = await requestAudit(config, (progressData: any) => {
-        if (progressData.type === 'log') {
-          addLog(progressData.message);
-        } else if (progressData.type === 'progress') {
-          setProgress(prev => ({
-            ...prev,
-            processed: progressData.current,
-            totalFound: progressData.total,
-            currentUrl: progressData.url,
-            status: 'auditing'
-          }));
-        }
-      });
+      const data = await requestAudit(
+        config,
+        (progressData: any) => {
+          if (progressData.type === 'log') {
+            addLog(progressData.message);
+          } else if (progressData.type === 'progress') {
+            setProgress((prev) => ({
+              ...prev,
+              processed: progressData.current,
+              totalFound: progressData.total,
+              currentUrl: progressData.url,
+              status: 'auditing',
+            }));
+          }
+        },
+        controller.signal
+      );
 
       addLog(`크롤링 완료. ${data.totalPages}개 페이지 발견.`);
       addLog(`진단 완료. ${data.totalViolations}개 위반 사항 발견.`);
@@ -246,17 +279,49 @@ export function useAudit(onHistoryRefresh?: () => void) {
 
       localStorage.setItem('auditResult', JSON.stringify(data));
     } catch (error) {
-      addLog(`오류 발생: ${error}`);
-      setProgress({
-        status: 'error',
-        currentUrl: '',
-        totalFound: 0,
-        processed: 0,
-        violations: 0,
-        message: `오류 발생: ${error}`,
-      });
+      // AbortError 는 정상 흐름 — 사용자/탭 닫기 등으로 정지된 경우
+      const isAbort =
+        (error as Error)?.name === 'AbortError' || controller.signal.aborted;
+      if (isAbort) {
+        addLog('🛑 진단이 취소되었습니다.');
+        setProgress({
+          status: 'cancelled',
+          currentUrl: '',
+          totalFound: 0,
+          processed: 0,
+          violations: 0,
+          message: '진단이 취소되었습니다.',
+        });
+      } else {
+        addLog(`오류 발생: ${error}`);
+        setProgress({
+          status: 'error',
+          currentUrl: '',
+          totalFound: 0,
+          processed: 0,
+          violations: 0,
+          message: `오류 발생: ${error}`,
+        });
+      }
+    } finally {
+      // 진단이 끝났으면 컨트롤러는 더 이상 의미 없음
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   }, [config, addLog]);
+
+  /** 진행 중인 진단을 정지한다. 새로고침/탭 닫기와 동일한 abort 신호를 보낸다. */
+  const cancelAudit = useCallback(() => {
+    if (!abortControllerRef.current) return;
+    setProgress((prev) => ({
+      ...prev,
+      status: 'cancelling',
+      message: '진단을 정지하는 중...',
+    }));
+    addLog('🛑 사용자 요청으로 진단을 정지합니다.');
+    abortControllerRef.current.abort();
+  }, [addLog]);
 
   const exportExcel = async () => {
     const savedResult = localStorage.getItem('auditResult');
@@ -443,6 +508,7 @@ export function useAudit(onHistoryRefresh?: () => void) {
     logs,
     addLog,
     startAudit,
+    cancelAudit,
     triggerGitHubAudit,
     exportExcel,
     saveToNotion,
