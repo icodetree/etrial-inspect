@@ -30,6 +30,7 @@ function buildMockPage() {
     waitForLoadState: jest.fn().mockResolvedValue(undefined),
     title: jest.fn().mockResolvedValue('Test Page'),
     close: jest.fn().mockResolvedValue(undefined),
+    evaluate: jest.fn().mockResolvedValue(false), // 차단 감지 → false (정상 페이지)
     $$eval: jest.fn().mockResolvedValue([]),
     locator: jest.fn().mockReturnValue({
       isVisible: jest.fn().mockResolvedValue(false),

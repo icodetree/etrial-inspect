@@ -1,4 +1,5 @@
 import { ReportViewer } from '@/features/report/components/ReportViewer';
+import { ReportFallback } from '@/features/report/components/ReportFallback';
 import { NotionService } from '@/services/notion/NotionService';
 import { notFound } from 'next/navigation';
 
@@ -22,13 +23,12 @@ export default async function ReportPage({ params }: PageProps) {
   try {
     auditResult = await notionService.getAuditResult(id);
   } catch (err) {
-    throw new Error(
-      `Notion에서 리포트(${id})를 조회하는 중 오류가 발생했습니다: ${err instanceof Error ? err.message : String(err)}`
-    );
+    console.error(`Notion 리포트 조회 실패 (${id}):`, err);
   }
 
+  // Notion JSON이 truncated/파싱 실패 → localStorage 폴백 시도
   if (!auditResult) {
-    notFound();
+    return <ReportFallback notionPageId={id} />;
   }
 
   return <ReportViewer initialResult={auditResult} />;

@@ -189,31 +189,40 @@ export class NotionService {
       });
 
       // violations에서 screenshot/html 등 대용량 필드를 제거한 축소판
-      const compactResult = {
-        startTime: result.startTime,
-        endTime: result.endTime,
-        totalPages: result.totalPages,
-        totalViolations: result.totalViolations,
-        pages: result.pages,
-        summary: result.summary,
-        seoResult: result.seoResult ? { score: result.seoResult.score, url: result.seoResult.url } : undefined,
-        violations: result.violations.map(v => ({
-          kwcagId: v.kwcagId,
-          kwcagName: v.kwcagName,
-          impact: v.impact,
-          principle: v.principle,
-          pageUrl: v.pageUrl,
-          selector: v.selector,
-          occurrenceCount: v.occurrenceCount,
-        })),
-      };
+      // violations 수를 줄여가며 항상 유효한 JSON이 되도록 보장
+      const MAX_JSON_SIZE = 78000;
+      const compactViolations = result.violations.map(v => ({
+        kwcagId: v.kwcagId,
+        kwcagName: v.kwcagName,
+        impact: v.impact,
+        principle: v.principle,
+        pageUrl: v.pageUrl,
+        selector: v.selector,
+        occurrenceCount: v.occurrenceCount,
+      }));
 
-      const jsonString = JSON.stringify(compactResult, null, 2);
-      // 최대 80,000자로 제한 (Notion API 페이로드 상한 고려)
-      const truncatedJson = jsonString.length > 80000
-        ? jsonString.slice(0, 80000) + '\n\n... (truncated, full data available via Excel export)'
-        : jsonString;
-      const jsonChunks = this.createRichTextChunks(truncatedJson);
+      let violationsToSave = compactViolations;
+      let jsonString: string;
+      while (true) {
+        const compactResult = {
+          startTime: result.startTime,
+          endTime: result.endTime,
+          totalPages: result.totalPages,
+          totalViolations: result.totalViolations,
+          pages: result.pages,
+          summary: result.summary,
+          seoResult: result.seoResult ? { score: result.seoResult.score, url: result.seoResult.url } : undefined,
+          violations: violationsToSave,
+          _truncated: violationsToSave.length < compactViolations.length
+            ? `${violationsToSave.length}/${compactViolations.length} violations shown`
+            : undefined,
+        };
+        jsonString = JSON.stringify(compactResult, null, 2);
+        if (jsonString.length <= MAX_JSON_SIZE || violationsToSave.length <= 10) break;
+        // 20%씩 줄이기
+        violationsToSave = violationsToSave.slice(0, Math.max(10, Math.floor(violationsToSave.length * 0.8)));
+      }
+      const jsonChunks = this.createRichTextChunks(jsonString!);
 
       const richTextLimit = 100;
       for (let i = 0; i < jsonChunks.length; i += richTextLimit) {
@@ -311,12 +320,22 @@ export class NotionService {
     const output = [];
     const maxLength = 2000;
 
-    for (let i = 0; i < content.length; i += maxLength) {
+    let i = 0;
+    while (i < content.length) {
+      let end = i + maxLength;
+      if (end < content.length) {
+        // High surrogate ranges from \uD800 to \uDBFF
+        const lastCharCode = content.charCodeAt(end - 1);
+        if (lastCharCode >= 0xD800 && lastCharCode <= 0xDBFF) {
+          end -= 1;
+        }
+      }
       output.push({
         text: {
-          content: content.substring(i, i + maxLength)
+          content: content.substring(i, end)
         }
       });
+      i = end;
     }
     return output;
   }

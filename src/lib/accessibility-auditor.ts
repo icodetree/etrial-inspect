@@ -197,6 +197,31 @@ export class AccessibilityAuditor {
 
       const title = await page.title();
 
+      // WAF/봇 차단 페이지 감지 — 실제 콘텐츠가 아닌 페이지는 스킵
+      const isBlocked = await page.evaluate(() => {
+        const text = document.body?.innerText || '';
+        const t = document.title || '';
+        const el = document.getElementsByTagName('*').length;
+        return (
+          el < 30 ||
+          /잠시만 기다리|please wait|checking your browser|just a moment|access denied|보안 위배/i.test(text + t)
+        );
+      }).catch(() => false);
+
+      if (isBlocked) {
+        console.warn(`[Audit] 차단/챌린지 페이지 스킵: ${url}`);
+        await page.close();
+        return {
+          url,
+          title: title || 'Blocked',
+          violations: [],
+          screenshotPaths: [],
+          timestamp: new Date().toISOString(),
+          status: 'failed' as PageAuditStatus,
+          failureReason: 'waf-blocked',
+        };
+      }
+
       // 0. 스크린샷 디렉토리 준비
       const screenshotDir = path.resolve(process.cwd(), 'public', 'screenshots');
       if (!fs.existsSync(screenshotDir)) {
@@ -263,30 +288,39 @@ export class AccessibilityAuditor {
       }
 
       // 2. Bounding Box 추출 및 주입
+      // boundingBox()는 뷰포트 기준 좌표를 반환하므로
+      // 스크롤 오프셋을 더해 문서 절대 좌표로 변환한다 (fullPage 스크린샷과 일치)
       for (const violation of axeResults.violations) {
         for (const node of violation.nodes) {
           if (node.target && node.target.length > 0) {
             try {
-              // axe returns css selector in target[0] usually
               let selector = '';
               if (typeof node.target[0] === 'string') {
                 selector = node.target[0];
               } else if (typeof node.target[0] === 'object' && node.target[0] !== null && 'selector' in node.target[0]) {
-                // Handle CrossTreeSelector if strictly typed
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 selector = (node.target[0] as any).selector;
               }
 
               if (selector) {
-                // Use Playwright to find the element bounding box
-                const box = await page.locator(selector).first().boundingBox();
-                if (box) {
-                  // node 객체에 boundingBox 주입 (타입 단언 필요할 수 있음)
+                // getBoundingClientRect + scrollOffset = 문서 절대 좌표
+                const absBox = await page.evaluate((sel: string) => {
+                  const el = document.querySelector(sel);
+                  if (!el) return null;
+                  const rect = el.getBoundingClientRect();
+                  return {
+                    x: rect.left + window.scrollX,
+                    y: rect.top + window.scrollY,
+                    width: rect.width,
+                    height: rect.height,
+                  };
+                }, selector);
+                if (absBox) {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  (node as any).boundingBox = box;
+                  (node as any).boundingBox = absBox;
                 }
               }
-            } catch (e) {
+            } catch {
               // Element might be hidden or moved, ignore error
             }
           }

@@ -85,6 +85,25 @@ export class PDFReportGenerator {
 </head>
 <body>
   ${sections.join('\n')}
+  <script>
+    window.addEventListener('load', () => {
+      document.querySelectorAll('.screenshot-container').forEach(container => {
+        const img = container.querySelector('img');
+        if (!img || !img.naturalWidth) return;
+        const scale = img.width / img.naturalWidth;
+        container.querySelectorAll('.bbox-overlay').forEach(overlay => {
+          const bbX = parseFloat(overlay.dataset.x || '0');
+          const bbY = parseFloat(overlay.dataset.y || '0');
+          const bbW = parseFloat(overlay.dataset.w || '0');
+          const bbH = parseFloat(overlay.dataset.h || '0');
+          overlay.style.left = (bbX * scale) + 'px';
+          overlay.style.top = (bbY * scale) + 'px';
+          overlay.style.width = (bbW * scale) + 'px';
+          overlay.style.height = (bbH * scale) + 'px';
+        });
+      });
+    });
+  </script>
 </body>
 </html>`;
   }
@@ -404,8 +423,8 @@ export class PDFReportGenerator {
       .map(v => {
         const bb = v.boundingBox!;
         // 스크린샷 이미지가 원본 대비 축소되므로 비율 조정 필요
-        // PDF에서는 max-width: 100%로 렌더링되므로 percentage 기반으로 함
-        return `<div class="bbox-overlay" style="left:${bb.x}px; top:${bb.y}px; width:${bb.width}px; height:${bb.height}px;" title="${this.escapeHtml(v.kwcagId)}"></div>`;
+        // 브라우저 로딩 후 스크립트를 통해 계산된 scale값을 적용하기 위해 data-* 속성에 원본 좌표를 저장
+        return `<div class="bbox-overlay" data-x="${bb.x}" data-y="${bb.y}" data-w="${bb.width}" data-h="${bb.height}" style="left:${bb.x}px; top:${bb.y}px; width:${bb.width}px; height:${bb.height}px;" title="${this.escapeHtml(v.kwcagId)}"></div>`;
       })
       .slice(0, 10) // 너무 많으면 10개까지만
       .join('');

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    await page.goto(`file://${tmpFile}`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await page.goto(`file://${tmpFile}`, { waitUntil: 'networkidle', timeout: 120000 });
 
     const pdfBuffer = await page.pdf({
       format: 'A4',
