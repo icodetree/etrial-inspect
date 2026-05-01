@@ -85,25 +85,6 @@ export class PDFReportGenerator {
 </head>
 <body>
   ${sections.join('\n')}
-  <script>
-    window.addEventListener('load', () => {
-      document.querySelectorAll('.screenshot-container').forEach(container => {
-        const img = container.querySelector('img');
-        if (!img || !img.naturalWidth) return;
-        const scale = img.width / img.naturalWidth;
-        container.querySelectorAll('.bbox-overlay').forEach(overlay => {
-          const bbX = parseFloat(overlay.dataset.x || '0');
-          const bbY = parseFloat(overlay.dataset.y || '0');
-          const bbW = parseFloat(overlay.dataset.w || '0');
-          const bbH = parseFloat(overlay.dataset.h || '0');
-          overlay.style.left = (bbX * scale) + 'px';
-          overlay.style.top = (bbY * scale) + 'px';
-          overlay.style.width = (bbW * scale) + 'px';
-          overlay.style.height = (bbH * scale) + 'px';
-        });
-      });
-    });
-  </script>
 </body>
 </html>`;
   }
@@ -351,15 +332,15 @@ export class PDFReportGenerator {
 
         ${screenshotHtml}
 
-        <div class="section-subheader">전체 항목별 평가 결과</div>
-        <table class="principle-table">
-          <thead>
-            <tr><th style="width:12%">항목 ID</th><th style="width:55%">검사 항목</th><th style="width:33%">결과</th></tr>
-          </thead>
-          <tbody>${principleRows}</tbody>
-        </table>
-
         ${hasViolations ? `
+          <div class="section-subheader">미준수 항목</div>
+          <table class="principle-table">
+            <thead>
+              <tr><th style="width:12%">항목 ID</th><th style="width:55%">검사 항목</th><th style="width:33%">결과</th></tr>
+            </thead>
+            <tbody>${principleRows}</tbody>
+          </table>
+
           <div class="section-subheader">항목별 주요 오류</div>
           ${violationDetails}
         ` : ''}
@@ -369,21 +350,22 @@ export class PDFReportGenerator {
     return `<div class="page-break"><div class="section-header">3. 페이지별 심사결과</div></div>${sections.join('')}`;
   }
 
-  // ===== Helper: 원칙별 결과 행 =====
+  // ===== Helper: 원칙별 결과 행 (미준수 항목만 표시) =====
   private renderPrincipleResults(pageViolations: Violation[]): string {
     const violatedKwcagIds = new Set(pageViolations.map(v => v.kwcagId));
     let rows = '';
     let currentPrinciple = '';
 
     for (const item of this.checkableItems) {
+      const isFail = violatedKwcagIds.has(item.id);
+      if (!isFail) continue; // 합격 항목은 건너뜀
+
       if (item.principle !== currentPrinciple) {
         currentPrinciple = item.principle;
+        rows += `<tr><td colspan="3" style="background:#edf2f7; font-weight:600; color:#1a365d;">${this.escapeHtml(currentPrinciple)}</td></tr>`;
       }
-      const isFail = violatedKwcagIds.has(item.id);
-      const cls = isFail ? 'principle-result-fail' : 'principle-result-pass';
-      const text = isFail ? 'X (불합격)' : 'O (합격)';
 
-      rows += `<tr><td>${this.escapeHtml(item.id)}</td><td>${this.escapeHtml(item.checkItem)}</td><td class="${cls}">${text}</td></tr>`;
+      rows += `<tr><td>${this.escapeHtml(item.id)}</td><td>${this.escapeHtml(item.checkItem)}</td><td class="principle-result-fail">X (불합격)</td></tr>`;
     }
     return rows;
   }
@@ -417,23 +399,49 @@ export class PDFReportGenerator {
     const base64 = this.imageCache.get(screenshotViolation.screenshotPath);
     if (!base64) return '';
 
-    // bounding box 오버레이
+    // PNG 원본 크기 추출 (IHDR 청크: offset 16~23)
+    const imgDimensions = this.getPngDimensions(base64);
+    if (!imgDimensions) return '';
+
+    const { width: naturalWidth, height: naturalHeight } = imgDimensions;
+
+    // bounding box 오버레이 — 퍼센트 기반 위치 (JS 불필요, PDF 렌더링에서도 정확)
     const bboxOverlays = violations
       .filter(v => v.boundingBox)
       .map(v => {
         const bb = v.boundingBox!;
-        // 스크린샷 이미지가 원본 대비 축소되므로 비율 조정 필요
-        // 브라우저 로딩 후 스크립트를 통해 계산된 scale값을 적용하기 위해 data-* 속성에 원본 좌표를 저장
-        return `<div class="bbox-overlay" data-x="${bb.x}" data-y="${bb.y}" data-w="${bb.width}" data-h="${bb.height}" style="left:${bb.x}px; top:${bb.y}px; width:${bb.width}px; height:${bb.height}px;" title="${this.escapeHtml(v.kwcagId)}"></div>`;
+        const leftPct = (bb.x / naturalWidth * 100).toFixed(4);
+        const topPct = (bb.y / naturalHeight * 100).toFixed(4);
+        const widthPct = (bb.width / naturalWidth * 100).toFixed(4);
+        const heightPct = (bb.height / naturalHeight * 100).toFixed(4);
+        return `<div class="bbox-overlay" style="left:${leftPct}%; top:${topPct}%; width:${widthPct}%; height:${heightPct}%;" title="${this.escapeHtml(v.kwcagId)}"></div>`;
       })
       .slice(0, 10) // 너무 많으면 10개까지만
       .join('');
 
+    // 스크린샷 높이를 A4 한 페이지에 맞게 제한 (헤더 영역 ~40mm 감안)
     return `
-    <div class="screenshot-container" style="max-height: 300mm; overflow: hidden;">
-      <img src="data:image/png;base64,${base64}" alt="페이지 스크린샷" style="max-width: 180mm;" />
-      ${bboxOverlays}
+    <div class="screenshot-section">
+      <div class="screenshot-container">
+        <img src="data:image/png;base64,${base64}" alt="페이지 스크린샷" />
+        ${bboxOverlays}
+      </div>
     </div>`;
+  }
+
+  /** PNG 바이너리에서 이미지 크기 추출 (IHDR 청크) */
+  private getPngDimensions(base64Data: string): { width: number; height: number } | null {
+    try {
+      const buffer = Buffer.from(base64Data, 'base64');
+      // PNG IHDR: bytes 16-19 = width, 20-23 = height (big-endian)
+      if (buffer.length < 24) return null;
+      const width = buffer.readUInt32BE(16);
+      const height = buffer.readUInt32BE(20);
+      if (width > 0 && height > 0) return { width, height };
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   // ===== 데이터 처리 헬퍼 =====

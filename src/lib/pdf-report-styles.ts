@@ -167,12 +167,16 @@ export const PDF_REPORT_STYLES = `
   }
 
   /* Screenshot */
+  .screenshot-section {
+    page-break-before: always;
+    margin-bottom: 5mm;
+  }
   .screenshot-container {
     position: relative;
     max-width: 100%;
-    margin-bottom: 5mm;
     border: 1px solid #e2e8f0;
     overflow: hidden;
+    page-break-inside: avoid;
   }
   .screenshot-container img {
     width: 100%;
