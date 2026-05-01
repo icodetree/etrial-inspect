@@ -180,17 +180,41 @@ export class NotionService {
         }
       });
 
-      // JSON 데이터 (마지막에 추가)
+      // JSON 데이터 — 요약 + 축소판만 저장 (413 PayloadTooLarge 방지)
+      // 전체 JSON은 로컬 localStorage / 엑셀 다운로드로 보존
       children.push({
         object: 'block',
         type: 'heading_2',
-        heading_2: { rich_text: [{ text: { content: '💾 원본 데이터 (JSON)' } }] },
+        heading_2: { rich_text: [{ text: { content: '💾 원본 데이터 (JSON 요약)' } }] },
       });
 
-      const jsonString = JSON.stringify(result, null, 2);
-      const jsonChunks = this.createRichTextChunks(jsonString);
+      // violations에서 screenshot/html 등 대용량 필드를 제거한 축소판
+      const compactResult = {
+        startTime: result.startTime,
+        endTime: result.endTime,
+        totalPages: result.totalPages,
+        totalViolations: result.totalViolations,
+        pages: result.pages,
+        summary: result.summary,
+        seoResult: result.seoResult ? { score: result.seoResult.score, url: result.seoResult.url } : undefined,
+        violations: result.violations.map(v => ({
+          kwcagId: v.kwcagId,
+          kwcagName: v.kwcagName,
+          impact: v.impact,
+          principle: v.principle,
+          pageUrl: v.pageUrl,
+          selector: v.selector,
+          occurrenceCount: v.occurrenceCount,
+        })),
+      };
 
-      // Notion Block limit: rich_text array size <= 100
+      const jsonString = JSON.stringify(compactResult, null, 2);
+      // 최대 80,000자로 제한 (Notion API 페이로드 상한 고려)
+      const truncatedJson = jsonString.length > 80000
+        ? jsonString.slice(0, 80000) + '\n\n... (truncated, full data available via Excel export)'
+        : jsonString;
+      const jsonChunks = this.createRichTextChunks(truncatedJson);
+
       const richTextLimit = 100;
       for (let i = 0; i < jsonChunks.length; i += richTextLimit) {
         const chunkBatch = jsonChunks.slice(i, i + richTextLimit);
@@ -235,18 +259,19 @@ export class NotionService {
         properties['Screenshot URL'] = { url: result.screenshotUrl };
       }
 
+      // 첫 호출은 속성 + 최대 50블록만 (413 PayloadTooLarge 방지)
+      const firstBatchSize = 50;
       const response = await this.notion.pages.create({
         parent: { database_id: this.databaseId },
         properties,
-        children: children.slice(0, 100), // First 100 blocks
+        children: children.slice(0, firstBatchSize),
       });
 
       const pageId = response.id;
 
-      // 100개 이상의 블록이 있다면 추가로 저장 (Chunking)
-      if (children.length > 100) {
-        const remainingBlocks = children.slice(100);
-        // Notion API limit: append takes up to 100 blocks at a time
+      // 나머지 블록 추가 저장 (Chunking)
+      if (children.length > firstBatchSize) {
+        const remainingBlocks = children.slice(firstBatchSize);
         const chunkSize = 100;
         for (let i = 0; i < remainingBlocks.length; i += chunkSize) {
           const chunk = remainingBlocks.slice(i, i + chunkSize);

@@ -54,6 +54,8 @@ jest.mock('playwright-core', () => ({
 
 jest.mock('../browser-utils', () => ({
   getBrowserLaunchOptions: jest.fn().mockResolvedValue({ headless: true }),
+  getStealthContextOptions: jest.fn().mockReturnValue({ viewport: { width: 1920, height: 1080 } }),
+  STEALTH_INIT_SCRIPT: '',
 }));
 
 import { WebCrawler } from '../crawler';
@@ -89,7 +91,8 @@ describe('WebCrawler — SPA 자동 감지 인프라', () => {
       '__captureRoute',
       expect.any(Function)
     );
-    expect(mockAddInitScript).toHaveBeenCalledTimes(1);
+    // stealth init script + history API hook = 2회
+    expect(mockAddInitScript).toHaveBeenCalledTimes(2);
 
     await crawler.close();
   });
@@ -115,9 +118,11 @@ describe('WebCrawler — discoverByMenuClick 자동 게이팅', () => {
     mockNewPage.mockImplementation(() => Promise.resolve(buildMockPage()));
   });
 
-  test('첫 페이지 framework=unknown 이면 메뉴 selector 쿼리가 추가로 실행되지 않는다 (collectLinks 1회만)', async () => {
+  test('첫 페이지 framework=unknown + 링크 0개 → 메뉴 클릭 폴백 실행', async () => {
     mockWaitForSpaReady.mockResolvedValue({ ...defaultReady, framework: 'unknown' });
     const page = buildMockPage();
+    // collectLinks 가 빈 배열 반환 → linksFound < 3 → 메뉴 클릭 실행
+    page.$$eval.mockResolvedValue([]);
     mockNewPage.mockResolvedValue(page);
 
     const crawler = new WebCrawler({ enableSitemap: false });
@@ -125,12 +130,11 @@ describe('WebCrawler — discoverByMenuClick 자동 게이팅', () => {
 
     const result = await crawler.crawl('https://example.com');
 
-    // collectLinks 의 selector 만 호출되어야 함 (a[href], [data-href]...).
-    // discoverByMenuClick 의 헤더/nav selector 는 호출되지 않아야 함.
+    // collectLinks + discoverByMenuClick = 2회 $$eval 호출
     const calledSelectors = page.$$eval.mock.calls.map((c) => c[0] as string);
-    expect(calledSelectors).toHaveLength(1);
+    expect(calledSelectors.length).toBeGreaterThanOrEqual(2);
     expect(calledSelectors[0]).toContain('a[href]');
-    expect(calledSelectors[0]).not.toContain('header a');
+    expect(calledSelectors.some((s) => s.includes('header a'))).toBe(true);
     expect(result.detectedFramework).toBe('unknown');
 
     await crawler.close();

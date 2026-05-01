@@ -1,7 +1,7 @@
 import { chromium, Browser, BrowserContext, Page } from 'playwright-core';
 import { XMLParser } from 'fast-xml-parser';
 import { PageInfo } from '@/types';
-import { getBrowserLaunchOptions } from './browser-utils';
+import { getBrowserLaunchOptions, getStealthContextOptions, STEALTH_INIT_SCRIPT } from './browser-utils';
 import { waitForSpaReady, SpaFramework } from './spa-readiness';
 
 export interface CrawlerOptions {
@@ -66,9 +66,10 @@ export class WebCrawler {
   async init(): Promise<void> {
     const launchOptions = await getBrowserLaunchOptions(this.options.headless);
     this.browser = await chromium.launch(launchOptions);
-    this.context = await this.browser.newContext({
-      viewport: { width: 1920, height: 1080 },
-    });
+    this.context = await this.browser.newContext(getStealthContextOptions());
+
+    // WAF/봇 탐지 우회 — navigator.webdriver 제거 등
+    await this.context.addInitScript(STEALTH_INIT_SCRIPT);
 
     // History API 가로채기 — 모든 page 에 자동 적용 (정적 사이트에서도 부작용 0,
     // pushState 가 호출되지 않을 뿐). SPA 자동 감지의 핵심 인프라.
@@ -402,8 +403,10 @@ export class WebCrawler {
         });
 
         // 링크 수집
+        let linksFound = 0;
         if (depth < maxDepth) {
           const links = await this.collectLinks(page);
+          linksFound = links.length;
           for (const link of links) {
             if (!this.visitedUrls.has(link.url)) {
               queue.push({
@@ -417,8 +420,9 @@ export class WebCrawler {
           }
         }
 
-        // SPA 메뉴 클릭 — 첫 페이지에서만 실행
-        if (isFirstPage && this.detectedFramework !== 'unknown') {
+        // 메뉴 클릭 시뮬레이션 — 첫 페이지에서 링크가 적으면 실행
+        // framework=unknown이어도 실행: WAF 차단 사이트, 커스텀 SPA 등에서 유효
+        if (isFirstPage && linksFound < 3) {
           try {
             await this.discoverByMenuClick(page);
           } catch (e) {
@@ -494,7 +498,7 @@ export class WebCrawler {
     let candidates: Candidate[];
     try {
       candidates = await page.$$eval(
-        'header a, nav a, [role=navigation] a, .gnb a, .lnb a, [role=menuitem], [role=tab], header button, nav button, [role=navigation] button, .gnb button, .lnb button',
+        'header a, nav a, [role=navigation] a, .gnb a, .lnb a, [role=menuitem], [role=tab], header button, nav button, [role=navigation] button, .gnb button, .lnb button, .nav a, .menu a, .navigation a, [class*="nav-"] a, [class*="menu-"] a',
         (els) => {
           const out: { selector: string; text: string; href: string | null }[] = [];
           for (let i = 0; i < els.length; i++) {
@@ -536,7 +540,7 @@ export class WebCrawler {
 
     // 후보를 동일 selector 로 한 번에 잡고 인덱스로 click
     const allSelector =
-      'header a, nav a, [role=navigation] a, .gnb a, .lnb a, [role=menuitem], [role=tab], header button, nav button, [role=navigation] button, .gnb button, .lnb button';
+      'header a, nav a, [role=navigation] a, .gnb a, .lnb a, [role=menuitem], [role=tab], header button, nav button, [role=navigation] button, .gnb button, .lnb button, .nav a, .menu a, .navigation a, [class*="nav-"] a, [class*="menu-"] a';
     const startUrl = page.url();
 
     for (const c of safe) {
@@ -571,9 +575,9 @@ export class WebCrawler {
   }
 
   private async collectLinks(page: Page): Promise<{ url: string; text: string }[]> {
-    // a[href] 외에 SPA 라우터에서 흔히 쓰는 data 속성/role 도 수집
+    // a[href] + SPA 라우터 data 속성 + role 기반 링크 수집
     const links = await page.$$eval(
-      'a[href], [data-href], [data-to], [data-route], [role="link"]',
+      'a[href], [data-href], [data-to], [data-route], [data-link], [data-url], [data-page], [role="link"]',
       (els, origin) => {
         const out: { url: string; text: string }[] = [];
         for (const el of els as HTMLElement[]) {
@@ -585,20 +589,34 @@ export class WebCrawler {
               el.getAttribute('data-href') ||
               el.getAttribute('data-to') ||
               el.getAttribute('data-route') ||
+              el.getAttribute('data-link') ||
+              el.getAttribute('data-url') ||
+              el.getAttribute('data-page') ||
               null;
-            // 상대경로면 origin 기준으로 절대경로화
-            if (candidate && !/^https?:\/\//i.test(candidate)) {
-              try {
-                candidate = new URL(candidate, origin).href;
-              } catch {
-                candidate = null;
-              }
+          }
+
+          // onclick 속성에서 URL 패턴 추출 (커스텀 SPA 라우팅)
+          if (!candidate) {
+            const onclick = el.getAttribute('onclick') || '';
+            const match = onclick.match(
+              /(?:location\.href|navigate|router\.push|goTo)\s*[=(]\s*['"]([^'"]+)['"]/
+            );
+            if (match) candidate = match[1];
+          }
+
+          // 상대경로 → 절대경로 변환
+          if (candidate && !/^https?:\/\//i.test(candidate)) {
+            try {
+              candidate = new URL(candidate, origin).href;
+            } catch {
+              candidate = null;
             }
           }
+
           if (!candidate) continue;
           out.push({
             url: candidate,
-            text: el.innerText || el.textContent || '',
+            text: (el.innerText || el.textContent || '').trim(),
           });
         }
         return out;
@@ -618,8 +636,10 @@ export class WebCrawler {
   private normalizeUrl(url: string): string {
     try {
       const urlObj = new URL(url, this.baseUrl);
-      // 해시와 쿼리스트링 정규화
-      urlObj.hash = '';
+      // 해시 라우팅 보존 — #/ 또는 #! 패턴은 SPA 라우트, 일반 앵커만 제거
+      if (urlObj.hash && !/^#[!/]/.test(urlObj.hash)) {
+        urlObj.hash = '';
+      }
       // 마지막 슬래시 제거
       let normalized = urlObj.href;
       if (normalized.endsWith('/') && normalized.length > 1) {
@@ -667,15 +687,69 @@ export class WebCrawler {
     }
   }
 
-  // 스토리지 상태 로드
+  // 스토리지 상태 로드 — stealth 설정 + History API hook 을 다시 적용
   async loadStorageState(statePath: string): Promise<void> {
     if (this.browser) {
       const fs = await import('fs');
       if (fs.existsSync(statePath)) {
+        // 기존 context 정리
+        if (this.context) {
+          await this.context.close().catch(() => {});
+        }
+
         this.context = await this.browser.newContext({
+          ...getStealthContextOptions(),
           storageState: statePath,
-          viewport: { width: 1920, height: 1080 },
         });
+        await this.context.addInitScript(STEALTH_INIT_SCRIPT);
+
+        // History API 가로채기 재등록
+        try {
+          await this.context.exposeBinding(
+            '__captureRoute',
+            (_source: unknown, url: string) => {
+              if (this.routeCaptureSink && typeof url === 'string') {
+                this.routeCaptureSink(url);
+              }
+            }
+          );
+          await this.context.addInitScript(() => {
+            try {
+              const w = window as unknown as {
+                __captureRoute?: (url: string) => void;
+                history: History;
+              };
+              const send = (rawUrl: string | URL | null | undefined) => {
+                try {
+                  if (!rawUrl) return;
+                  const abs =
+                    typeof rawUrl === 'string'
+                      ? new URL(rawUrl, window.location.href).href
+                      : rawUrl.href;
+                  if (typeof w.__captureRoute === 'function') {
+                    w.__captureRoute(abs);
+                  }
+                } catch { /* noop */ }
+              };
+              const origPush = w.history.pushState.bind(w.history);
+              const origReplace = w.history.replaceState.bind(w.history);
+              w.history.pushState = function (data: unknown, unused: string, url?: string | URL | null) {
+                const ret = origPush(data, unused, url);
+                send(url ?? window.location.href);
+                return ret;
+              };
+              w.history.replaceState = function (data: unknown, unused: string, url?: string | URL | null) {
+                const ret = origReplace(data, unused, url);
+                send(url ?? window.location.href);
+                return ret;
+              };
+              window.addEventListener('popstate', () => send(window.location.href));
+              window.addEventListener('hashchange', () => send(window.location.href));
+            } catch { /* noop */ }
+          });
+        } catch {
+          console.warn('[Crawler] loadStorageState: History API hook 재등록 실패');
+        }
       }
     }
   }

@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 import koLocale from 'axe-core/locales/ko.json';
-import { getBrowserLaunchOptions } from './browser-utils';
+import { getBrowserLaunchOptions, getStealthContextOptions, STEALTH_INIT_SCRIPT } from './browser-utils';
 import { convertAxeToKWCAG, KWCAGViolation } from './kwcag-mapping';
 import { CUSTOM_RULE_SCRIPT } from './custom-rules';
 import {
@@ -65,9 +65,8 @@ export class AccessibilityAuditor {
   async init(): Promise<void> {
     const launchOptions = await getBrowserLaunchOptions(this.options.headless !== undefined ? this.options.headless : true);
     this.browser = await chromium.launch(launchOptions);
-    this.context = await this.browser.newContext({
-      viewport: { width: 1920, height: 1080 },
-    });
+    this.context = await this.browser.newContext(getStealthContextOptions());
+    await this.context.addInitScript(STEALTH_INIT_SCRIPT);
   }
 
   async close(): Promise<void> {
@@ -466,9 +465,10 @@ export class AccessibilityAuditor {
   async loadStorageState(path: string): Promise<void> {
     if (this.browser && fs.existsSync(path)) {
       this.context = await this.browser.newContext({
+        ...getStealthContextOptions(),
         storageState: path,
-        viewport: { width: 1920, height: 1080 },
       });
+      await this.context.addInitScript(STEALTH_INIT_SCRIPT);
     }
   }
 }

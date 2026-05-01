@@ -1,43 +1,330 @@
 {
   "cookies": [
     {
-      "name": "NEXT_LOCALE",
-      "value": "ko",
-      "domain": "www.thunderjob.com",
+      "name": "dsid",
+      "value": "baa6f335-3b6d-4ae3-98b7-6f8632af34ea",
+      "domain": ".baemin.com",
       "path": "/",
-      "expires": 1798686865.638064,
+      "expires": 1809151009.499771,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "__cf_bm",
+      "value": "vQmyFIPBs9TFwIRsbMnW0lq2ozkuKC8uEGl6wbZcz6I-1777615009.4792173-1.0.1.1-A3XWh.PrHuITgKvFh6AEhv8yG_WcFW_W2a9R9Do_qdhtzj2ttNg1TxCXUWwAifR6q1wXpGEX1gttAFKCqWxSJGcHU.HwctlgCOwYRYz8WiE8i1FbnUCkuM03fOZJxchO9vFFiyOnrbzFQPS6Q21_og",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1777616809.499854,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "cookie30d",
+      "value": "",
+      "domain": "biz-member.baemin.com",
+      "path": "/",
+      "expires": 1780207009,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
-      "name": "accessToken",
-      "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyVHlwZUNvZGUiOiJVVDAwMyIsImNvbXBhbnlJZCI6MCwicGhvbmVOdW1iZXIiOiIwMTAxMjM0MTIzNCIsImlzcyI6Imh0dHBzOi8vYXBpLnRodW5kZXJqb2IuY29tIiwibmFtZSI6ImhvbmdnaWxkb25nIiwibmlja25hbWUiOiJFdGhvbmdnaWwiLCJpZCI6IjU1OThiMDc4LTA0NTAtNGQyMy1hYjVkLTlmMTA2MDE1NmZlZSIsImV4cCI6MTc2NzIzNzI4NSwiZW1haWwiOiJlLnRzdHVkZW50OTBAZ21haWwuY29tIiwiaXNSZXN1bWVBY3RpdmUiOmZhbHNlfQ.hI9nu2EVdJV5bx6yqxAF94wqpbNIr2jctFvsppPDyJI",
-      "domain": "www.thunderjob.com",
+      "name": "_ga",
+      "value": "GA1.3.451073933.1777615010",
+      "domain": ".biz-member.baemin.com",
       "path": "/",
-      "expires": -1,
+      "expires": 1812175009.945331,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
-      "name": "refreshToken",
-      "value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyVHlwZUNvZGUiOiJVVDAwMyIsImNvbXBhbnlJZCI6MCwicGhvbmVOdW1iZXIiOiIwMTAxMjM0MTIzNCIsImlzcyI6Imh0dHBzOi8vYXBpLnRodW5kZXJqb2IuY29tIiwibmFtZSI6ImhvbmdnaWxkb25nIiwibmlja25hbWUiOiJFdGhvbmdnaWwiLCJpZCI6IjU1OThiMDc4LTA0NTAtNGQyMy1hYjVkLTlmMTA2MDE1NmZlZSIsImV4cCI6MTc2OTc0Mjg4NSwiZW1haWwiOiJlLnRzdHVkZW50OTBAZ21haWwuY29tIiwiaXNSZXN1bWVBY3RpdmUiOmZhbHNlfQ.JnxJfo1bdyG-3QV_PjfPuTe1NSbyQc8RjlFcl825F-g",
-      "domain": "www.thunderjob.com",
+      "name": "_gid",
+      "value": "GA1.3.712747938.1777615010",
+      "domain": ".biz-member.baemin.com",
       "path": "/",
-      "expires": -1,
+      "expires": 1777701409,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
+    },
+    {
+      "name": "bm_session_id",
+      "value": "baa6f335-3b6d-4ae3-98b7-6f8632af34ea/1777615010035",
+      "domain": "biz-member.baemin.com",
+      "path": "/",
+      "expires": 1777616821,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "OAID_S",
+      "value": "s1777615010.129926",
+      "domain": ".widerplanet.com",
+      "path": "/",
+      "expires": 1812175022.135208,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "OAID",
+      "value": "dcf625c8bf13b7afd7b83fe9f21bf26e",
+      "domain": ".widerplanet.com",
+      "path": "/",
+      "expires": 1812175022.135112,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_wp_uid",
+      "value": "1-dcf625c8bf13b7afd7b83fe9f21bf26e-s1777615010.129926|mac_osx|chrome-10mjm6v",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1809151022,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "userId",
+      "value": "master8407",
+      "domain": "biz-member.baemin.com",
+      "path": "/",
+      "expires": 1778219821,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ceo_v2_gk_sid",
+      "value": "326ea745-addc-4ca6-ac01-92dade83b8f6",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1809151022.08125,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "OAIDT",
+      "value": "C",
+      "domain": ".widerplanet.com",
+      "path": "/",
+      "expires": 1812175022.135187,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "JSESSIONID",
+      "value": "E7FD3C391EE5CE3411A934FEBDAD2B53",
+      "domain": "academy.baemin.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "tbid",
+      "value": "1356f212-62b9-4fae-8a76-4a2b7c0a413c",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1809151022,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_kmpid",
+      "value": "km|academy.baemin.com|1777615022634|ad77a8f0-40e1-45a2-8969-922c55a5bb48",
+      "domain": ".academy.baemin.com",
+      "path": "/",
+      "expires": 1785391022,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_kmpid",
+      "value": "km|baemin.com|1777615022634|ad77a8f0-40e1-45a2-8969-922c55a5bb48",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1785391022,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "extcid",
+      "value": "b5cb046ec4e24755a187794884f550a1",
+      "domain": "lex.toss.im",
+      "path": "/",
+      "expires": 1809151022.757304,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_fbp",
+      "value": "fb.1.1777615024122.300787041551208503",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1785391024,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "bmac_uuid",
+      "value": "202605011457_b7cea730-bd04-4917-b1a1-058b059eac1e",
+      "domain": "academy.baemin.com",
+      "path": "/",
+      "expires": 1809151024,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "bmac_visit_log",
+      "value": "202605011457_b7cea730-bd04-4917-b1a1-058b059eac1e/1777615024222",
+      "domain": "academy.baemin.com",
+      "path": "/",
+      "expires": 1777616824,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ga",
+      "value": "GA1.1.1733150841.1777615024",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1812175024.24662,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_fwb",
+      "value": "192kTCAYOc5OHbAA2HZceaF.1777615024742",
+      "domain": ".academy.baemin.com",
+      "path": "/",
+      "expires": 1812175024.7423,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "wcs_bt",
+      "value": "s_1e288ae6b6e5:1777615024",
+      "domain": "academy.baemin.com",
+      "path": "/",
+      "expires": 1812175024.747172,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "NWB",
+      "value": "d19ad2e522ff1d135248420950d9429f.1777615024835",
+      "domain": ".wcs.naver.com",
+      "path": "/",
+      "expires": 1812175024.837419,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "NAC",
+      "value": "X8r7BExHKfXdA",
+      "domain": ".naver.com",
+      "path": "/",
+      "expires": 1812175024.954829,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "_ga_360N6M3W4B",
+      "value": "GS2.1.s1777615023$o1$g1$t1777615026$j57$l0$h0",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1812175026.299031,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "AWSALB",
+      "value": "eprsFcNXnAhV+pk/ONh3EhLhJFsGId6hssNSUCP2OZWJSXewYmz3dTVuVzj6yLPEaRLvmB6k5HZ90h40PDJDYMw+ZNpsihlBfs4o/QhIkc2gTukHUncpcPIL5BQC",
+      "domain": "academy.baemin.com",
+      "path": "/",
+      "expires": 1778219826.526588,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "AWSALBCORS",
+      "value": "eprsFcNXnAhV+pk/ONh3EhLhJFsGId6hssNSUCP2OZWJSXewYmz3dTVuVzj6yLPEaRLvmB6k5HZ90h40PDJDYMw+ZNpsihlBfs4o/QhIkc2gTukHUncpcPIL5BQC",
+      "domain": "academy.baemin.com",
+      "path": "/",
+      "expires": 1778219826.526631,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
     }
   ],
   "origins": [
     {
-      "origin": "https://www.thunderjob.com",
+      "origin": "https://astg.widerplanet.com",
       "localStorage": [
         {
-          "name": "auth-storage",
-          "value": "{\"state\":{\"userInfo\":{\"userTypeCode\":\"UT003\",\"companyId\":0,\"phoneNumber\":\"01012341234\",\"iss\":\"https://api.thunderjob.com\",\"name\":\"honggildong\",\"nickname\":\"Ethonggil\",\"id\":\"5598b078-0450-4d23-ab5d-9f1060156fee\",\"exp\":1767237285,\"email\":\"e.tstudent90@gmail.com\",\"isResumeActive\":false},\"isLoggedIn\":true,\"userType\":\"intern\"},\"version\":0}"
+          "name": "_wp_uid",
+          "value": "2-dcf625c8bf13b7afd7b83fe9f21bf26e-s1777615010.129926|mac_osx|chrome-c09iep"
+        }
+      ]
+    },
+    {
+      "origin": "https://academy.baemin.com",
+      "localStorage": [
+        {
+          "name": "NACT",
+          "value": "1777615024955"
+        },
+        {
+          "name": "NAC",
+          "value": "X8r7BExHKfXdA"
+        },
+        {
+          "name": "lastExternalReferrerTime",
+          "value": "1777615024113"
+        },
+        {
+          "name": "tbid",
+          "value": "1356f212-62b9-4fae-8a76-4a2b7c0a413c"
+        },
+        {
+          "name": "lastExternalReferrer",
+          "value": "other"
+        },
+        {
+          "name": "tbid_created_at",
+          "value": "1777615022633"
+        },
+        {
+          "name": "tbid_expires",
+          "value": "1809151022633"
+        },
+        {
+          "name": "NA_NACC",
+          "value": "X8r7BExHKfXdA"
         }
       ]
     }

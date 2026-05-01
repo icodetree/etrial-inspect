@@ -19,7 +19,7 @@ import type {
 import * as fs from 'fs';
 import * as path from 'path';
 import { seoAuditService } from './SEOAuditService';
-import { getBrowserErrorGuide, getBrowserLaunchOptions } from '@/lib/browser-utils';
+import { getBrowserErrorGuide, getBrowserLaunchOptions, getStealthContextOptions, STEALTH_INIT_SCRIPT } from '@/lib/browser-utils';
 import { chromium } from 'playwright-core';
 import { scanPageForAltMismatches, shutdownSharedWorkerPool } from '@/lib/alt-text-validator';
 import { waitForSpaReady } from '@/lib/spa-readiness';
@@ -470,7 +470,8 @@ export async function runStandaloneAltTextScan(
   const results: AltTextScanResult[] = [];
 
   try {
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const ctx = await browser.newContext({ ...getStealthContextOptions(), viewport: { width: 1280, height: 800 } });
+    await ctx.addInitScript(STEALTH_INIT_SCRIPT);
     for (const url of urls) {
       const page = await ctx.newPage();
       try {
@@ -577,7 +578,8 @@ export async function runCrawlAltTextAudit(
   let firstSpaReady: Awaited<ReturnType<typeof waitForSpaReady>> | null = null;
 
   try {
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const ctx = await browser.newContext({ ...getStealthContextOptions(), viewport: { width: 1280, height: 800 } });
+    await ctx.addInitScript(STEALTH_INIT_SCRIPT);
     let done = 0;
     for (const page of crawledPages) {
       const ocrPage = await ctx.newPage();

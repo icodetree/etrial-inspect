@@ -138,6 +138,43 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
     }
   };
 
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+  };
+
+  const getDomain = () => {
+    try { return result?.pages?.[0]?.url ? new URL(result.pages[0].url).hostname : 'report'; } catch { return 'report'; }
+  };
+
+  const handleDownloadHTML = async () => {
+    if (!result) return;
+    setPdfExporting(true);
+    try {
+      const response = await fetch('/api/report/pdf', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          result,
+          options: { title: '웹 접근성 진단 보고서', includeScreenshots: true },
+        }),
+      });
+      if (!response.ok) throw new Error('HTML 생성 실패');
+      const blob = await response.blob();
+      downloadBlob(blob, `accessibility-report-${getDomain()}-${new Date().toISOString().split('T')[0]}.html`);
+    } catch (error) {
+      alert(`HTML 다운로드 실패: ${error instanceof Error ? error.message : error}`);
+    } finally {
+      setPdfExporting(false);
+    }
+  };
+
   const handleExportPDF = async () => {
     if (!result || pdfExporting) return;
     setPdfExporting(true);
@@ -147,28 +184,27 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           result,
-          options: {
-            title: '웹 접근성 진단 보고서',
-            includeScreenshots: true,
-          },
+          options: { title: '웹 접근성 진단 보고서', includeScreenshots: true },
         }),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({ error: 'PDF 생성 실패' }));
+        // PDF 실패 시 HTML 폴백 제안
+        const useHtml = window.confirm(
+          'PDF 생성에 실패했습니다.\n(데이터가 너무 커서 변환 중 시간 초과)\n\nHTML 파일로 대신 다운로드하시겠습니까?\n(브라우저에서 열어 인쇄→PDF 저장 가능)'
+        );
+        if (useHtml) {
+          setPdfExporting(false);
+          await handleDownloadHTML();
+          return;
+        }
         throw new Error(err.error || 'PDF 생성 실패');
       }
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const domain = result.pages?.[0]?.url ? new URL(result.pages[0].url).hostname : 'report';
-      a.download = `accessibility-report-${domain}-${new Date().toISOString().split('T')[0]}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
+      downloadBlob(blob, `accessibility-report-${getDomain()}-${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
-      alert(`PDF 다운로드 실패: ${error}`);
+      if (error instanceof Error && error.message.includes('PDF 생성 실패')) return; // 이미 confirm에서 처리됨
+      alert(`PDF 다운로드 실패: ${error instanceof Error ? error.message : error}`);
     } finally {
       setPdfExporting(false);
     }
@@ -315,7 +351,7 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
                 flexWrap: 'wrap',
                 gap: '0.5rem',
                 marginBottom: '1rem',
-                fontSize: '0.85rem',
+                fontSize: '0.875rem',
               }}
             >
               <span
