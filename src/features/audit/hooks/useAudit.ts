@@ -18,6 +18,8 @@ export interface ProgressState {
   processed: number;
   violations: number;
   message: string;
+  startTime?: number;          // 진단 시작 시각 (Date.now())
+  estimatedRemaining?: number; // 예상 잔여 시간 (초)
 }
 
 export interface LogEntry {
@@ -162,48 +164,20 @@ export function useAudit(onHistoryRefresh?: () => void) {
     };
   }, [isPollingGitHub, githubRunId, addLog, onHistoryRefresh]);
 
-  // 진행 상태 동안 시각 피드백용 페이크 로그 — 선택된 진단 옵션에 해당하는 메시지만 노출
+  // 잔여 시간 추정: 처리 속도 기반 ETA 계산
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (progress.status === 'crawling' || progress.status === 'auditing') {
-      const messages: string[] = [];
-
-      if (config.enableAccessibilityCheck) {
-        messages.push(
-          `${config.targetUrl} 접속 중...`,
-          'DOM 구조 분석 중...',
-          '링크 추출 중...',
-          '서버 응답 대기 중...',
-          'HTML 콘텐츠 파싱 중...',
-          '내부 링크 식별 중...',
-          '검사 대기열에 페이지 추가 중...',
-          'axe-core 스캐너 실행 중...',
-          '접근성 규칙 검증 중...',
-        );
-      }
-      if (config.enableSEOCheck) {
-        messages.push('메타 태그 수집 중...', '헤딩 구조 분석 중...', 'robots.txt 확인 중...');
-      }
-      if (config.enableAICheck) {
-        messages.push('llms.txt 확인 중...', 'AI 크롤러 정책 점검 중...');
-      }
-
-      if (messages.length === 0) return;
-
-      interval = setInterval(() => {
-        const randomMsg = messages[Math.floor(Math.random() * messages.length)];
-        addLog(randomMsg);
-      }, 2000);
+    if (
+      (progress.status === 'crawling' || progress.status === 'auditing') &&
+      progress.startTime &&
+      progress.processed > 0 &&
+      progress.totalFound > 0
+    ) {
+      const elapsed = (Date.now() - progress.startTime) / 1000; // 초
+      const rate = progress.processed / elapsed; // 페이지/초
+      const remaining = Math.max(0, (progress.totalFound - progress.processed) / rate);
+      setProgress(prev => ({ ...prev, estimatedRemaining: Math.round(remaining) }));
     }
-    return () => clearInterval(interval);
-  }, [
-    progress.status,
-    config.targetUrl,
-    config.enableAccessibilityCheck,
-    config.enableSEOCheck,
-    config.enableAICheck,
-    addLog,
-  ]);
+  }, [progress.status, progress.processed, progress.totalFound, progress.startTime]);
 
   const startAudit = useCallback(async () => {
     if (!config.targetUrl) {
@@ -231,6 +205,8 @@ export function useAudit(onHistoryRefresh?: () => void) {
       processed: 0,
       violations: 0,
       message: '크롤링 시작...',
+      startTime: Date.now(),
+      estimatedRemaining: undefined,
     });
 
     // 새 진단을 시작할 때마다 새 AbortController. 직전 컨트롤러는 startAudit 중복 호출 시 정리.
@@ -247,13 +223,18 @@ export function useAudit(onHistoryRefresh?: () => void) {
           if (progressData.type === 'log') {
             addLog(progressData.message);
           } else if (progressData.type === 'progress') {
-            setProgress((prev) => ({
-              ...prev,
-              processed: progressData.current,
-              totalFound: progressData.total,
-              currentUrl: progressData.url,
-              status: 'auditing',
-            }));
+            setProgress((prev) => {
+              // 크롤링→진단 단계 자동 전환: total이 확정되고 current가 0이 아닌 시점
+              const isAuditing = prev.status === 'auditing' ||
+                (prev.totalFound > 0 && progressData.current !== undefined && prev.status === 'crawling' && progressData.total === prev.totalFound);
+              return {
+                ...prev,
+                processed: progressData.current ?? prev.processed,
+                totalFound: progressData.total ?? prev.totalFound,
+                currentUrl: progressData.url ?? prev.currentUrl,
+                status: isAuditing ? 'auditing' : prev.status,
+              };
+            });
           }
         },
         controller.signal

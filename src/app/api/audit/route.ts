@@ -6,41 +6,68 @@ export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  let config: AuditConfig;
   try {
-    const config: AuditConfig = await request.json();
-
-    console.log('🚀 Starting audit execution...');
-
-    // Dynamic import to avoid bundling excessive dependencies on cold start
-    let runAudit;
-    try {
-      const module = await import('@/services/AuditExecutor');
-      runAudit = module.runAudit;
-    } catch (e) {
-      console.error('Failed to import AuditExecutor:', e);
-      throw new Error('Audit Engine module failed to load.');
-    }
-
-    // 클라이언트가 fetch 를 abort 하면 (새로고침 / 탭 닫기 / 정지 버튼) request.signal 이 abort 된다.
-    // runAudit 안에서 이 signal 을 검사해 작업을 중단한다.
-    const result = await runAudit(config, undefined, request.signal);
-
-    return NextResponse.json(result);
-
-  } catch (error: any) {
-    // 클라이언트 abort 로 인한 종료는 정상 흐름 — 에러 응답 대신 짧은 로그
-    if (error?.name === 'AbortError' || request.signal.aborted) {
-      console.log('🛑 Audit aborted by client.');
-      return NextResponse.json({ aborted: true }, { status: 499 });
-    }
-    console.error('Audit execution error:', error);
-    return NextResponse.json(
-      {
-        error: `진단 실행 중 오류가 발생했습니다.`,
-        details: error.message,
-        stack: error.stack
-      },
-      { status: 500 }
-    );
+    config = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
+
+  console.log('🚀 Starting audit execution (SSE stream)...');
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          // controller already closed
+        }
+      };
+
+      try {
+        // Dynamic import to avoid bundling excessive dependencies on cold start
+        const { runAudit } = await import('@/services/AuditExecutor');
+
+        const result = await runAudit(
+          config,
+          (progressData: { type: string; message?: string; current?: number; total?: number; url?: string }) => {
+            if (progressData.type === 'log') {
+              send('log', { message: progressData.message });
+            } else if (progressData.type === 'progress') {
+              send('progress', {
+                current: progressData.current,
+                total: progressData.total,
+                url: progressData.url,
+              });
+            }
+          },
+          request.signal
+        );
+
+        send('result', result);
+      } catch (error: unknown) {
+        if (request.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
+          console.log('🛑 Audit aborted by client.');
+          send('error', { message: 'aborted', aborted: true });
+        } else {
+          const message = error instanceof Error ? error.message : String(error);
+          console.error('Audit execution error:', error);
+          send('error', { message });
+        }
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no', // nginx proxy buffering 방지
+    },
+  });
 }

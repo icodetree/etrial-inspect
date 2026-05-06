@@ -74,9 +74,37 @@ export const AuditOverlay = ({
   }, [logs, isCompleted, resultSummary]);
 
   const statusLabel = STATUS_LABELS[progress.status] ?? '진행 중';
-  const progressText = isProcessing
-    ? `${progress.processed} / ${progress.totalFound || '?'}`
-    : '';
+
+  // 진행률 계산
+  const progressRatio = isProcessing && progress.totalFound > 0
+    ? Math.min(progress.processed / progress.totalFound, 1)
+    : 0;
+  const progressPct = Math.round(progressRatio * 100);
+
+  // 잔여 시간 포맷
+  const remainingText = useMemo(() => {
+    if (!progress.estimatedRemaining || progress.estimatedRemaining <= 0) return '';
+    const sec = progress.estimatedRemaining;
+    if (sec < 60) return `약 ${sec}초 남음`;
+    const min = Math.floor(sec / 60);
+    const remSec = sec % 60;
+    return remSec > 0 ? `약 ${min}분 ${remSec}초 남음` : `약 ${min}분 남음`;
+  }, [progress.estimatedRemaining]);
+
+  // 경과 시간
+  const elapsedText = useMemo(() => {
+    if (!progress.startTime) return '';
+    const elapsed = Math.round((Date.now() - progress.startTime) / 1000);
+    if (elapsed < 60) return `${elapsed}초 경과`;
+    const min = Math.floor(elapsed / 60);
+    const sec = elapsed % 60;
+    return `${min}분 ${sec}초 경과`;
+  }, [progress.startTime, progress.processed]); // processed 변경 시 갱신
+
+  // SVG 원형 게이지 파라미터
+  const gaugeRadius = 118;
+  const gaugeCircumference = 2 * Math.PI * gaugeRadius;
+  const gaugeOffset = gaugeCircumference * (1 - progressRatio);
 
   return (
     <div className={styles.overlay} role="dialog" aria-label="진단 진행 오버레이">
@@ -94,7 +122,7 @@ export const AuditOverlay = ({
             </div>
           ))}
 
-          {/* 레이더 디스크 */}
+          {/* 레이더 디스크 + 원형 게이지 오버레이 */}
           <div className={styles.scene}>
             <div className={styles.radar}>
               {/* 동심원 가이드 */}
@@ -122,6 +150,35 @@ export const AuditOverlay = ({
               <div className={styles.pingRing} />
               <div className={styles.pingRing} />
             </div>
+
+            {/* SVG 원형 프로그레스 게이지 */}
+            {isProcessing && progress.totalFound > 0 && (
+              <svg className={styles.progressGauge} viewBox="0 0 260 260">
+                <circle
+                  cx="130" cy="130" r={gaugeRadius}
+                  fill="none"
+                  stroke="rgba(99, 102, 241, 0.15)"
+                  strokeWidth="4"
+                />
+                <circle
+                  cx="130" cy="130" r={gaugeRadius}
+                  fill="none"
+                  stroke="url(#gaugeGradient)"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeDasharray={gaugeCircumference}
+                  strokeDashoffset={gaugeOffset}
+                  transform="rotate(-90 130 130)"
+                  style={{ transition: 'stroke-dashoffset 0.5s ease-out' }}
+                />
+                <defs>
+                  <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#6366f1" />
+                    <stop offset="100%" stopColor="#06b6d4" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            )}
           </div>
 
           {/* 플랫폼 글로우 */}
@@ -134,18 +191,33 @@ export const AuditOverlay = ({
           <div className={styles.statusMessage} key={statusMessage}>
             {statusMessage}
           </div>
-          {progressText && (
-            <div className={styles.progressCount}>{progressText}</div>
+
+          {/* 진행률 정보 */}
+          {isProcessing && progress.totalFound > 0 && (
+            <div className={styles.progressInfo}>
+              <div className={styles.progressCount}>
+                {progress.processed} / {progress.totalFound} 페이지
+                <span className={styles.progressPct}>{progressPct}%</span>
+              </div>
+              {remainingText && (
+                <div className={styles.progressEta}>{remainingText}</div>
+              )}
+            </div>
+          )}
+          {isProcessing && progress.totalFound === 0 && elapsedText && (
+            <div className={styles.progressInfo}>
+              <div className={styles.progressEta}>{elapsedText}</div>
+            </div>
           )}
         </div>
 
         {/* 프로그레스 바 */}
-        {isProcessing && progress.totalFound > 0 && (
+        {isProcessing && (
           <div
             className={styles.progressBar}
             role="progressbar"
             aria-valuenow={progress.processed}
-            aria-valuemax={progress.totalFound}
+            aria-valuemax={progress.totalFound || undefined}
           >
             <div
               style={{
@@ -153,9 +225,14 @@ export const AuditOverlay = ({
                 inset: 0,
                 background: 'linear-gradient(90deg, #6366f1, #06b6d4, #6366f1)',
                 borderRadius: 'inherit',
-                transform: `scaleX(${Math.min(progress.processed / (progress.totalFound || 1), 1)})`,
+                transform: progress.totalFound > 0
+                  ? `scaleX(${progressRatio})`
+                  : undefined,
                 transformOrigin: 'left',
-                transition: 'transform 0.3s ease-out',
+                transition: 'transform 0.5s ease-out',
+                animation: progress.totalFound === 0
+                  ? 'shimmer 2s linear infinite'
+                  : undefined,
               }}
             />
           </div>

@@ -9,14 +9,13 @@ export interface IPlatformAuditService {
   exportExcel(result: AuditResult): Promise<void>;
 }
 
-// WebAuditService: Simplified for Web-only architecture
+// WebAuditService: SSE 스트리밍으로 실시간 진행률 수신
 export class WebAuditService implements IPlatformAuditService {
   async startAudit(
     config: AuditConfig,
     onProgress?: (data: unknown) => void,
     signal?: AbortSignal
   ): Promise<AuditResult> {
-    // Web implementation: simple fetch — signal 을 그대로 전달해 새로고침/탭닫기/정지버튼 시 서버까지 abort 가 전파된다.
     const response = await fetch('/api/audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -25,19 +24,56 @@ export class WebAuditService implements IPlatformAuditService {
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      console.error('SERVER ERROR DETAILS:', err); // Log for debugging
-      // Throw error with detailed message if available
-      const errorMessage = err.details || err.error || 'Audit failed';
-      // Append stack for developer visibility in console if needed, or just rely on console.error above
-      throw new Error(errorMessage + (err.stack ? `\nStack: ${err.stack}` : ''));
+      const err = await response.json().catch(() => ({ error: 'Audit failed' }));
+      throw new Error(err.details || err.error || 'Audit failed');
     }
 
-    const data = await response.json();
+    // SSE 스트리밍 파싱
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let result: AuditResult | null = null;
+    let buffer = '';
 
-    // Handling async/pending response
-    if (data.message && !data.violations) {
-      // Return a dummy result structure for now
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE 이벤트 블록 파싱 (이벤트는 빈 줄로 구분)
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop() || ''; // 마지막 미완성 블록은 버퍼에 보관
+
+      for (const block of blocks) {
+        if (!block.trim()) continue;
+
+        const eventMatch = block.match(/^event:\s*(\w+)\ndata:\s*([\s\S]+)$/);
+        if (!eventMatch) continue;
+
+        const [, eventType, dataStr] = eventMatch;
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(dataStr);
+        } catch {
+          continue;
+        }
+
+        if (eventType === 'progress') {
+          onProgress?.({ type: 'progress', ...parsed });
+        } else if (eventType === 'log') {
+          onProgress?.({ type: 'log', message: parsed.message });
+        } else if (eventType === 'result') {
+          result = parsed as unknown as AuditResult;
+        } else if (eventType === 'error') {
+          if (parsed.aborted) {
+            throw new DOMException('Audit aborted', 'AbortError');
+          }
+          throw new Error(String(parsed.message || 'Audit failed'));
+        }
+      }
+    }
+
+    if (!result) {
       return {
         startTime: new Date().toISOString(),
         endTime: new Date().toISOString(),
@@ -50,11 +86,10 @@ export class WebAuditService implements IPlatformAuditService {
           byImpact: { critical: 0, serious: 0, moderate: 0, minor: 0 },
           byKwcagItem: {}
         },
-        // Ideally we would notify user of async start
       } as AuditResult;
     }
 
-    return data;
+    return result;
   }
 
   async exportExcel(result: AuditResult): Promise<void> {

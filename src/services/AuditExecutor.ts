@@ -137,6 +137,9 @@ export async function runAudit(config: AuditConfig, onProgress?: (data: any) => 
         config.targetUrl,
         (progress) => {
           log(`  크롤링: ${progress.current}/${progress.found} - ${progress.url}`);
+          if (onProgress) {
+            onProgress({ type: 'progress', current: progress.current, total: progress.found, url: progress.url });
+          }
         },
         signal
       );
