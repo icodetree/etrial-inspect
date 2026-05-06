@@ -8,8 +8,8 @@ import { AltTextResultViewer } from '@/features/alttext/components/AltTextResult
 import { AltTextHistoryList } from '@/features/alttext/components/AltTextHistoryList';
 
 export default function AltTextPage() {
-  const { config, setConfig, progress, logs, result, startScan } = useAltTextAudit();
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
+  const { config, setConfig, progress, logs, result, startScan } = useAltTextAudit(() => setHistoryRefreshTrigger(prev => prev + 1));
   const [isSavingNotion, setIsSavingNotion] = useState(false);
 
   const handleSaveToNotion = useCallback(async () => {

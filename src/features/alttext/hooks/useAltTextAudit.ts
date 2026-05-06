@@ -24,7 +24,7 @@ export interface AltTextLogEntry {
 
 const STORAGE_KEY = 'altTextAuditResult';
 
-export function useAltTextAudit() {
+export function useAltTextAudit(onHistoryRefresh?: () => void) {
   const [config, setConfig] = useState<AltTextConfig>({
     targetUrl: '',
     inspector: '',
@@ -82,13 +82,46 @@ export function useAltTextAudit() {
       } catch {
         // localStorage 용량 초과 등은 무시
       }
+
       addLog(
         `🎉 진단 완료 — 페이지 ${audit.totalUrls}개, 이미지 ${audit.totalImagesScanned}장, 불일치 ${audit.totalMismatches}건`,
       );
       setProgress({
         status: 'completed',
-        message: `완료 — 페이지 ${audit.totalUrls}개 / 이미지 ${audit.totalImagesScanned}장 / 불일치 ${audit.totalMismatches}건`,
+        message: `완료 — 페이지 ${audit.totalUrls}개 / 이미지 ${audit.totalImagesScanned}장 / 불일치 ${audit.totalMismatches}건 (Notion 자동 저장 중...)`,
       });
+
+      // Auto-save to Notion
+      try {
+        addLog('Notion 자동 저장 진행 중...');
+        const saveRes = await fetch('/api/alttext/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(audit),
+        });
+
+        if (!saveRes.ok) {
+          const err = await saveRes.json().catch(() => ({}));
+          throw new Error(err.error || 'Notion 저장 실패');
+        }
+
+        const { reportUrl } = await saveRes.json();
+        addLog(`Notion 자동 저장 완료! ✅ ${reportUrl ? `(${reportUrl})` : ''}`);
+        setProgress({
+          status: 'completed',
+          message: `완료 및 Notion 저장 완료 — 페이지 ${audit.totalUrls}개 / 이미지 ${audit.totalImagesScanned}장 / 불일치 ${audit.totalMismatches}건`,
+        });
+        if (onHistoryRefresh) {
+          onHistoryRefresh();
+        }
+      } catch (saveError) {
+        const message = saveError instanceof Error ? saveError.message : String(saveError);
+        addLog(`Notion 자동 저장 오류: ${message}`);
+        setProgress({
+          status: 'completed',
+          message: `완료 (Notion 저장 실패) — 페이지 ${audit.totalUrls}개 / 이미지 ${audit.totalImagesScanned}장 / 불일치 ${audit.totalMismatches}건`,
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       addLog(`❌ 오류: ${message}`);

@@ -9,6 +9,7 @@ import {
   Settings, HelpCircle,
   ChevronsLeft,
   Image as ImageIcon,
+  History,
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
 
@@ -17,6 +18,7 @@ const SIDEBAR_COLLAPSED = 64;
 
 const mainNav = [
   { label: '진단',          href: '/',                 icon: Home },
+  { label: '진단 이력',     href: '/history',           icon: History },
   { label: '보고서',        href: '/report',            icon: FileText },
   { label: '이미지 진단',   href: '/alttext',           icon: ImageIcon },
   { label: '체크리스트',    href: '/report/checklist',  icon: CheckSquare },

@@ -20,82 +20,79 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
   return (
     <Card className={styles.card} title="">
 
-      {/* ── 1. 대상 URL ── */}
-      <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.9375rem', fontWeight: 600, color: '#374151' }}>
-          대상 URL
-          <Asterisk size={12} color="#ef4444" strokeWidth={3} aria-label="필수 입력" style={{ marginBottom: '2px' }} />
-        </label>
-        <input
-          type="url"
-          placeholder="https://example.com"
-          value={config.targetUrl}
-          onChange={(e) => setConfig({ ...config, targetUrl: e.target.value })}
-          style={{ padding: '0.75rem 1rem', fontSize: '1rem', borderRadius: '8px' }}
-        />
-      </div>
+      {/* 대상 설정 */}
+      <fieldset className={styles.formSection}>
+        <legend className={styles.formSectionLegend}>대상 설정</legend>
+        <div className="form-group">
+          <label htmlFor="audit-target-url" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            대상 URL
+            <Asterisk size={10} color="#ef4444" strokeWidth={3} aria-label="필수 입력" style={{ marginBottom: '2px' }} />
+          </label>
+          <input
+            id="audit-target-url"
+            type="url"
+            placeholder="https://example.com"
+            value={config.targetUrl}
+            onChange={(e) => setConfig({ ...config, targetUrl: e.target.value })}
+          />
+        </div>
+      </fieldset>
 
-      {/* ── 2. 기본 설정 (플랫폼 & 진단항목 & 점검자) ── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center', marginBottom: '1.25rem', padding: '1.25rem', background: '#f9fafb', borderRadius: '10px', border: '1px solid #e5e7eb' }}>
-        
-        {/* 플랫폼 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>플랫폼</span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {(['PC', 'Mobile'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setConfig({ ...config, platform: p })}
-                style={{
-                  padding: '6px 14px',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
-                  border: '1px solid',
-                  cursor: 'pointer',
-                  background: config.platform === p ? '#111827' : '#fff',
-                  color: config.platform === p ? '#fff' : '#374151',
-                  borderColor: config.platform === p ? '#111827' : '#d1d5db',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {p}
-              </button>
-            ))}
+      {/* 기본 설정 */}
+      <fieldset className={styles.formSection}>
+        <legend className={styles.formSectionLegend}>기본 설정</legend>
+        <div className={styles.row}>
+          <div className="form-group">
+            <label>플랫폼</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {(['PC', 'Mobile'] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setConfig({ ...config, platform: p })}
+                  style={{
+                    flex: 1,
+                    padding: '0.625rem 0.875rem',
+                    borderRadius: '6px',
+                    fontSize: '0.9375rem',
+                    fontWeight: 500,
+                    border: '1px solid',
+                    cursor: 'pointer',
+                    background: config.platform === p ? '#111827' : '#fff',
+                    color: config.platform === p ? '#fff' : '#374151',
+                    borderColor: config.platform === p ? '#111827' : '#d1d5db',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="audit-inspector">점검자 역할</label>
+            <select
+              id="audit-inspector"
+              value={config.inspector || '퍼블리싱'}
+              onChange={(e) => setConfig({ ...config, inspector: e.target.value })}
+            >
+              {['기획', '디자인', '퍼블리싱', '개발', 'QA', '운영', '기타'].map(role => (
+                <option key={role} value={role}>{role}</option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* 구분선 */}
-        <div style={{ width: '1px', background: '#e5e7eb', alignSelf: 'stretch', margin: '0 0.25rem' }} aria-hidden="true" />
-
-        {/* 점검자 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>점검자 역할</span>
-          <select
-            value={config.inspector || '퍼블리싱'}
-            onChange={(e) => setConfig({ ...config, inspector: e.target.value })}
-            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.875rem', height: '34px', background: '#fff', minWidth: '130px', outline: 'none' }}
-          >
-            {['기획', '디자인', '퍼블리싱', '개발', 'QA', '운영', '기타'].map(role => (
-              <option key={role} value={role}>{role}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* 구분선 */}
-        <div style={{ width: '1px', background: '#e5e7eb', alignSelf: 'stretch', margin: '0 0.25rem' }} aria-hidden="true" />
-
-        {/* 진단 항목 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em' }}>진단 항목</span>
-          <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center', height: '34px' }}>
+        <div className="form-group" style={{ marginTop: '0.5rem' }}>
+          <label>진단 항목</label>
+          <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {[
               { key: 'enableAccessibilityCheck', label: '웹접근성 (KWCAG 2.2)' },
               { key: 'enableSEOCheck', label: 'SEO 최적화' },
               { key: 'enableAICheck', label: 'AI 친화도' },
             ].map(({ key, label }) => (
-              <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.875rem', color: '#374151' }}>
+              <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '0.9375rem', color: '#374151', fontWeight: 400 }}>
                 <input
                   type="checkbox"
                   checked={config[key as keyof AuditConfig] as boolean}
@@ -107,8 +104,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
             ))}
           </div>
         </div>
-
-      </div>
+      </fieldset>
 
       {/* ── 3. 고급 설정 (접기/펼치기) ── */}
       <button
@@ -155,13 +151,12 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
             
             {config.enableLogin && (
               <div className="form-group" style={{ marginBottom: 0, paddingLeft: '1.5rem' }}>
-                <label style={{ fontSize: '0.8125rem', color: '#4b5563', marginBottom: '4px' }}>로그인 페이지 URL</label>
+                <label>로그인 페이지 URL</label>
                 <input
                   type="url"
                   placeholder="https://example.com/login"
                   value={config.loginUrl}
                   onChange={(e) => setConfig({ ...config, loginUrl: e.target.value })}
-                  style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
                 />
                 <p className={styles['login-warning']} style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#b45309', background: '#fef3c7', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>
                   ⚠️ 검사가 시작되면 로그인 브라우저 창이 열립니다. 로그인 완료 후 <b>창을 닫아주세요</b>.
@@ -175,9 +170,9 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
             <legend style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 6px', marginBottom: '0.75rem' }}>
               크롤링 설정
             </legend>
-            <div className={styles.row} style={{ marginBottom: '1rem', gap: '1rem' }}>
-              <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-                <label htmlFor="audit-max-pages" style={{ fontSize: '0.8125rem' }}>최대 페이지 수</label>
+            <div className={styles.row} style={{ marginBottom: '1rem' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label htmlFor="audit-max-pages">최대 페이지 수</label>
                 <input
                   id="audit-max-pages"
                   type="number"
@@ -186,11 +181,10 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
                   max={1000}
                   value={config.maxPages ?? ''}
                   onChange={(e) => setConfig({ ...config, maxPages: parseInt(e.target.value) || undefined })}
-                  style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
                 />
               </div>
-              <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-                <label htmlFor="audit-max-depth" style={{ fontSize: '0.8125rem' }}>최대 깊이 (Depth)</label>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label htmlFor="audit-max-depth">최대 깊이 (Depth)</label>
                 <input
                   id="audit-max-depth"
                   type="number"
@@ -199,12 +193,11 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
                   max={20}
                   value={config.maxDepth ?? ''}
                   onChange={(e) => setConfig({ ...config, maxDepth: parseInt(e.target.value) || undefined })}
-                  style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
                 />
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8125rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 제외할 경로 (Exclude Paths)
                 <span className={styles.tooltipWrap}>
                   <HelpCircle size={14} color="#9ca3af" style={{ cursor: 'pointer' }} tabIndex={0} aria-label="제외 경로 도움말" />
@@ -219,7 +212,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
                 value={config.excludePaths || ''}
                 onChange={(e) => setConfig({ ...config, excludePaths: e.target.value })}
                 rows={2}
-                style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
+                style={{ resize: 'vertical', fontFamily: 'monospace' }}
               />
             </div>
           </fieldset>
@@ -237,14 +230,13 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
               </span>
             </legend>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label htmlFor="audit-ready-selector" style={{ fontSize: '0.8125rem' }}>렌더링 완료 Selector (선택사항)</label>
+              <label htmlFor="audit-ready-selector">렌더링 완료 Selector (선택사항)</label>
               <input
                 id="audit-ready-selector"
                 type="text"
                 placeholder="예: #app .loaded 또는 [data-test=ready]"
                 value={config.readySelector || ''}
                 onChange={(e) => setConfig({ ...config, readySelector: e.target.value || undefined })}
-                style={{ fontSize: '0.875rem', padding: '0.5rem 0.75rem' }}
               />
             </div>
           </fieldset>

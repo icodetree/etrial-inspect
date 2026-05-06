@@ -36,7 +36,7 @@ export function useAudit(onHistoryRefresh?: () => void) {
     enableSEOCheck: true,
     enableAICheck: true,
     platform: 'PC',
-    inspector: '',
+    inspector: '이트라이브',
     excludePaths: '',
   });
 
@@ -268,7 +268,7 @@ export function useAudit(onHistoryRefresh?: () => void) {
         totalFound: data.totalPages,
         processed: data.totalPages,
         violations: data.totalViolations,
-        message: '진단 완료!',
+        message: '진단 완료! (Notion 자동 저장 중...)',
       });
 
       setResults({
@@ -278,6 +278,39 @@ export function useAudit(onHistoryRefresh?: () => void) {
       setAuditResult(data);
 
       localStorage.setItem('auditResult', JSON.stringify(data));
+
+      // Auto-save to Notion
+      try {
+        addLog('Notion 자동 저장 진행 중...');
+        const response = await fetch('/api/history/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to auto-save to Notion');
+        }
+
+        addLog('Notion 자동 저장 완료! ✅');
+        setProgress(prev => ({
+          ...prev,
+          message: '진단 및 Notion 저장 완료!',
+        }));
+        if (onHistoryRefresh) {
+          onHistoryRefresh();
+        }
+      } catch (saveError) {
+        const msg = saveError instanceof Error ? saveError.message : String(saveError);
+        addLog(`Notion 자동 저장 오류: ${msg}`);
+        setProgress(prev => ({
+          ...prev,
+          message: '진단 완료 (Notion 저장 실패)',
+        }));
+      }
     } catch (error) {
       // AbortError 는 정상 흐름 — 사용자/탭 닫기 등으로 정지된 경우
       const isAbort =
