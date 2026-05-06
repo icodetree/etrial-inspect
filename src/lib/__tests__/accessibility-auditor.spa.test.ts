@@ -12,7 +12,11 @@ const mockClose = jest.fn().mockResolvedValue(undefined);
 const mockLocator = jest.fn().mockReturnValue({
   first: () => ({ boundingBox: () => Promise.resolve(null) }),
 });
-const mockEvaluate = jest.fn().mockResolvedValue([]);
+// WAF 감지(arg=함수→boolean)와 CUSTOM_RULE_SCRIPT(arg=문자열→배열)를 모두 처리한다.
+const mockEvaluate = jest.fn().mockImplementation((fnOrScript: unknown) => {
+  if (typeof fnOrScript === 'string') return Promise.resolve([]);
+  return Promise.resolve(false);
+});
 
 const mockPage = {
   goto: mockGoto,
@@ -34,6 +38,7 @@ const mockNewContext = jest.fn().mockResolvedValue({
   newPage: mockNewPage,
   close: jest.fn().mockResolvedValue(undefined),
   storageState: jest.fn().mockResolvedValue(undefined),
+  addInitScript: jest.fn().mockResolvedValue(undefined),
 });
 
 jest.mock('playwright-core', () => ({
@@ -66,6 +71,8 @@ jest.mock('fs', () => {
 
 jest.mock('../browser-utils', () => ({
   getBrowserLaunchOptions: jest.fn().mockResolvedValue({ headless: true }),
+  getStealthContextOptions: jest.fn().mockReturnValue({}),
+  STEALTH_INIT_SCRIPT: '',
 }));
 
 jest.mock('../custom-rules', () => ({

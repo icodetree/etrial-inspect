@@ -1,6 +1,7 @@
 import { NotionService } from './NotionService';
 import { Client } from '@notionhq/client';
 import { AuditResult } from '@/types';
+import { KWCAG_MAPPING } from '@/lib/kwcag-mapping';
 
 // Mock Client
 jest.mock('@notionhq/client');
@@ -8,6 +9,9 @@ jest.mock('@notionhq/client');
 describe('NotionService', () => {
   let notionService: NotionService;
   let mockNotionClient: any;
+
+  // enrichViolation 이 backfill 하는 기본 필드 — 라운드트립 toEqual 일치를 위해 fixture 도 동일하게 채운다.
+  const kwcagItem111 = KWCAG_MAPPING.find(item => item.id === '1.1.1');
 
   const mockAuditResult: AuditResult = {
     startTime: '2024-01-01',
@@ -21,7 +25,21 @@ describe('NotionService', () => {
       kwcagId: '1.1.1',
       kwcagName: `Violation ${i}`,
       description: `Desc ${i}`,
-      pageUrl: 'http://example.com'
+      pageUrl: 'http://example.com',
+      help: kwcagItem111?.help || '',
+      principle: kwcagItem111?.principle || '',
+      pageTitle: '',
+      affectedCode: '',
+      axeRuleId: '',
+      helpUrl: '',
+      depth1: '',
+      depth2: '',
+      depth3: '',
+      depth4: '',
+      platform: 'PC',
+      inspector: '시스템',
+      inspectionDate: '',
+      violationNumber: 0,
     } as any)),
     summary: { byPrinciple: {}, byImpact: {}, byKwcagItem: {} }
   };
@@ -96,7 +114,6 @@ describe('NotionService', () => {
 
     it('should split into multiple code blocks if rich_text items exceed 100', async () => {
       // Mock a huge result that generates > 100 chunks ( > 200,000 chars)
-      const hugeString = 'a'.repeat(2000 * 105); // 105 chunks
       const hugeResult = { ...mockAuditResult, violations: [] };
       // Force JSON.stringify to return hugeString by mocking it or just passing a specific object if I mocked createRichTextChunks logic, 
       // but simpler to just trust the logic flows.

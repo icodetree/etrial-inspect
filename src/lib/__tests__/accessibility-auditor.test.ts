@@ -18,7 +18,11 @@ const mockLocatorBoundingBox = jest.fn().mockResolvedValue({ x: 10, y: 20, width
 const mockLocatorFirst = jest.fn().mockReturnValue({ boundingBox: mockLocatorBoundingBox });
 const mockLocator = jest.fn().mockReturnValue({ first: mockLocatorFirst });
 const mock$$ = jest.fn().mockResolvedValue([]);
-const mockEvaluate = jest.fn().mockResolvedValue([]);
+// WAF 감지(arg=함수→boolean)와 CUSTOM_RULE_SCRIPT(arg=문자열→배열)를 모두 처리한다.
+const mockEvaluate = jest.fn().mockImplementation((fnOrScript: unknown) => {
+  if (typeof fnOrScript === 'string') return Promise.resolve([]);
+  return Promise.resolve(false);
+});
 
 const mockPage = {
   goto: mockGoto,
@@ -41,6 +45,7 @@ const mockNewContext = jest.fn().mockResolvedValue({
   newPage: mockNewPage,
   close: mockContextClose,
   storageState: jest.fn().mockResolvedValue(undefined),
+  addInitScript: jest.fn().mockResolvedValue(undefined),
 });
 const mockBrowserClose = jest.fn().mockResolvedValue(undefined);
 
@@ -77,6 +82,8 @@ jest.mock('fs', () => {
 
 jest.mock('../browser-utils', () => ({
   getBrowserLaunchOptions: jest.fn().mockResolvedValue({ headless: true }),
+  getStealthContextOptions: jest.fn().mockReturnValue({}),
+  STEALTH_INIT_SCRIPT: '',
 }));
 
 jest.mock('../custom-rules', () => ({
@@ -449,16 +456,23 @@ describe('AccessibilityAuditor', () => {
       mockAnalyze.mockResolvedValue({
         violations: [makeAxeViolation({ id: 'image-alt' })],
       });
-      mockEvaluate.mockResolvedValueOnce([
-        {
-          id: 'custom-aria-tab-missing-selected',
-          impact: 'serious',
-          description: 'Tab missing aria-selected',
-          help: 'Add aria-selected',
-          helpUrl: '',
-          nodes: [{ html: '<div role="tab">', target: ['[role="tab"]'], failureSummary: 'Missing aria-selected' }],
-        },
-      ]);
+      // CUSTOM_RULE_SCRIPT 호출(string arg)에만 커스텀 위반을 주입. WAF 함수 호출은 false 유지.
+      // mockImplementationOnce 는 첫 호출(WAF)에서 소비되므로 mockImplementation 으로 영구 오버라이드.
+      mockEvaluate.mockImplementation((fnOrScript: unknown) => {
+        if (typeof fnOrScript === 'string') {
+          return Promise.resolve([
+            {
+              id: 'custom-aria-tab-missing-selected',
+              impact: 'serious',
+              description: 'Tab missing aria-selected',
+              help: 'Add aria-selected',
+              helpUrl: '',
+              nodes: [{ html: '<div role="tab">', target: ['[role="tab"]'], failureSummary: 'Missing aria-selected' }],
+            },
+          ]);
+        }
+        return Promise.resolve(false);
+      });
       await auditor.init();
 
       const result = await auditor.auditPage('https://example.com');
