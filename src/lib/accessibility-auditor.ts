@@ -222,35 +222,7 @@ export class AccessibilityAuditor {
         };
       }
 
-      // 0. 스크린샷 디렉토리 준비
-      const screenshotDir = path.resolve(process.cwd(), 'public', 'screenshots');
-      if (!fs.existsSync(screenshotDir)) {
-        fs.mkdirSync(screenshotDir, { recursive: true });
-      }
-
-      // 1. 스크린샷 캡처
-      const safeUrl = url.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const filename = `${safeUrl}_${Date.now()}.png`;
-      const screenshotPath = path.join(screenshotDir, filename);
-      const publicScreenshotPath = `/screenshots/${filename}`;
-
-      try {
-        try {
-          await page.screenshot({ path: screenshotPath, fullPage: true, timeout: 15000 });
-        } catch (e) {
-          console.warn(`Full page screenshot failed for ${url}, trying viewport only:`, e);
-          await page.screenshot({ path: screenshotPath, fullPage: false, timeout: 10000 });
-        }
-
-        // Only verify if file exists to be sure
-        if (fs.existsSync(screenshotPath)) {
-          screenshotPaths.push(publicScreenshotPath);
-        }
-      } catch (e) {
-        console.error(`Failed to capture screenshot for ${url}:`, e);
-      }
-
-      // 기본 접근성 스캔
+      // 1. 접근성 스캔 (스크린샷보다 먼저 실행하여 bbox 좌표와 스크린샷 시점 일치)
       const axePath = isDev
         ? path.join(process.cwd(), 'node_modules', 'axe-core', 'axe.min.js')
         : path.join(__dirname, '../../../node_modules/axe-core/axe.min.js');
@@ -338,6 +310,30 @@ export class AccessibilityAuditor {
             }
           }
         }
+      }
+
+      // 3. 스크린샷 캡처 (axe 실행 + bbox 추출 후 → 좌표와 페이지 상태 일치 보장)
+      const screenshotDir = path.resolve(process.cwd(), 'public', 'screenshots');
+      if (!fs.existsSync(screenshotDir)) {
+        fs.mkdirSync(screenshotDir, { recursive: true });
+      }
+      const safeUrl = url.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const filename = `${safeUrl}_${Date.now()}.png`;
+      const screenshotPath = path.join(screenshotDir, filename);
+      const publicScreenshotPath = `/screenshots/${filename}`;
+
+      try {
+        try {
+          await page.screenshot({ path: screenshotPath, fullPage: true, timeout: 15000 });
+        } catch (e) {
+          console.warn(`Full page screenshot failed for ${url}, trying viewport only:`, e);
+          await page.screenshot({ path: screenshotPath, fullPage: false, timeout: 10000 });
+        }
+        if (fs.existsSync(screenshotPath)) {
+          screenshotPaths.push(publicScreenshotPath);
+        }
+      } catch (e) {
+        console.error(`Failed to capture screenshot for ${url}:`, e);
       }
 
       // impact null/undefined 처리 및 3:1 명도대비 필터링
