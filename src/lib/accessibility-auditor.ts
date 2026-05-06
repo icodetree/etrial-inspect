@@ -197,16 +197,31 @@ export class AccessibilityAuditor {
 
       const title = await page.title();
 
-      // WAF/봇 차단 페이지 감지 — 실제 콘텐츠가 아닌 페이지는 스킵
-      const isBlocked = await page.evaluate(() => {
+      // WAF/봇 차단 페이지 감지 — Cloudflare 챌린지는 자동 해결 대기 후 재확인
+      let isBlocked = await page.evaluate(() => {
         const text = document.body?.innerText || '';
         const t = document.title || '';
         const el = document.getElementsByTagName('*').length;
         return (
-          el < 30 ||
+          el < 5 ||
           /잠시만 기다리|please wait|checking your browser|just a moment|access denied|보안 위배/i.test(text + t)
         );
       }).catch(() => false);
+
+      // Cloudflare JS 챌린지는 보통 5초 내 자동 해결 — 대기 후 재확인
+      if (isBlocked) {
+        await page.waitForTimeout(6000);
+        await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+        isBlocked = await page.evaluate(() => {
+          const text = document.body?.innerText || '';
+          const t = document.title || '';
+          const el = document.getElementsByTagName('*').length;
+          return (
+            el < 5 ||
+            /잠시만 기다리|please wait|checking your browser|just a moment|access denied|보안 위배/i.test(text + t)
+          );
+        }).catch(() => false);
+      }
 
       if (isBlocked) {
         console.warn(`[Audit] 차단/챌린지 페이지 스킵: ${url}`);
