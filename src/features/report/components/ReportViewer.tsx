@@ -165,7 +165,10 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
           options: { title: '웹 접근성 진단 보고서', includeScreenshots: true },
         }),
       });
-      if (!response.ok) throw new Error('HTML 생성 실패');
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'HTML 생성 실패' }));
+        throw new Error(err.error || 'HTML 생성 실패');
+      }
       const blob = await response.blob();
       downloadBlob(blob, `accessibility-report-${getDomain()}-${new Date().toISOString().split('T')[0]}.html`);
     } catch (error) {

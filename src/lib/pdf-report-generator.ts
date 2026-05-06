@@ -652,8 +652,9 @@ export class PDFReportGenerator {
     }
   }
 
-  private escapeHtml(str: string): string {
-    return str
+  private escapeHtml(str: string | undefined | null): string {
+    if (!str) return '';
+    return String(str)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
@@ -661,7 +662,8 @@ export class PDFReportGenerator {
       .replace(/'/g, '&#039;');
   }
 
-  private truncate(str: string, maxLen: number): string {
+  private truncate(str: string | undefined | null, maxLen: number): string {
+    if (!str) return '';
     if (str.length <= maxLen) return str;
     return str.substring(0, maxLen) + '...';
   }
