@@ -408,18 +408,19 @@ export class PDFReportGenerator {
     const bboxWidthPct = (bb.width / cropW * 100).toFixed(4);
     const bboxHeightPct = (bb.height / cropH * 100).toFixed(4);
 
-    // 음수 margin 크롭: 이미지를 컨테이너 너비(180mm)에 맞춰 스케일하고
-    // margin으로 크롭 영역만 노출 — Playwright PDF에서도 안정적으로 동작
-    const marginTop = -(cropY / dims.width * 100);
-    const marginLeft = -(cropX / dims.width * 100);
-    const marginBottom = -((dims.height - cropBottom) / dims.width * 100);
-    const marginRight = -((dims.width - cropRight) / dims.width * 100);
+    // absolute positioning 크롭:
+    // padding-bottom으로 컨테이너 종횡비를 크롭 영역에 맞추고
+    // 이미지를 확대 + translate로 크롭 영역만 노출
+    const aspectRatio = (cropH / cropW * 100).toFixed(4);
+    const imgScale = (dims.width / cropW * 100).toFixed(4);
+    const imgLeft = (-(cropX / dims.width) * 100).toFixed(4);
+    const imgTop = (-(cropY / dims.height) * 100).toFixed(4);
 
     return `
     <div class="violation-screenshot">
-      <div class="violation-screenshot-container">
+      <div class="violation-screenshot-container" style="padding-bottom: ${aspectRatio}%;">
         <img src="data:image/png;base64,${base64}" alt="오류 위치 스크린샷"
-          style="width: 100%; display: block; margin: ${marginTop.toFixed(4)}% ${marginRight.toFixed(4)}% ${marginBottom.toFixed(4)}% ${marginLeft.toFixed(4)}%;" />
+          style="position: absolute; top: 0; left: 0; width: ${imgScale}%; transform: translate(${imgLeft}%, ${imgTop}%);" />
         <div class="bbox-overlay" style="left:${bboxLeftPct}%; top:${bboxTopPct}%; width:${bboxWidthPct}%; height:${bboxHeightPct}%;"></div>
       </div>
     </div>`;

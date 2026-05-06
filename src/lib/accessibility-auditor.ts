@@ -294,18 +294,31 @@ export class AccessibilityAuditor {
         for (const node of violation.nodes) {
           if (node.target && node.target.length > 0) {
             try {
+              // target 배열에서 가장 구체적인 (마지막) selector 사용
               let selector = '';
-              if (typeof node.target[0] === 'string') {
-                selector = node.target[0];
-              } else if (typeof node.target[0] === 'object' && node.target[0] !== null && 'selector' in node.target[0]) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                selector = (node.target[0] as any).selector;
+              for (let i = node.target.length - 1; i >= 0; i--) {
+                const t = node.target[i];
+                if (typeof t === 'string') {
+                  selector = t;
+                  break;
+                } else if (typeof t === 'object' && t !== null && 'selector' in t) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  selector = (t as any).selector;
+                  break;
+                }
               }
 
               if (selector) {
                 // getBoundingClientRect + scrollOffset = 문서 절대 좌표
                 const absBox = await page.evaluate((sel: string) => {
-                  const el = document.querySelector(sel);
+                  // 1차: querySelector 시도
+                  let el: Element | null = null;
+                  try { el = document.querySelector(sel); } catch { /* invalid selector */ }
+                  // 2차: ID 기반 폴백 (axe가 id 포함 selector를 줄 때)
+                  if (!el) {
+                    const idMatch = sel.match(/#([^\s.[\]>:+~]+)/);
+                    if (idMatch) el = document.getElementById(idMatch[1]);
+                  }
                   if (!el) return null;
                   const rect = el.getBoundingClientRect();
                   return {

@@ -196,8 +196,8 @@ export const PDF_REPORT_STYLES = `
   }
   .violation-screenshot-container {
     position: relative;
-    max-width: 100%;
-    max-height: 60mm;
+    width: 100%;
+    height: 0;
     overflow: hidden;
     border: 1px solid #e2e8f0;
     border-radius: 2px;
