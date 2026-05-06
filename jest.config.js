@@ -17,4 +17,9 @@ module.exports = {
   transformIgnorePatterns: [
     "/node_modules/(?!(@capyseo|@houtini|seo-analyzer|llms-txt-generator)/)"
   ],
+  // __tests__/fixtures/ 아래의 .fixture.ts 파일은 픽스처 모듈이지 테스트가 아님 — 스킵.
+  testPathIgnorePatterns: [
+    "/node_modules/",
+    "/__tests__/fixtures/"
+  ],
 };
