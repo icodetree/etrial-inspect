@@ -207,6 +207,8 @@ input:focus, select:focus, textarea:focus {
 
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.btn-full { width: 100%; }
+
 /* Form group */
 .form-group { margin-bottom: 1.25rem; }
 .form-group label {
