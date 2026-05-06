@@ -1,5 +1,6 @@
 import { Client } from '@notionhq/client';
-import { AuditResult } from '@/types';
+import { AuditResult, Violation } from '@/types';
+import { KWCAG_MAPPING } from '@/lib/kwcag-mapping';
 import type {
   AltTextAuditResult,
   AltTextHistoryItem,
@@ -53,9 +54,14 @@ export class NotionService {
         return null;
       }
 
-      // JSON 파싱
+      // JSON 파싱 + 축소판에서 누락된 필드 복원
       try {
-        return JSON.parse(jsonContent);
+        const parsed = JSON.parse(jsonContent) as AuditResult;
+        // KWCAG 매핑에서 description/help 등 누락 필드 복원
+        if (parsed.violations) {
+          parsed.violations = parsed.violations.map(v => this.enrichViolation(v));
+        }
+        return parsed;
       } catch (e) {
         console.error('Failed to parse reassembled JSON from Notion:', e);
         console.error('JSON content length:', jsonContent.length);
@@ -65,6 +71,33 @@ export class NotionService {
       console.error('Error fetching from Notion:', error);
       return null;
     }
+  }
+
+  /**
+   * 축소판 violation에서 누락된 필드를 KWCAG 매핑으로 복원
+   * 기존 히스토리 호환: description, help 등이 없으면 kwcagId로 매핑에서 가져옴
+   */
+  private enrichViolation(v: Partial<Violation>): Violation {
+    const kwcagItem = KWCAG_MAPPING.find(item => item.id === v.kwcagId);
+    return {
+      ...v,
+      description: v.description || kwcagItem?.description || '',
+      help: v.help || kwcagItem?.help || '',
+      kwcagName: v.kwcagName || kwcagItem?.checkItem || '',
+      principle: v.principle || kwcagItem?.principle || '',
+      pageTitle: v.pageTitle || '',
+      affectedCode: v.affectedCode || '',
+      axeRuleId: v.axeRuleId || '',
+      helpUrl: v.helpUrl || '',
+      depth1: v.depth1 || '',
+      depth2: v.depth2 || '',
+      depth3: v.depth3 || '',
+      depth4: v.depth4 || '',
+      platform: v.platform || 'PC',
+      inspector: v.inspector || '시스템',
+      inspectionDate: v.inspectionDate || '',
+      violationNumber: v.violationNumber || 0,
+    } as Violation;
   }
 
   /**
@@ -188,17 +221,22 @@ export class NotionService {
         heading_2: { rich_text: [{ text: { content: '💾 원본 데이터 (JSON 요약)' } }] },
       });
 
-      // violations에서 screenshot/html 등 대용량 필드를 제거한 축소판
-      // violations 수를 줄여가며 항상 유효한 JSON이 되도록 보장
-      const MAX_JSON_SIZE = 78000;
+      // violations 축소판 — PDF 보고서 생성에 필요한 필드 포함
+      // description/help는 KWCAG 매핑에서 복원 가능하므로 제외하여 용량 절약
+      const MAX_JSON_SIZE = 100000;
       const compactViolations = result.violations.map(v => ({
         kwcagId: v.kwcagId,
         kwcagName: v.kwcagName,
         impact: v.impact,
         principle: v.principle,
         pageUrl: v.pageUrl,
+        pageTitle: v.pageTitle,
         selector: v.selector,
         occurrenceCount: v.occurrenceCount,
+        axeRuleId: v.axeRuleId,
+        affectedCode: v.affectedCode ? v.affectedCode.substring(0, 300) : '',
+        screenshotPath: v.screenshotPath,
+        boundingBox: v.boundingBox,
       }));
 
       let violationsToSave = compactViolations;

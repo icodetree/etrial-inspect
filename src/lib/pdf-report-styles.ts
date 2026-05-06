@@ -190,6 +190,22 @@ export const PDF_REPORT_STYLES = `
     pointer-events: none;
   }
 
+  /* ===== Violation Screenshot (cropped per-violation) ===== */
+  .violation-screenshot {
+    margin-bottom: 3mm;
+  }
+  .violation-screenshot-container {
+    position: relative;
+    max-width: 100%;
+    max-height: 60mm;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 2px;
+  }
+  .violation-screenshot-container img {
+    display: block;
+  }
+
   /* ===== Violation Detail ===== */
   .violation-item {
     border: 1px solid #e2e8f0;

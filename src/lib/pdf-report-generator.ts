@@ -296,54 +296,43 @@ export class PDFReportGenerator {
     </div>`;
   }
 
-  // ===== 7. 페이지별 심사결과 =====
+  // ===== 7. 페이지별 심사결과 (불합격 페이지만) =====
   private renderPageDetailSections(): string {
     const pages = this.getUniquePages();
     const violationsByPage = this.getViolationsByPage();
 
-    const sections = pages.map((page, idx) => {
+    // 불합격 페이지만 필터
+    const failedPages = pages.filter(page => (violationsByPage.get(page.url) || []).length > 0);
+
+    const sections = failedPages.map((page, idx) => {
       const pageViolations = violationsByPage.get(page.url) || [];
-      const pageCompliance = this.getPageComplianceDetail(page.url);
 
       // 원칙별 결과 테이블
       const principleRows = this.renderPrincipleResults(pageViolations);
 
-      // 위반 항목이 있는지
-      const hasViolations = pageViolations.length > 0;
-      const resultBadge = hasViolations
-        ? '<span class="result-badge fail">불합격</span>'
-        : '<span class="result-badge pass">합격</span>';
-
-      // 스크린샷
-      const screenshotHtml = this.renderPageScreenshot(page.url, pageViolations);
-
-      // 위반 상세
+      // 위반 상세 (각 violation에 크롭 스크린샷 포함)
       const violationDetails = pageViolations.map(v => this.renderViolationItem(v)).join('');
 
       return `
       <div class="page-break page-detail">
-        <div class="page-detail-header">${idx}.1 '${this.escapeHtml(page.title || '(제목 없음)')}' 페이지 심사 결과</div>
+        <div class="page-detail-header">${idx + 1}. '${this.escapeHtml(page.title || '(제목 없음)')}' 페이지 심사 결과</div>
         <div class="page-detail-url">${this.escapeHtml(page.url)}</div>
 
         <div style="margin-bottom: 4mm;">
-          <strong>심사 결과: </strong>${resultBadge}
-          ${hasViolations ? `<span style="font-size:9pt; color:#718096; margin-left:3mm;">오류 ${pageViolations.length}건</span>` : ''}
+          <strong>심사 결과: </strong><span class="result-badge fail">불합격</span>
+          <span style="font-size:9pt; color:#718096; margin-left:3mm;">오류 ${pageViolations.length}건</span>
         </div>
 
-        ${screenshotHtml}
+        <div class="section-subheader">미준수 항목</div>
+        <table class="principle-table">
+          <thead>
+            <tr><th style="width:12%">항목 ID</th><th style="width:55%">검사 항목</th><th style="width:33%">결과</th></tr>
+          </thead>
+          <tbody>${principleRows}</tbody>
+        </table>
 
-        ${hasViolations ? `
-          <div class="section-subheader">미준수 항목</div>
-          <table class="principle-table">
-            <thead>
-              <tr><th style="width:12%">항목 ID</th><th style="width:55%">검사 항목</th><th style="width:33%">결과</th></tr>
-            </thead>
-            <tbody>${principleRows}</tbody>
-          </table>
-
-          <div class="section-subheader">항목별 주요 오류</div>
-          ${violationDetails}
-        ` : ''}
+        <div class="section-subheader">항목별 주요 오류</div>
+        ${violationDetails}
       </div>`;
     });
 
@@ -370,11 +359,14 @@ export class PDFReportGenerator {
     return rows;
   }
 
-  // ===== Helper: 위반 항목 렌더링 =====
+  // ===== Helper: 위반 항목 렌더링 (크롭 스크린샷 포함) =====
   private renderViolationItem(v: Violation): string {
     const impactClass = `impact-${v.impact}`;
     const impactLabel = IMPACT_LABELS[v.impact] || v.impact;
     const codeSnippet = this.truncate(v.affectedCode, 500);
+
+    // 크롭 스크린샷 렌더링
+    const screenshotHtml = this.renderViolationScreenshot(v);
 
     return `
     <div class="violation-item">
@@ -382,9 +374,54 @@ export class PDFReportGenerator {
         <span class="violation-item-title">${this.escapeHtml(v.kwcagId)} ${this.escapeHtml(v.kwcagName)}</span>
         <span class="impact-badge ${impactClass}">${this.escapeHtml(impactLabel)}</span>
       </div>
+      ${screenshotHtml}
       <div class="violation-description">${this.escapeHtml(v.description)}</div>
       <div class="violation-code">${this.escapeHtml(codeSnippet)}</div>
       <div class="violation-help">💡 <strong>해결방안:</strong> ${this.escapeHtml(v.help)}</div>
+    </div>`;
+  }
+
+  // ===== Helper: 위반 항목별 크롭 스크린샷 =====
+  private renderViolationScreenshot(v: Violation): string {
+    if (!this.options.includeScreenshots || !v.screenshotPath || !v.boundingBox) return '';
+
+    const base64 = this.imageCache.get(v.screenshotPath);
+    if (!base64) return '';
+
+    const dims = this.getPngDimensions(base64);
+    if (!dims) return '';
+
+    const bb = v.boundingBox;
+    const padding = 80; // 오류 영역 주변 여유 px
+
+    // 크롭 영역 계산 (padding 포함)
+    const cropX = Math.max(0, bb.x - padding);
+    const cropY = Math.max(0, bb.y - padding);
+    const cropRight = Math.min(dims.width, bb.x + bb.width + padding);
+    const cropBottom = Math.min(dims.height, bb.y + bb.height + padding);
+    const cropW = cropRight - cropX;
+    const cropH = cropBottom - cropY;
+
+    // 컨테이너 내에서 bbox 오버레이 위치 (크롭 영역 기준 퍼센트)
+    const bboxLeftPct = ((bb.x - cropX) / cropW * 100).toFixed(4);
+    const bboxTopPct = ((bb.y - cropY) / cropH * 100).toFixed(4);
+    const bboxWidthPct = (bb.width / cropW * 100).toFixed(4);
+    const bboxHeightPct = (bb.height / cropH * 100).toFixed(4);
+
+    // 음수 margin 크롭: 이미지를 컨테이너 너비(180mm)에 맞춰 스케일하고
+    // margin으로 크롭 영역만 노출 — Playwright PDF에서도 안정적으로 동작
+    const marginTop = -(cropY / dims.width * 100);
+    const marginLeft = -(cropX / dims.width * 100);
+    const marginBottom = -((dims.height - cropBottom) / dims.width * 100);
+    const marginRight = -((dims.width - cropRight) / dims.width * 100);
+
+    return `
+    <div class="violation-screenshot">
+      <div class="violation-screenshot-container">
+        <img src="data:image/png;base64,${base64}" alt="오류 위치 스크린샷"
+          style="width: 100%; display: block; margin: ${marginTop.toFixed(4)}% ${marginRight.toFixed(4)}% ${marginBottom.toFixed(4)}% ${marginLeft.toFixed(4)}%;" />
+        <div class="bbox-overlay" style="left:${bboxLeftPct}%; top:${bboxTopPct}%; width:${bboxWidthPct}%; height:${bboxHeightPct}%;"></div>
+      </div>
     </div>`;
   }
 
