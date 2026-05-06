@@ -1,5 +1,7 @@
 // KWCAG 2.2 (33개 검사항목)와 axe-core Rule ID 매핑 테이블
 
+import type { Result as AxeResult, NodeResult as AxeNodeResult } from 'axe-core';
+
 export interface KWCAGItem {
   id: string;
   principle: '인식의 용이성' | '운용의 용이성' | '이해의 용이성' | '견고성';
@@ -415,13 +417,57 @@ export interface KWCAGViolation {
   helpUrl: string;
 }
 
+/**
+ * axe-core 의 NodeResult 에 우리쪽 크롤러가 부착한 boundingBox 까지 허용하는 확장 타입.
+ * accessibility-auditor 의 page.evaluate 가 element.getBoundingClientRect() 결과를 추가한다.
+ *
+ * NodeResult 의 일부 필드(any/all/none, target 형태 등)는 convertAxeToKWCAG 에서 사용하지 않으므로
+ * Partial 로 두어 호출자(accessibility-auditor, custom-rules, 테스트)가 가벼운 객체를 넘길 수 있게 한다.
+ */
+export type AxeNodeLike = Pick<AxeNodeResult, 'html'> & {
+  target: AxeNodeResult['target'] | string[];
+  failureSummary?: string;
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+};
+
+/**
+ * convertAxeToKWCAG 가 실제로 참조하는 필드만 picking.
+ * `tags` 등 axe Result 의 부가 메타는 변환에 필요 없으므로 요구하지 않는다.
+ *
+ * `impact` 는 axe 의 ImpactValue 외에도 커스텀 룰이 부여하는 임의 문자열,
+ * 또는 `null`(축소판/legacy) 까지 들어올 수 있어 넉넉히 받는다.
+ */
+export type AxeViolationLike = Pick<
+  AxeResult,
+  'id' | 'description' | 'help' | 'helpUrl'
+> & {
+  impact?: AxeResult['impact'] | string | null;
+  nodes: AxeNodeLike[];
+};
+
 export function convertAxeToKWCAG(axeResults: {
-  violations: any[];
+  violations: AxeViolationLike[];
 }): KWCAGViolation[] {
   const kwcagViolations: KWCAGViolation[] = [];
 
   for (const violation of axeResults.violations) {
     const kwcagItem = getKWCAGByAxeRule(violation.id);
+
+    // axe NodeResult.target 은 UnlabelledFrameSelector(string|string[]) 이지만
+    // KWCAGViolation.nodes[].target 은 string[] 로 정규화한다.
+    const normalizedNodes = violation.nodes.map((node) => ({
+      html: node.html,
+      target: Array.isArray(node.target)
+        ? node.target.map((t) => (typeof t === 'string' ? t : String(t)))
+        : [String(node.target)],
+      failureSummary: node.failureSummary ?? '',
+      boundingBox: node.boundingBox,
+    }));
 
     if (kwcagItem) {
       kwcagViolations.push({
@@ -430,8 +476,8 @@ export function convertAxeToKWCAG(axeResults: {
         principle: kwcagItem.principle,
         axeRuleId: violation.id,
         description: kwcagItem.description || violation.description,
-        impact: violation.impact,
-        nodes: violation.nodes,
+        impact: (violation.impact ?? 'minor') as string,
+        nodes: normalizedNodes,
         help: kwcagItem.help || violation.help,
         helpUrl: violation.helpUrl,
       });
@@ -443,8 +489,8 @@ export function convertAxeToKWCAG(axeResults: {
         principle: '기타',
         axeRuleId: violation.id,
         description: violation.description,
-        impact: violation.impact,
-        nodes: violation.nodes,
+        impact: (violation.impact ?? 'minor') as string,
+        nodes: normalizedNodes,
         help: violation.help,
         helpUrl: violation.helpUrl,
       });

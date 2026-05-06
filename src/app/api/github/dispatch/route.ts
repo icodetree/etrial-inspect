@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+/**
+ * GitHub Actions API: list-workflow-runs 응답 중 우리가 참조하는 필드만 가진 좁은 타입.
+ * octokit 타입 의존을 추가하지 않기 위해 필요한 필드만 정의한다.
+ */
+interface GitHubWorkflowRun {
+  id: number;
+  path: string;
+}
+
+interface GitHubWorkflowRunsResponse {
+  workflow_runs?: GitHubWorkflowRun[];
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -59,11 +72,11 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    let runId = null;
+    let runId: number | null = null;
     if (runsResponse.ok) {
-      const runsData = await runsResponse.json();
-      const auditRuns = (runsData.workflow_runs || []).filter(
-        (run: any) => run.path === '.github/workflows/audit.yml'
+      const runsData = (await runsResponse.json()) as GitHubWorkflowRunsResponse;
+      const auditRuns = (runsData.workflow_runs ?? []).filter(
+        (run) => run.path === '.github/workflows/audit.yml'
       );
       if (auditRuns.length > 0) {
         runId = auditRuns[0].id;
@@ -77,8 +90,9 @@ export async function POST(request: NextRequest) {
       workflowUrl: `https://github.com/${owner}/${repo}/actions`
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Dispatch error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

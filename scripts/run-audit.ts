@@ -24,7 +24,13 @@ async function main() {
 
   try {
     const result = await runAudit(config, (progress) => {
-      console.log(`[Progress] ${progress.type}: ${progress.message || ''}`, progress);
+      if (progress.type === 'log') {
+        console.log(`[Progress] log: ${progress.message}`);
+      } else {
+        console.log(
+          `[Progress] ${progress.type}: ${progress.current}/${progress.total} — ${progress.url}`,
+        );
+      }
     });
 
     console.log('Audit Completed successfully.');

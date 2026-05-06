@@ -9,6 +9,7 @@ import {
   AuditSpaSummary,
   SpaFrameworkLabel,
   RenderStrategyLabel,
+  ProgressCallback,
 } from '@/types';
 import type { SEOAnalysisResult } from '@/types/seo';
 import type {
@@ -24,8 +25,7 @@ import { chromium } from 'playwright-core';
 import { scanPageForAltMismatches, shutdownSharedWorkerPool } from '@/lib/alt-text-validator';
 import { waitForSpaReady } from '@/lib/spa-readiness';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function runAudit(config: AuditConfig, onProgress?: (data: any) => void, signal?: AbortSignal): Promise<AuditResult> {
+export async function runAudit(config: AuditConfig, onProgress?: ProgressCallback, signal?: AbortSignal): Promise<AuditResult> {
   const startTime = new Date().toISOString();
   // TODO: Make this path configurable for Electron (userData)
   const authStatePath = path.resolve(process.cwd(), 'auth_state.json');
@@ -515,8 +515,7 @@ export interface CrawlAltTextAuditConfig {
 
 export async function runCrawlAltTextAudit(
   config: CrawlAltTextAuditConfig,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onProgress?: (data: any) => void,
+  onProgress?: ProgressCallback,
 ): Promise<AltTextAuditResult> {
   const startTime = new Date().toISOString();
 

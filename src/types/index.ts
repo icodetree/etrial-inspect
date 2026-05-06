@@ -138,3 +138,34 @@ export interface CrawlProgress {
   violations: number;
   message?: string;
 }
+
+/**
+ * AuditExecutor 가 onProgress 콜백으로 발행하는 이벤트 형식.
+ * 호출자(API SSE 라우트, UI, 테스트)는 type 필드 기반 discriminated union 으로
+ * 패턴 매칭하여 사용한다.
+ */
+export type ProgressLogEvent = {
+  type: 'log';
+  message: string;
+};
+
+export type ProgressCrawlEvent = {
+  type: 'progress';
+  current: number;
+  total: number;
+  url: string;
+};
+
+export type ProgressAltTextEvent = {
+  type: 'alt-text-progress';
+  current: number;
+  total: number;
+  url: string;
+};
+
+export type ProgressEvent =
+  | ProgressLogEvent
+  | ProgressCrawlEvent
+  | ProgressAltTextEvent;
+
+export type ProgressCallback = (event: ProgressEvent) => void;

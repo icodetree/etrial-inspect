@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuditConfig } from '@/types';
+import { AuditConfig, ProgressEvent } from '@/types';
 
 // Set max duration for Vercel Serverless Function (Start with 60s, max 300s for Pro)
 export const maxDuration = 300;
@@ -32,15 +32,25 @@ export async function POST(request: NextRequest) {
 
         const result = await runAudit(
           config,
-          (progressData: { type: string; message?: string; current?: number; total?: number; url?: string }) => {
-            if (progressData.type === 'log') {
-              send('log', { message: progressData.message });
-            } else if (progressData.type === 'progress') {
-              send('progress', {
-                current: progressData.current,
-                total: progressData.total,
-                url: progressData.url,
-              });
+          (event: ProgressEvent) => {
+            switch (event.type) {
+              case 'log':
+                send('log', { message: event.message });
+                break;
+              case 'progress':
+                send('progress', {
+                  current: event.current,
+                  total: event.total,
+                  url: event.url,
+                });
+                break;
+              case 'alt-text-progress':
+                send('alt-text-progress', {
+                  current: event.current,
+                  total: event.total,
+                  url: event.url,
+                });
+                break;
             }
           },
           request.signal

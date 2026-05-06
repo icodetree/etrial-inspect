@@ -1,5 +1,74 @@
 import { Client } from '@notionhq/client';
+import type {
+  QueryDatabaseResponse,
+  PageObjectResponse,
+} from '@notionhq/client/build/src/api-endpoints';
 import { AuditResult, Violation } from '@/types';
+
+/**
+ * Notion PageObjectResponse 의 properties 는 거대 discriminated union 이라
+ * 동적 키 접근이 까다롭다. 히스토리 행에 필요한 필드만 안전하게 추출하기 위한 타입 가드들.
+ */
+type PageProperties = PageObjectResponse['properties'];
+type PageProperty = PageProperties[string];
+
+function isFullPage(
+  page: QueryDatabaseResponse['results'][number],
+): page is PageObjectResponse {
+  return 'properties' in page;
+}
+
+function getProp(props: PageProperties, key: string): PageProperty | undefined {
+  return Object.prototype.hasOwnProperty.call(props, key) ? props[key] : undefined;
+}
+
+/**
+ * Notion property 헬퍼 — discriminator(type 필드)가 있으면 그것을 사용하고,
+ * 없으면 키 존재로 폴백한다. 실제 Notion API 응답에는 type 이 항상 있지만,
+ * 테스트 mock 은 type 을 생략하는 경우가 있어 양쪽 모두 지원한다.
+ */
+function readTitleText(prop: PageProperty | undefined): string {
+  if (!prop) return '';
+  if ('type' in prop ? prop.type === 'title' : 'title' in prop) {
+    const arr = (prop as { title: Array<{ plain_text: string }> }).title;
+    return arr?.[0]?.plain_text ?? '';
+  }
+  return '';
+}
+
+function readRichText(prop: PageProperty | undefined): string | null {
+  if (!prop) return null;
+  if ('type' in prop ? prop.type === 'rich_text' : 'rich_text' in prop) {
+    const arr = (prop as { rich_text: Array<{ plain_text: string }> }).rich_text;
+    return arr?.[0]?.plain_text ?? null;
+  }
+  return null;
+}
+
+function readNumber(prop: PageProperty | undefined): number {
+  if (!prop) return 0;
+  if ('type' in prop ? prop.type === 'number' : 'number' in prop) {
+    return (prop as { number: number | null }).number ?? 0;
+  }
+  return 0;
+}
+
+function readDateStart(prop: PageProperty | undefined): string {
+  if (!prop) return '';
+  if ('type' in prop ? prop.type === 'date' : 'date' in prop) {
+    const date = (prop as { date: { start: string } | null }).date;
+    return date?.start ?? '';
+  }
+  return '';
+}
+
+function readUrl(prop: PageProperty | undefined): string | null {
+  if (!prop) return null;
+  if ('type' in prop ? prop.type === 'url' : 'url' in prop) {
+    return (prop as { url: string | null }).url ?? null;
+  }
+  return null;
+}
 import { KWCAG_MAPPING } from '@/lib/kwcag-mapping';
 import type {
   AltTextAuditResult,
@@ -404,7 +473,7 @@ export class NotionService {
          Fallback: Using 'request' method explicitly.
          'databases.query' might be missing at runtime due to bundling/version issues.
       */
-      const response = await this.notion.request({
+      const response = await this.notion.request<QueryDatabaseResponse>({
         path: `databases/${formattedDbId}/query`,
         method: 'post',
         body: {
@@ -421,24 +490,24 @@ export class NotionService {
             },
           ],
         },
-      }) as any;
+      });
 
       if (!response || !response.results) {
         console.error('Invalid Notion response:', response);
         return [];
       }
 
-      return response.results.map((page: any) => {
+      return response.results.filter(isFullPage).map((page) => {
         const props = page.properties;
         return {
           id: page.id,
-          url: props['Page URL']?.title[0]?.plain_text || '',
-          date: props['Date']?.date?.start || '',
-          score: props['Score (Total)']?.number || 0,
-          violationCount: props['Violations']?.number || 0,
-          reportLink: props['Report Link']?.url || null,
-          artifactName: props['Artifact Name']?.rich_text?.[0]?.plain_text || null,
-          screenshotUrl: props['Screenshot URL']?.url || null,
+          url: readTitleText(getProp(props, 'Page URL')),
+          date: readDateStart(getProp(props, 'Date')),
+          score: readNumber(getProp(props, 'Score (Total)')),
+          violationCount: readNumber(getProp(props, 'Violations')),
+          reportLink: readUrl(getProp(props, 'Report Link')),
+          artifactName: readRichText(getProp(props, 'Artifact Name')),
+          screenshotUrl: readUrl(getProp(props, 'Screenshot URL')),
         };
       });
     } catch (error) {
@@ -700,7 +769,7 @@ export class NotionService {
     const formattedDbId = formatUUID(this.databaseId);
 
     try {
-      const response = await this.notion.request({
+      const response = await this.notion.request<QueryDatabaseResponse>({
         path: `databases/${formattedDbId}/query`,
         method: 'post',
         body: {
@@ -712,26 +781,24 @@ export class NotionService {
             { property: 'Date', direction: 'descending' },
           ],
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      }) as any;
+      });
 
       if (!response || !response.results) {
         console.error('Invalid Notion response (alt-text history):', response);
         return [];
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return response.results.map((page: any): AltTextHistoryItem => {
+      return response.results.filter(isFullPage).map((page): AltTextHistoryItem => {
         const props = page.properties;
         return {
           id: page.id,
-          title: props['Page URL']?.title?.[0]?.plain_text || '',
-          date: props['Date']?.date?.start || '',
-          totalUrls: props['Total URLs']?.number ?? 0,
-          totalImages: props['Total Images']?.number ?? 0,
-          mismatches: props['Mismatches']?.number ?? 0,
-          inspector: props['Inspector']?.rich_text?.[0]?.plain_text || null,
-          reportLink: props['Report Link']?.url || null,
+          title: readTitleText(getProp(props, 'Page URL')),
+          date: readDateStart(getProp(props, 'Date')),
+          totalUrls: readNumber(getProp(props, 'Total URLs')),
+          totalImages: readNumber(getProp(props, 'Total Images')),
+          mismatches: readNumber(getProp(props, 'Mismatches')),
+          inspector: readRichText(getProp(props, 'Inspector')),
+          reportLink: readUrl(getProp(props, 'Report Link')),
         };
       });
     } catch (error) {
