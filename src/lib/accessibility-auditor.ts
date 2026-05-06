@@ -323,13 +323,20 @@ export class AccessibilityAuditor {
       const publicScreenshotPath = `/screenshots/${filename}`;
 
       try {
+        let captured = false;
         try {
           await page.screenshot({ path: screenshotPath, fullPage: true, timeout: 15000 });
-        } catch (e) {
-          console.warn(`Full page screenshot failed for ${url}, trying viewport only:`, e);
-          await page.screenshot({ path: screenshotPath, fullPage: false, timeout: 10000 });
+          captured = true;
+        } catch {
+          // fullPage 실패 시 viewport만 시도
+          try {
+            await page.screenshot({ path: screenshotPath, fullPage: false, timeout: 10000 });
+            captured = true;
+          } catch {
+            // 양쪽 모두 실패 — 스크린샷 없이 계속 진행
+          }
         }
-        if (fs.existsSync(screenshotPath)) {
+        if (captured && fs.existsSync(screenshotPath)) {
           screenshotPaths.push(publicScreenshotPath);
         }
       } catch (e) {
