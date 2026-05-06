@@ -21,6 +21,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { seoAuditService } from './SEOAuditService';
 import { getBrowserErrorGuide, getBrowserLaunchOptions, getStealthContextOptions, STEALTH_INIT_SCRIPT } from '@/lib/browser-utils';
+import { buildExcludePatterns, getRuntimeProfile } from '@/lib/runtime-config';
 import { chromium } from 'playwright-core';
 import { scanPageForAltMismatches, shutdownSharedWorkerPool } from '@/lib/alt-text-validator';
 import { waitForSpaReady } from '@/lib/spa-readiness';
@@ -70,21 +71,14 @@ export async function runAudit(config: AuditConfig, onProgress?: ProgressCallbac
   }
 
   // 2. Crawler Init
-  const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const profile = getRuntimeProfile();
 
-  // 사용자 입력 제외 경로 → RegExp 변환
-  const userExcludePatterns: RegExp[] = (config.excludePaths || '')
-    .split('\n')
-    .map(p => p.trim())
-    .filter(p => p.length > 0)
-    .map(p => {
-      const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      return new RegExp(`${escaped}(\\/|$|\\?)`, 'i');
-    });
+  // 사용자 입력 제외 경로 → RegExp 변환 (runtime-config.buildExcludePatterns 로 일원화)
+  const userExcludePatterns: RegExp[] = buildExcludePatterns(config.excludePaths);
 
   const crawler = new WebCrawler({
-    maxDepth: config.maxDepth ?? (isVercel ? 2 : 10),
-    maxPages: config.maxPages ?? (isVercel ? 5 : 1000),
+    maxDepth: config.maxDepth ?? profile.maxDepth,
+    maxPages: config.maxPages ?? profile.maxPages,
     headless: true,
     readySelector: config.readySelector,
     // 기본 제외 패턴 + 사용자 제외 경로를 병합 (spread로 덮어쓰기 방지)
@@ -524,20 +518,13 @@ export async function runCrawlAltTextAudit(
     if (onProgress) onProgress({ type: 'log', message });
   };
 
-  const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const profile = getRuntimeProfile();
 
-  const userExcludePatterns: RegExp[] = (config.excludePaths || '')
-    .split('\n')
-    .map(p => p.trim())
-    .filter(p => p.length > 0)
-    .map(p => {
-      const escaped = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      return new RegExp(`${escaped}(\\/|$|\\?)`, 'i');
-    });
+  const userExcludePatterns: RegExp[] = buildExcludePatterns(config.excludePaths);
 
   const crawler = new WebCrawler({
-    maxDepth: config.maxDepth ?? (isVercel ? 2 : 10),
-    maxPages: config.maxPages ?? (isVercel ? 5 : 1000),
+    maxDepth: config.maxDepth ?? profile.maxDepth,
+    maxPages: config.maxPages ?? profile.maxPages,
     headless: true,
     excludePatterns: [
       /\.(jpg|jpeg|png|gif|svg|webp|ico|pdf|zip|exe|dmg)$/i,

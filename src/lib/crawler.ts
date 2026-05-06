@@ -2,6 +2,8 @@ import { chromium, Browser, BrowserContext, Page } from 'playwright-core';
 import { XMLParser } from 'fast-xml-parser';
 import { PageInfo } from '@/types';
 import { getBrowserLaunchOptions, getStealthContextOptions, STEALTH_INIT_SCRIPT } from './browser-utils';
+import { getRuntimeProfile } from './runtime-config';
+import { detectWafChallengeWithRetry } from './waf-detector';
 import { waitForSpaReady, SpaFramework } from './spa-readiness';
 
 export interface CrawlerOptions {
@@ -383,32 +385,9 @@ export class WebCrawler {
         }
 
         // WAF/봇 차단 페이지 감지 — Cloudflare 챌린지는 자동 해결 대기 후 재확인
-        let isBlocked = await page.evaluate(() => {
-          const text = document.body?.innerText || '';
-          const title = document.title || '';
-          const el = document.getElementsByTagName('*').length;
-          return (
-            el < 30 ||
-            /잠시만 기다리|please wait|checking your browser|just a moment|access denied|보안 위배/i.test(text + title)
-          );
-        }).catch(() => false);
-
-        // Cloudflare JS 챌린지는 보통 5초 내 자동 해결 — 대기 후 재확인
-        if (isBlocked) {
-          await page.waitForTimeout(6000);
-          await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
-          isBlocked = await page.evaluate(() => {
-            const text = document.body?.innerText || '';
-            const title = document.title || '';
-            const el = document.getElementsByTagName('*').length;
-            return (
-              el < 30 ||
-              /잠시만 기다리|please wait|checking your browser|just a moment|access denied|보안 위배/i.test(text + title)
-            );
-          }).catch(() => false);
-        }
-
-        if (isBlocked) {
+        // 크롤러는 정상 페이지가 보통 30 이상의 DOM 노드를 갖는다고 가정 (보수적 임계값).
+        const wafDetection = await detectWafChallengeWithRetry(page, { minDomNodes: 30 });
+        if (wafDetection.blocked) {
           console.warn(`[Crawler] 차단/챌린지 페이지 스킵: ${normalizedUrl}`);
           // 차단 감지 시 다른 워커도 속도를 낮추도록 쿨다운 플래그 설정
           this.lastBlockedAt = Date.now();
@@ -478,8 +457,7 @@ export class WebCrawler {
     }
 
     // ── 2단계: 나머지 페이지 병렬 워커 ────────────────────────────
-    const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
-    const concurrency = this.options.crawlConcurrency ?? (isVercel ? 1 : 3);
+    const concurrency = this.options.crawlConcurrency ?? getRuntimeProfile().crawlConcurrency;
     let activeWorkers = 0;
 
     const worker = async () => {

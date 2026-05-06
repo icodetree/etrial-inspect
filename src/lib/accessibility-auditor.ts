@@ -6,6 +6,7 @@ import koLocale from 'axe-core/locales/ko.json';
 import { getBrowserLaunchOptions, getStealthContextOptions, STEALTH_INIT_SCRIPT } from './browser-utils';
 import { convertAxeToKWCAG, KWCAGViolation } from './kwcag-mapping';
 import { CUSTOM_RULE_SCRIPT } from './custom-rules';
+import { detectWafChallengeWithRetry } from './waf-detector';
 import {
   waitForSpaReady,
   SpaFramework,
@@ -198,32 +199,9 @@ export class AccessibilityAuditor {
       const title = await page.title();
 
       // WAF/봇 차단 페이지 감지 — Cloudflare 챌린지는 자동 해결 대기 후 재확인
-      let isBlocked = await page.evaluate(() => {
-        const text = document.body?.innerText || '';
-        const t = document.title || '';
-        const el = document.getElementsByTagName('*').length;
-        return (
-          el < 5 ||
-          /잠시만 기다리|please wait|checking your browser|just a moment|access denied|보안 위배/i.test(text + t)
-        );
-      }).catch(() => false);
-
-      // Cloudflare JS 챌린지는 보통 5초 내 자동 해결 — 대기 후 재확인
-      if (isBlocked) {
-        await page.waitForTimeout(6000);
-        await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
-        isBlocked = await page.evaluate(() => {
-          const text = document.body?.innerText || '';
-          const t = document.title || '';
-          const el = document.getElementsByTagName('*').length;
-          return (
-            el < 5 ||
-            /잠시만 기다리|please wait|checking your browser|just a moment|access denied|보안 위배/i.test(text + t)
-          );
-        }).catch(() => false);
-      }
-
-      if (isBlocked) {
+      // 접근성 감사기는 이미 SPA hydration 대기 후 호출되므로 더 엄격한 임계값 사용 (5).
+      const wafDetection = await detectWafChallengeWithRetry(page, { minDomNodes: 5 });
+      if (wafDetection.blocked) {
         console.warn(`[Audit] 차단/챌린지 페이지 스킵: ${url}`);
         await page.close();
         return {

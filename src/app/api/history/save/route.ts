@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { NotionService } from '@/services/notion/NotionService';
+import { apiError, resolveBaseOrigin } from '@/lib/api-helpers';
 
 export async function POST(request: Request) {
   try {
@@ -11,10 +12,7 @@ export async function POST(request: Request) {
 
     if (!apiKey || !databaseId) {
       console.error(`Missing Env Vars - API Key: ${!!apiKey}, DB ID: ${!!databaseId}`);
-      return NextResponse.json(
-        { error: 'Notion API Key or Database ID not configured (Check Vercel Env Vars).' },
-        { status: 500 }
-      );
+      return apiError(500, 'Notion API Key or Database ID not configured (Check Vercel Env Vars).');
     }
 
     const notionService = new NotionService(apiKey, databaseId);
@@ -22,21 +20,8 @@ export async function POST(request: Request) {
     // 1. Notion 페이지 생성 (리포트 링크 없이)
     const pageId = await notionService.saveAuditResult(result);
 
-    // 2. 리포트 링크 생성 (페이지 ID 포함 - Clean URL)
-    // Vercel 배포 시 'origin' 헤더가 없거나 내부 네트워크 아이피가 될 수 있으므로
-    // VERCEL_URL 환경 변수나 x-forwarded-host 헤더도 체크합니다.
-    let baseOrigin = request.headers.get('origin') || 'http://localhost:3000';
-
-    // Vercel 환경에서 origin이 localhost로 잡히는 경우 방지
-    const host = request.headers.get('host');
-    const proto = request.headers.get('x-forwarded-proto') || 'https';
-
-    if (process.env.VERCEL_URL) {
-      baseOrigin = `https://${process.env.VERCEL_URL}`;
-    } else if (host && !host.includes('localhost')) {
-      baseOrigin = `${proto}://${host}`;
-    }
-
+    // 2. 리포트 링크 생성 — Vercel/로컬/리버스 프록시 모두 케어 (api-helpers 로 일원화)
+    const baseOrigin = resolveBaseOrigin(request);
     const reportUrl = `${baseOrigin}/report/${pageId}`;
 
     // 3. 페이지에 리포트 링크 업데이트
@@ -55,18 +40,13 @@ export async function POST(request: Request) {
     const code = (error as { code?: string })?.code;
     const status = (error as { status?: number })?.status;
     if (code === 'object_not_found' || status === 404) {
-      return NextResponse.json(
-        {
-          error:
-            'Notion DB에 접근할 수 없습니다. Notion에서 해당 DB의 "Connections" 메뉴에서 "E-able A11y" integration을 연결해 주세요.\n\n경로: DB 페이지 우상단 "..." 메뉴 → Connections → Add connections → E-able A11y',
-        },
-        { status: 500 },
+      return apiError(
+        500,
+        'Notion DB에 접근할 수 없습니다. Notion에서 해당 DB의 "Connections" 메뉴에서 "E-able A11y" integration을 연결해 주세요.\n\n경로: DB 페이지 우상단 "..." 메뉴 → Connections → Add connections → E-able A11y',
+        { code: 'notion_object_not_found' },
       );
     }
 
-    return NextResponse.json(
-      { error: `Failed to save to Notion: ${errorMessage}` },
-      { status: 500 }
-    );
+    return apiError(500, `Failed to save to Notion: ${errorMessage}`);
   }
 }

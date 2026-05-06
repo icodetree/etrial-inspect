@@ -1,16 +1,17 @@
 import { LaunchOptions, BrowserContextOptions } from 'playwright-core';
+import { getRuntimeProfile } from './runtime-config';
 
 /**
  * Returns platform-specific Playwright launch options.
- * In production/distribution environments, it prioritizes using the system-installed 
+ * In production/distribution environments, it prioritizes using the system-installed
  * Google Chrome or Microsoft Edge to avoid requiring Playwright browser binaries.
- * 
+ *
  * @param isHeadless Whether to run in headless mode.
  * @returns Playwright LaunchOptions
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getBrowserLaunchOptions = async (isHeadless: boolean = true): Promise<LaunchOptions> => {
-  const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+  const isVercel = getRuntimeProfile().isServerless;
 
   console.log(`[Browser Launch] Environment Check: isVercel=${isVercel}, NODE_ENV=${process.env.NODE_ENV}`);
 
