@@ -2,20 +2,20 @@
   "cookies": [
     {
       "name": "dsid",
-      "value": "baa6f335-3b6d-4ae3-98b7-6f8632af34ea",
+      "value": "99e78d57-bb85-4489-8a72-de252dfd2fe4",
       "domain": ".baemin.com",
       "path": "/",
-      "expires": 1809151009.499771,
+      "expires": 1809585895.273532,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "__cf_bm",
-      "value": "vQmyFIPBs9TFwIRsbMnW0lq2ozkuKC8uEGl6wbZcz6I-1777615009.4792173-1.0.1.1-A3XWh.PrHuITgKvFh6AEhv8yG_WcFW_W2a9R9Do_qdhtzj2ttNg1TxCXUWwAifR6q1wXpGEX1gttAFKCqWxSJGcHU.HwctlgCOwYRYz8WiE8i1FbnUCkuM03fOZJxchO9vFFiyOnrbzFQPS6Q21_og",
+      "value": "b4Urgy5QyC2IFNji3Yk3nyrSY8zniR34Iz1i_D7FSYc-1778049895.2571044-1.0.1.1-YcfcVLnygxNk7BjfBJVPqAe7xpxddLKgAUeVTn6hjVkKYCT6S_PhL10zavD2SX9rZw1bYK.X8syb1_e6YGx86aGtJmdUzhxNXSCvI9IdpkDOqzTAGCVXfBVeWIRPkqxjquLhxpssg.o9LO4HTnA54g",
       "domain": ".baemin.com",
       "path": "/",
-      "expires": 1777616809.499854,
+      "expires": 1778051695.273654,
       "httpOnly": true,
       "secure": true,
       "sameSite": "Lax"
@@ -25,67 +25,67 @@
       "value": "",
       "domain": "biz-member.baemin.com",
       "path": "/",
-      "expires": 1780207009,
+      "expires": 1780641895,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "_ga",
-      "value": "GA1.3.451073933.1777615010",
+      "value": "GA1.3.1924620833.1778049896",
       "domain": ".biz-member.baemin.com",
       "path": "/",
-      "expires": 1812175009.945331,
+      "expires": 1812609895.688783,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "_gid",
-      "value": "GA1.3.712747938.1777615010",
+      "value": "GA1.3.1785110901.1778049896",
       "domain": ".biz-member.baemin.com",
       "path": "/",
-      "expires": 1777701409,
+      "expires": 1778136295,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "bm_session_id",
-      "value": "baa6f335-3b6d-4ae3-98b7-6f8632af34ea/1777615010035",
+      "value": "99e78d57-bb85-4489-8a72-de252dfd2fe4/1778049895786",
       "domain": "biz-member.baemin.com",
       "path": "/",
-      "expires": 1777616821,
+      "expires": 1778051708,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "OAID_S",
-      "value": "s1777615010.129926",
+      "value": "s1778049895.861450",
       "domain": ".widerplanet.com",
       "path": "/",
-      "expires": 1812175022.135208,
+      "expires": 1812609908.662304,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "OAID",
-      "value": "dcf625c8bf13b7afd7b83fe9f21bf26e",
+      "value": "798f0a5d753fcc55d30032899c9954cb",
       "domain": ".widerplanet.com",
       "path": "/",
-      "expires": 1812175022.135112,
+      "expires": 1812609908.662229,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "_wp_uid",
-      "value": "1-dcf625c8bf13b7afd7b83fe9f21bf26e-s1777615010.129926|mac_osx|chrome-10mjm6v",
+      "value": "1-798f0a5d753fcc55d30032899c9954cb-s1778049895.861450|mac_osx|chrome-l59vpi",
       "domain": ".baemin.com",
       "path": "/",
-      "expires": 1809151022,
+      "expires": 1809585908,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
@@ -95,17 +95,17 @@
       "value": "master8407",
       "domain": "biz-member.baemin.com",
       "path": "/",
-      "expires": 1778219821,
+      "expires": 1778654708,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "_ceo_v2_gk_sid",
-      "value": "326ea745-addc-4ca6-ac01-92dade83b8f6",
+      "value": "ebe10f4c-da62-4088-8942-deff23a18050",
       "domain": ".baemin.com",
       "path": "/",
-      "expires": 1809151022.08125,
+      "expires": 1809585908.622453,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
@@ -115,14 +115,14 @@
       "value": "C",
       "domain": ".widerplanet.com",
       "path": "/",
-      "expires": 1812175022.135187,
+      "expires": 1812609908.662284,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "JSESSIONID",
-      "value": "E7FD3C391EE5CE3411A934FEBDAD2B53",
+      "value": "00451633767ABC4112DE0834DBF46457",
       "domain": "academy.baemin.com",
       "path": "/",
       "expires": -1,
@@ -132,150 +132,150 @@
     },
     {
       "name": "tbid",
-      "value": "1356f212-62b9-4fae-8a76-4a2b7c0a413c",
+      "value": "bc1150bb-ca07-49a7-8bee-34c7c0ad1944",
       "domain": ".baemin.com",
       "path": "/",
-      "expires": 1809151022,
+      "expires": 1809585909,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "_kmpid",
-      "value": "km|academy.baemin.com|1777615022634|ad77a8f0-40e1-45a2-8969-922c55a5bb48",
+      "value": "km|academy.baemin.com|1778049909013|cbd5b983-d34c-4a1a-a40e-d796560e7da8",
       "domain": ".academy.baemin.com",
       "path": "/",
-      "expires": 1785391022,
+      "expires": 1785825909,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "_kmpid",
-      "value": "km|baemin.com|1777615022634|ad77a8f0-40e1-45a2-8969-922c55a5bb48",
+      "value": "km|baemin.com|1778049909013|cbd5b983-d34c-4a1a-a40e-d796560e7da8",
       "domain": ".baemin.com",
       "path": "/",
-      "expires": 1785391022,
+      "expires": 1785825909,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "extcid",
-      "value": "b5cb046ec4e24755a187794884f550a1",
+      "value": "174ad58bb6534f7fab7f5004ea81ec0b",
       "domain": "lex.toss.im",
       "path": "/",
-      "expires": 1809151022.757304,
+      "expires": 1809585909.099544,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "_fbp",
-      "value": "fb.1.1777615024122.300787041551208503",
+      "value": "fb.1.1778049910540.38207562510596911",
       "domain": ".baemin.com",
       "path": "/",
-      "expires": 1785391024,
+      "expires": 1785825910,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "bmac_uuid",
-      "value": "202605011457_b7cea730-bd04-4917-b1a1-058b059eac1e",
+      "value": "202605061545_83ea8051-1c56-4993-bf53-62bd729cc707",
       "domain": "academy.baemin.com",
       "path": "/",
-      "expires": 1809151024,
+      "expires": 1809585910,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "bmac_visit_log",
-      "value": "202605011457_b7cea730-bd04-4917-b1a1-058b059eac1e/1777615024222",
+      "value": "202605061545_83ea8051-1c56-4993-bf53-62bd729cc707/1778049910577",
       "domain": "academy.baemin.com",
       "path": "/",
-      "expires": 1777616824,
+      "expires": 1778051710,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "_ga",
-      "value": "GA1.1.1733150841.1777615024",
+      "value": "GA1.1.418738694.1778049911",
       "domain": ".baemin.com",
       "path": "/",
-      "expires": 1812175024.24662,
+      "expires": 1812609910.599698,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_ga_360N6M3W4B",
+      "value": "GS2.1.s1778049910$o1$g1$t1778049910$j60$l0$h0",
+      "domain": ".baemin.com",
+      "path": "/",
+      "expires": 1812609910.607538,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "_fwb",
-      "value": "192kTCAYOc5OHbAA2HZceaF.1777615024742",
+      "value": "170CW3KRCAT6wBcE1HMBPG1.1778049910615",
       "domain": ".academy.baemin.com",
       "path": "/",
-      "expires": 1812175024.7423,
+      "expires": 1812609910.615883,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "wcs_bt",
-      "value": "s_1e288ae6b6e5:1777615024",
+      "value": "s_1e288ae6b6e5:1778049910",
       "domain": "academy.baemin.com",
       "path": "/",
-      "expires": 1812175024.747172,
+      "expires": 1812609910.617869,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "NWB",
-      "value": "d19ad2e522ff1d135248420950d9429f.1777615024835",
+      "value": "94acceee4eac9aede3e77791516c0212.1778049910642",
       "domain": ".wcs.naver.com",
       "path": "/",
-      "expires": 1812175024.837419,
+      "expires": 1812609910.642542,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
       "name": "NAC",
-      "value": "X8r7BExHKfXdA",
+      "value": "ereiHQE5Y7kKC",
       "domain": ".naver.com",
       "path": "/",
-      "expires": 1812175024.954829,
+      "expires": 1812609910.666471,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
     },
     {
-      "name": "_ga_360N6M3W4B",
-      "value": "GS2.1.s1777615023$o1$g1$t1777615026$j57$l0$h0",
-      "domain": ".baemin.com",
-      "path": "/",
-      "expires": 1812175026.299031,
-      "httpOnly": false,
-      "secure": false,
-      "sameSite": "Lax"
-    },
-    {
       "name": "AWSALB",
-      "value": "eprsFcNXnAhV+pk/ONh3EhLhJFsGId6hssNSUCP2OZWJSXewYmz3dTVuVzj6yLPEaRLvmB6k5HZ90h40PDJDYMw+ZNpsihlBfs4o/QhIkc2gTukHUncpcPIL5BQC",
+      "value": "jYogiXCVXSFKt6voIluRXeUjC9kB3MD3qmUgFH92i7fDjRUDV1dWZKUMXp8rMeGIInVAbagYWMRZkO3SzMMrNK2ueOk6L6qVVioA81a+INtPZYnhFqyQqFqzxYq+",
       "domain": "academy.baemin.com",
       "path": "/",
-      "expires": 1778219826.526588,
+      "expires": 1778654713.243106,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "AWSALBCORS",
-      "value": "eprsFcNXnAhV+pk/ONh3EhLhJFsGId6hssNSUCP2OZWJSXewYmz3dTVuVzj6yLPEaRLvmB6k5HZ90h40PDJDYMw+ZNpsihlBfs4o/QhIkc2gTukHUncpcPIL5BQC",
+      "value": "jYogiXCVXSFKt6voIluRXeUjC9kB3MD3qmUgFH92i7fDjRUDV1dWZKUMXp8rMeGIInVAbagYWMRZkO3SzMMrNK2ueOk6L6qVVioA81a+INtPZYnhFqyQqFqzxYq+",
       "domain": "academy.baemin.com",
       "path": "/",
-      "expires": 1778219826.526631,
+      "expires": 1778654713.243139,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"
@@ -287,7 +287,7 @@
       "localStorage": [
         {
           "name": "_wp_uid",
-          "value": "2-dcf625c8bf13b7afd7b83fe9f21bf26e-s1777615010.129926|mac_osx|chrome-c09iep"
+          "value": "2-798f0a5d753fcc55d30032899c9954cb-s1778049895.861450|mac_osx|chrome-1r3t7ds"
         }
       ]
     },
@@ -296,19 +296,19 @@
       "localStorage": [
         {
           "name": "NACT",
-          "value": "1777615024955"
+          "value": "1778049910667"
         },
         {
           "name": "NAC",
-          "value": "X8r7BExHKfXdA"
+          "value": "ereiHQE5Y7kKC"
         },
         {
           "name": "lastExternalReferrerTime",
-          "value": "1777615024113"
+          "value": "1778049910531"
         },
         {
           "name": "tbid",
-          "value": "1356f212-62b9-4fae-8a76-4a2b7c0a413c"
+          "value": "bc1150bb-ca07-49a7-8bee-34c7c0ad1944"
         },
         {
           "name": "lastExternalReferrer",
@@ -316,15 +316,15 @@
         },
         {
           "name": "tbid_created_at",
-          "value": "1777615022633"
+          "value": "1778049909012"
         },
         {
           "name": "tbid_expires",
-          "value": "1809151022633"
+          "value": "1809585909012"
         },
         {
           "name": "NA_NACC",
-          "value": "X8r7BExHKfXdA"
+          "value": "ereiHQE5Y7kKC"
         }
       ]
     }
