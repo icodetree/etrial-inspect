@@ -43,6 +43,8 @@ export class WebCrawler {
   private routeCaptureSink: ((url: string) => void) | null = null;
   /** 첫 페이지 로드 시 감지된 프레임워크. 'unknown' 이외면 SPA 자동 모드 활성. */
   private detectedFramework: SpaFramework = 'unknown';
+  /** WAF 차단 감지 시각 — 다른 워커가 속도를 줄이도록 공유 */
+  private lastBlockedAt = 0;
 
   constructor(options: CrawlerOptions = {}) {
     this.options = {
@@ -408,6 +410,8 @@ export class WebCrawler {
 
         if (isBlocked) {
           console.warn(`[Crawler] 차단/챌린지 페이지 스킵: ${normalizedUrl}`);
+          // 차단 감지 시 다른 워커도 속도를 낮추도록 쿨다운 플래그 설정
+          this.lastBlockedAt = Date.now();
           return;
         }
 
@@ -490,6 +494,16 @@ export class WebCrawler {
           await new Promise((r) => setTimeout(r, 100));
           continue;
         }
+
+        // WAF rate limiting 회피: 최근 차단이 감지되었으면 백오프 대기
+        const sinceLast = Date.now() - this.lastBlockedAt;
+        if (this.lastBlockedAt > 0 && sinceLast < 15000) {
+          const cooldown = 15000 - sinceLast;
+          console.log(`[Crawler] WAF 쿨다운 대기: ${Math.round(cooldown / 1000)}초`);
+          await new Promise(r => setTimeout(r, cooldown));
+        }
+        // 페이지 간 기본 딜레이 (Cloudflare rate limit 회피)
+        await new Promise(r => setTimeout(r, 800));
 
         activeWorkers++;
         try {
