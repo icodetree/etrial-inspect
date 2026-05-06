@@ -3,7 +3,6 @@
 import { Asterisk, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import styles from '@/app/page.module.css';
 import type { AltTextConfig } from '../hooks/useAltTextAudit';
 
 interface AltTextAuditFormProps {
@@ -15,10 +14,10 @@ interface AltTextAuditFormProps {
 
 export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: AltTextAuditFormProps) => {
   return (
-    <Card className={styles.card} title="">
+    <Card title="">
       {/* 대상 설정 */}
-      <fieldset className={styles.formSection}>
-        <legend className={styles.formSectionLegend}>대상 설정</legend>
+      <fieldset className="form-section">
+        <legend className="form-section-legend">대상 설정</legend>
 
         <div className="form-group">
           <label htmlFor="alttext-target-url" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -39,10 +38,10 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
       </fieldset>
 
       {/* 크롤링 설정 */}
-      <fieldset className={styles.formSection}>
-        <legend className={styles.formSectionLegend}>크롤링 설정</legend>
+      <fieldset className="form-section">
+        <legend className="form-section-legend">크롤링 설정</legend>
 
-        <div className={styles.row}>
+        <div className="form-row">
           <div className="form-group">
             <label htmlFor="alttext-max-pages">최대 페이지 수</label>
             <input
@@ -72,7 +71,7 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
         <div className="form-group">
           <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             제외 경로
-            <span className={styles.tooltipWrap}>
+            <span className="tooltip-wrap">
               <HelpCircle
                 size={14}
                 color="#9ca3af"
@@ -80,7 +79,7 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
                 tabIndex={0}
                 aria-label="제외 경로 도움말"
               />
-              <span className={styles.tooltipBubble}>
+              <span className="tooltip-bubble">
                 입력한 경로로 시작하는 URL은 크롤링에서 제외됩니다.
                 <br />예시: /eng, /kr/old
               </span>
@@ -97,9 +96,9 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
       </fieldset>
 
       {/* OCR 옵션 */}
-      <fieldset className={styles.formSection}>
-        <legend className={styles.formSectionLegend}>OCR 옵션</legend>
-        <div className={styles.row}>
+      <fieldset className="form-section">
+        <legend className="form-section-legend">OCR 옵션</legend>
+        <div className="form-row">
           <div className="form-group">
             <label htmlFor="alttext-max-images">페이지당 최대 이미지 수</label>
             <input

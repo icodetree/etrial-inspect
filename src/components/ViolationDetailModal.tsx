@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import styles from './ViolationDetailModal.module.css';
 import { Violation, BoundingBox } from '@/types';
 
@@ -11,6 +11,21 @@ interface ViolationDetailModalProps {
   onClose: () => void;
 }
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+function getFocusableElements(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (el) => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true'
+  );
+}
+
 export const ViolationDetailModal: React.FC<ViolationDetailModalProps> = ({
   violation,
   boundingBox,
@@ -19,87 +34,161 @@ export const ViolationDetailModal: React.FC<ViolationDetailModalProps> = ({
   screenshotUrl,
   onClose,
 }) => {
-  if (!violation) return null;
-
-  // ESC 키로 모달 닫기
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [onClose]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   // 이미지 스케일링 상태
-  const imgRef = React.useRef<HTMLImageElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const [scale, setScale] = useState(1);
 
-  const updateScale = () => {
+  // Artifact 다운로드 URL 상태
+  const [artifactUrl, setArtifactUrl] = useState<string | null>(null);
+  const [isLoadingArtifact, setIsLoadingArtifact] = useState(false);
+  const [, setDownloadError] = useState(false);
+
+  const isOpen = violation !== null;
+
+  // ESC 키로 모달 닫기 + Tab focus trap
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const root = dialogRef.current;
+      if (!root) return;
+      const focusables = getFocusableElements(root);
+      if (focusables.length === 0) {
+        e.preventDefault();
+        root.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) {
+        if (active === first || !root.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  // Focus 진입/복귀
+  useEffect(() => {
+    if (!isOpen) return;
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    const root = dialogRef.current;
+    if (root) {
+      const focusables = getFocusableElements(root);
+      if (focusables.length > 0) {
+        focusables[0].focus();
+      } else {
+        root.focus();
+      }
+    }
+    return () => {
+      const prev = previouslyFocusedRef.current;
+      if (prev && typeof prev.focus === 'function') {
+        prev.focus();
+      }
+    };
+  }, [isOpen]);
+
+  const updateScale = useCallback(() => {
     if (imgRef.current) {
       const { clientWidth, naturalWidth } = imgRef.current;
       if (naturalWidth > 0) {
         setScale(clientWidth / naturalWidth);
       }
     }
-  };
-
-  useEffect(() => {
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
   }, []);
+
+  // 윈도 리사이즈 시 이미지 스케일 재계산 (cleanup 중복 제거)
+  useEffect(() => {
+    if (!isOpen) return;
+    window.addEventListener('resize', updateScale);
+    return () => {
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [isOpen, updateScale]);
 
   // 스크린샷 유무 확인 및 URL 결정
   const hasScreenshot = Boolean(screenshotPath);
-
-  // GitHub Pages URL 로직: screenshotPath에서 파일명 추출 후 Base URL과 결합
   const filename = screenshotPath ? screenshotPath.split('/').pop() : '';
   const finalImageUrl = screenshotUrl && filename ? `${screenshotUrl}${filename}` : screenshotPath;
 
   // Artifact 노트 표시 여부: artifactName이 있고, URL로 바로 볼 수 없는 경우에만 표시
   const showArtifactNote = Boolean(artifactName && screenshotPath && !screenshotUrl);
 
-  // Artifact 다운로드 URL 상태
-  const [artifactUrl, setArtifactUrl] = useState<string | null>(null);
-  const [isLoadingArtifact, setIsLoadingArtifact] = useState(false);
-  const [downloadError, setDownloadError] = useState(false);
-
   useEffect(() => {
+    if (!isOpen) return;
     if (artifactName && !hasScreenshot) {
       setIsLoadingArtifact(true);
       setDownloadError(false);
-      // 스크린샷 파일명 추출 (경로에서)
-      const filename = screenshotPath ? screenshotPath.split('/').pop() : '';
+      const fname = screenshotPath ? screenshotPath.split('/').pop() : '';
 
-      fetch(`/api/artifact/screenshot?artifactName=${artifactName}&filename=${filename}`)
-        .then(res => res.json())
-        .then(data => {
+      fetch(`/api/artifact/screenshot?artifactName=${artifactName}&filename=${fname}`)
+        .then((res) => res.json())
+        .then((data) => {
           if (data.downloadUrl) {
             setArtifactUrl(data.downloadUrl);
           } else {
             setDownloadError(true);
           }
         })
-        .catch(err => {
+        .catch((err) => {
           console.error('Failed to fetch artifact url:', err);
           setDownloadError(true);
         })
         .finally(() => setIsLoadingArtifact(false));
     }
-  }, [artifactName, hasScreenshot, screenshotPath]);
+  }, [isOpen, artifactName, hasScreenshot, screenshotPath]);
+
+  // 모달 클로즈 후 렌더 안 함 (hooks 호출 후에 early return)
+  if (!isOpen || !violation) return null;
 
   // GitHub Actions Run ID 추출 (screenshots-12345678 -> 12345678)
   const runId = artifactName?.replace('screenshots-', '');
-  const actionsUrl = runId ? `https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO || 'UX-Ino/etrial-inspect'}/actions/runs/${runId}` : '#';
+  const actionsUrl = runId
+    ? `https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO || 'UX-Ino/etrial-inspect'}/actions/runs/${runId}`
+    : '#';
 
   return (
     <div className={styles['modal-overlay']} onClick={onClose}>
-      <div className={styles['modal-content']} onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className={styles['modal-content']}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
         <div className={styles['modal-header']}>
-          <h2 className={styles['modal-title']}>
+          <h2 id={titleId} className={styles['modal-title']}>
             위반 항목 상세: {violation.kwcagName}
           </h2>
-          <button className={styles['close-btn']} onClick={onClose} aria-label="닫기">
+          <button
+            type="button"
+            className={styles['close-btn']}
+            onClick={onClose}
+            aria-label="닫기"
+          >
             ×
           </button>
         </div>
@@ -113,9 +202,8 @@ export const ViolationDetailModal: React.FC<ViolationDetailModalProps> = ({
                 alt="Page Screenshot"
                 className={styles['screenshot-img']}
                 onLoad={updateScale}
-                onError={(e) => {
+                onError={() => {
                   console.error('Image load failed:', finalImageUrl);
-                  // 로드 실패 시 스타일 조정 (선택 사항)
                 }}
               />
               {boundingBox && (

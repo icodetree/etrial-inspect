@@ -1,0 +1,42 @@
+/* ============================================
+   AuditConfigForm 전용 스타일
+   ============================================ */
+
+/* PC/Mobile radio 그룹 */
+.platformGroup {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.platformOption {
+  flex: 1;
+  padding: 0.625rem 0.875rem;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+
+.platformOption:hover {
+  border-color: #9ca3af;
+}
+
+.platformOption:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+}
+
+.platformOptionSelected {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+
+.platformOptionSelected:hover {
+  border-color: #111827;
+}

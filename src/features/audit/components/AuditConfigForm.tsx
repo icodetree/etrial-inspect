@@ -1,10 +1,10 @@
 'use client';
 
 import { AuditConfig } from '@/types';
-import styles from '@/app/page.module.css';
+import styles from './AuditConfigForm.module.css';
 import { Card } from '@/components/ui/Card';
 import { Asterisk, HelpCircle, ChevronDown, ChevronRight, Sparkles, GitBranch, Key } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 interface AuditConfigFormProps {
   config: AuditConfig;
@@ -14,15 +14,36 @@ interface AuditConfigFormProps {
   isProcessing: boolean;
 }
 
+const PLATFORMS = ['PC', 'Mobile'] as const;
+
 export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isProcessing }: AuditConfigFormProps) => {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const platformRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const handlePlatformKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') {
+      return;
+    }
+    e.preventDefault();
+    const last = PLATFORMS.length - 1;
+    let next = currentIndex;
+    if (e.key === 'ArrowLeft') next = currentIndex === 0 ? last : currentIndex - 1;
+    else if (e.key === 'ArrowRight') next = currentIndex === last ? 0 : currentIndex + 1;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = last;
+    const target = platformRefs.current[next];
+    if (target) {
+      target.focus();
+      setConfig({ ...config, platform: PLATFORMS[next] });
+    }
+  };
 
   return (
-    <Card className={styles.card} title="">
+    <Card title="">
 
       {/* 대상 설정 */}
-      <fieldset className={styles.formSection}>
-        <legend className={styles.formSectionLegend}>대상 설정</legend>
+      <fieldset className="form-section">
+        <legend className="form-section-legend">대상 설정</legend>
         <div className="form-group">
           <label htmlFor="audit-target-url" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
             대상 URL
@@ -39,34 +60,36 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
       </fieldset>
 
       {/* 기본 설정 */}
-      <fieldset className={styles.formSection}>
-        <legend className={styles.formSectionLegend}>기본 설정</legend>
-        <div className={styles.row}>
+      <fieldset className="form-section">
+        <legend className="form-section-legend">기본 설정</legend>
+        <div className="form-row">
           <div className="form-group">
-            <label>플랫폼</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {(['PC', 'Mobile'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setConfig({ ...config, platform: p })}
-                  style={{
-                    flex: 1,
-                    padding: '0.625rem 0.875rem',
-                    borderRadius: '6px',
-                    fontSize: '0.9375rem',
-                    fontWeight: 500,
-                    border: '1px solid',
-                    cursor: 'pointer',
-                    background: config.platform === p ? '#111827' : '#fff',
-                    color: config.platform === p ? '#fff' : '#374151',
-                    borderColor: config.platform === p ? '#111827' : '#d1d5db',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
+            <label id="audit-platform-label">플랫폼</label>
+            <div
+              role="radiogroup"
+              aria-labelledby="audit-platform-label"
+              aria-label="진단 대상 디바이스"
+              className={styles.platformGroup}
+            >
+              {PLATFORMS.map((p, idx) => {
+                const selected = config.platform === p;
+                const className = `${styles.platformOption} ${selected ? styles.platformOptionSelected : ''}`;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={selected ? 0 : -1}
+                    ref={(el) => { platformRefs.current[idx] = el; }}
+                    onClick={() => setConfig({ ...config, platform: p })}
+                    onKeyDown={(e) => handlePlatformKeyDown(e, idx)}
+                    className={className}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -131,7 +154,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
 
       {advancedOpen && (
         <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          
+
           {/* 로그인 설정 */}
           <fieldset style={{ padding: '1rem', margin: 0, background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
             <legend style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 6px', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -148,7 +171,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
                 로그인이 필요한 페이지 진단
               </label>
             </div>
-            
+
             {config.enableLogin && (
               <div className="form-group" style={{ marginBottom: 0, paddingLeft: '1.5rem' }}>
                 <label>로그인 페이지 URL</label>
@@ -158,7 +181,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
                   value={config.loginUrl}
                   onChange={(e) => setConfig({ ...config, loginUrl: e.target.value })}
                 />
-                <p className={styles['login-warning']} style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#b45309', background: '#fef3c7', padding: '0.5rem 0.75rem', borderRadius: '6px' }}>
+                <p className="login-warning">
                   ⚠️ 검사가 시작되면 로그인 브라우저 창이 열립니다. 로그인 완료 후 <b>창을 닫아주세요</b>.
                 </p>
               </div>
@@ -170,7 +193,7 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
             <legend style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 6px', marginBottom: '0.75rem' }}>
               크롤링 설정
             </legend>
-            <div className={styles.row} style={{ marginBottom: '1rem' }}>
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label htmlFor="audit-max-pages">최대 페이지 수</label>
                 <input
@@ -199,9 +222,9 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 제외할 경로 (Exclude Paths)
-                <span className={styles.tooltipWrap}>
+                <span className="tooltip-wrap">
                   <HelpCircle size={14} color="#9ca3af" style={{ cursor: 'pointer' }} tabIndex={0} aria-label="제외 경로 도움말" />
-                  <span className={styles.tooltipBubble}>
+                  <span className="tooltip-bubble">
                     입력한 경로로 시작하는 URL은 검사에서 제외됩니다.
                     <br />예시: /eng, /kr/old
                   </span>
@@ -221,9 +244,9 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
           <fieldset style={{ padding: '1rem', margin: 0, background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
             <legend style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 6px', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
               동적 렌더링 지연
-              <span className={styles.tooltipWrap}>
+              <span className="tooltip-wrap">
                 <HelpCircle size={14} color="#9ca3af" style={{ cursor: 'pointer' }} tabIndex={0} aria-label="고급 옵션 도움말" />
-                <span className={styles.tooltipBubble}>
+                <span className="tooltip-bubble">
                   SPA(React/Vue/Angular) 사이트는 자동 감지됩니다.<br />
                   특정 selector가 보일 때 진단 시작이 필요하면 입력하세요.
                 </span>
@@ -251,12 +274,12 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
             className="btn btn-secondary"
             onClick={onGitHubStart}
             disabled={isProcessing}
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px', 
-              background: '#24292e', 
-              color: '#fff', 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: '#24292e',
+              color: '#fff',
               borderColor: '#24292e',
               padding: '0.875rem 1.5rem',
               fontSize: '0.9375rem',
@@ -276,10 +299,10 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
           className="btn btn-primary"
           onClick={onStart}
           disabled={isProcessing}
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
             justifyContent: 'center',
             padding: '0.875rem 1.5rem',
             fontSize: '0.9375rem',
@@ -297,4 +320,3 @@ export const AuditConfigForm = ({ config, setConfig, onStart, onGitHubStart, isP
     </Card>
   );
 };
-

@@ -174,22 +174,46 @@ export default function ChecklistPage() {
 
       {/* 요약 통계 */}
       <div className="stats-grid">
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('all')}>
+        <button
+          type="button"
+          className={styles['stat-card-clickable']}
+          onClick={() => setFilter('all')}
+          aria-label="전체 검사항목 33개 보기"
+          aria-pressed={filter === 'all'}
+        >
           <div className="stat-value">33</div>
           <div className="stat-label">전체 검사항목</div>
-        </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('pass')}>
+        </button>
+        <button
+          type="button"
+          className={styles['stat-card-clickable']}
+          onClick={() => setFilter('pass')}
+          aria-label={`통과 ${stats.pass}건 보기`}
+          aria-pressed={filter === 'pass'}
+        >
           <div className="stat-value" style={{ background: '#22c55e', backgroundClip: 'text' }}>{stats.pass}</div>
           <div className="stat-label">통과</div>
-        </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('fail')}>
+        </button>
+        <button
+          type="button"
+          className={styles['stat-card-clickable']}
+          onClick={() => setFilter('fail')}
+          aria-label={`위반 ${stats.fail}건 보기`}
+          aria-pressed={filter === 'fail'}
+        >
           <div className="stat-value" style={{ background: '#ef4444', backgroundClip: 'text' }}>{stats.fail}</div>
           <div className="stat-label">위반</div>
-        </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setFilter('manual')}>
+        </button>
+        <button
+          type="button"
+          className={styles['stat-card-clickable']}
+          onClick={() => setFilter('manual')}
+          aria-label={`수동확인 필요 ${stats.manual}건 보기`}
+          aria-pressed={filter === 'manual'}
+        >
           <div className="stat-value" style={{ background: '#f59e0b', backgroundClip: 'text' }}>{stats.manual}</div>
           <div className="stat-label">수동확인 필요</div>
-        </div>
+        </button>
       </div>
 
       {/* 필터 */}

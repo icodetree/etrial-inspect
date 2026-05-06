@@ -335,6 +335,88 @@ tr:hover td { background: #f6f8fa; }
 .text-subtle { color: var(--c-fg-subtle); }
 .border-danger-left { border-left: 4px solid var(--c-danger); }
 
+/* ===================================================
+   폼 섹션 (fieldset/legend) — features/app 공용 글로벌
+   =================================================== */
+.form-section {
+  border: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--c-border, #e5e7eb);
+}
+.form-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 1rem;
+  padding-bottom: 0;
+}
+.form-section-legend {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--c-fg-muted, #636c76);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 1rem;
+  padding: 0;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+
+/* 물음표 툴팁 */
+.tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.tooltip-bubble {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: #f3f4f6;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 50;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.tooltip-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1f2937;
+}
+.tooltip-wrap:hover .tooltip-bubble,
+.tooltip-wrap:focus-within .tooltip-bubble {
+  display: block;
+}
+
+.login-warning {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+}
+
 /* Animations */
 @keyframes pulse {
   0%, 100% { opacity: 1; }
