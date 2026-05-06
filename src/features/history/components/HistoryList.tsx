@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { HistoryItem } from '@/types';
-import styles from './HistoryList.module.scss';
+import styles from './HistoryList.module.css';
 
 interface HistoryListProps {
   refreshTrigger?: number;

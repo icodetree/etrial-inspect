@@ -1,5 +1,3 @@
-'use client';
-
 import { HistoryList } from '@/features/history/components/HistoryList';
 import { History } from 'lucide-react';
 
