@@ -86,21 +86,41 @@ export default function AltTextScanSection({ scans }: Props) {
         KWCAG 2.2 §1.1.1 — Tesseract.js OCR로 이미지 내 텍스트를 추출해 alt 속성과 비교합니다.
       </p>
 
-      {/* 요약 통계 */}
+      {/* 요약 통계 — 클릭 시 해당 판정으로 필터링 */}
       <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
-        <div className="stat-card">
+        <button
+          type="button"
+          className="stat-card"
+          onClick={() => { setFilter('all'); setCurrentPage(1); }}
+          style={{
+            cursor: 'pointer',
+            outline: filter === 'all' ? '2px solid var(--c-primary, #f97316)' : undefined,
+            outlineOffset: '-2px',
+          }}
+          aria-pressed={filter === 'all'}
+          aria-label="전체 이미지 보기"
+        >
           <div className="stat-value">{totals.totalScanned}</div>
           <div className="stat-label">검사한 이미지</div>
-        </div>
+        </button>
         {(Object.keys(JUDGMENT_LABEL) as AltTextJudgment[]).map((j) => (
-          <div
+          <button
+            type="button"
             className="stat-card"
             key={j}
-            style={{ borderLeft: `4px solid ${JUDGMENT_COLOR[j].border}` }}
+            onClick={() => { setFilter(filter === j ? 'all' : j); setCurrentPage(1); }}
+            style={{
+              cursor: 'pointer',
+              borderLeft: `4px solid ${JUDGMENT_COLOR[j].border}`,
+              outline: filter === j ? `2px solid ${JUDGMENT_COLOR[j].border}` : undefined,
+              outlineOffset: '-2px',
+            }}
+            aria-pressed={filter === j}
+            aria-label={`${JUDGMENT_LABEL[j]} ${totals[j]}건 필터`}
           >
             <div className="stat-value" style={{ color: JUDGMENT_COLOR[j].fg }}>{totals[j]}</div>
             <div className="stat-label">{JUDGMENT_LABEL[j]}</div>
-          </div>
+          </button>
         ))}
       </div>
 

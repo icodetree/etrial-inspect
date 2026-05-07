@@ -282,6 +282,16 @@ input:focus, select:focus, textarea:focus {
   border-radius: 8px;
   padding: 1.25rem;
   text-align: center;
+  font: inherit;
+  color: inherit;
+  transition: box-shadow 0.15s, outline-color 0.15s;
+}
+.stat-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.stat-card:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: -2px;
 }
 .stat-value {
   font-size: 2rem;
