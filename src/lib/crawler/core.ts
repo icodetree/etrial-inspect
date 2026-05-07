@@ -65,6 +65,10 @@ export class WebCrawler {
   private context: BrowserContext | null = null;
   private options: CrawlerOptions;
   private visitedUrls: Set<string> = new Set();
+  /** 큐에 이미 추가된 URL 추적 — 여러 워커가 동시에 같은 URL을 큐에 넣는 것을 방지 */
+  private queuedUrls: Set<string> = new Set();
+  /** 진행률 표시용 단조증가(high-water mark) — found 숫자가 줄어들지 않도록 */
+  private peakFound: number = 0;
   private baseUrl: string = '';
   private baseDomain: string = '';
   /** 페이지 컨텍스트의 history.pushState/replaceState/popstate 가 호출되면 이 sink 로 URL 이 들어온다. crawl() 동안만 set. */
@@ -154,6 +158,8 @@ export class WebCrawler {
     this.baseUrl = startUrl;
     this.baseDomain = new URL(startUrl).hostname;
     this.visitedUrls.clear();
+    this.queuedUrls.clear();
+    this.peakFound = 0;
     this.detectedFramework = 'unknown';
 
     const pages: PageInfo[] = [];
@@ -163,14 +169,15 @@ export class WebCrawler {
     const queue: QueueItem[] = [
       { url: startUrl, depth: 1, path: [], source: 'start' },
     ];
+    this.queuedUrls.add(this.normalize(startUrl));
 
     // History API hook 의 sink 를 큐로 연결
     this.routeCaptureSink = (rawUrl: string) => {
       try {
         if (!this.checkUrl(rawUrl)) return;
         const normalized = this.normalize(rawUrl);
-        if (this.visitedUrls.has(normalized)) return;
-        // 이미 큐에 같은 URL 이 있는지는 visitedUrls 가 처리 시점에 거른다
+        if (this.visitedUrls.has(normalized) || this.queuedUrls.has(normalized)) return;
+        this.queuedUrls.add(normalized);
         queue.push({ url: rawUrl, depth: 2, path: [], source: 'crawl' });
       } catch {
         /* noop */
@@ -184,7 +191,9 @@ export class WebCrawler {
         isValidUrl: (u) => this.checkUrl(u),
       });
       for (const sitemapUrl of sitemapUrls) {
-        if (!this.visitedUrls.has(this.normalize(sitemapUrl))) {
+        const normalized = this.normalize(sitemapUrl);
+        if (!this.visitedUrls.has(normalized) && !this.queuedUrls.has(normalized)) {
+          this.queuedUrls.add(normalized);
           queue.push({ url: sitemapUrl, depth: 1, path: [], source: 'sitemap' });
         }
       }
@@ -351,12 +360,6 @@ export class WebCrawler {
       if (source === 'sitemap') ctx.sourceCounts.fromSitemap++;
       else if (source === 'crawl') ctx.sourceCounts.fromCrawl++;
 
-      ctx.onProgress?.({
-        current: ctx.pages.length,
-        found: this.visitedUrls.size + ctx.queue.length,
-        url: normalizedUrl,
-      });
-
       // 링크 수집
       let linksFound = 0;
       if (depth < ctx.maxDepth) {
@@ -367,7 +370,8 @@ export class WebCrawler {
         });
         linksFound = links.length;
         for (const link of links) {
-          if (!this.visitedUrls.has(link.url)) {
+          if (!this.visitedUrls.has(link.url) && !this.queuedUrls.has(link.url)) {
+            this.queuedUrls.add(link.url);
             ctx.queue.push({
               url: link.url,
               depth: depth + 1,
@@ -378,6 +382,14 @@ export class WebCrawler {
           }
         }
       }
+
+      // 진행률 보고 — 링크 수집 완료 후, 단조증가(high-water mark)로 보고
+      this.peakFound = Math.max(this.peakFound, this.visitedUrls.size + this.queuedUrls.size);
+      ctx.onProgress?.({
+        current: ctx.pages.length,
+        found: this.peakFound,
+        url: normalizedUrl,
+      });
 
       // 메뉴 클릭 시뮬레이션 — 첫 페이지에서 링크가 적으면 실행
       // framework=unknown 이어도 실행: WAF 차단 사이트, 커스텀 SPA 등에서 유효
