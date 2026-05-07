@@ -8,7 +8,7 @@ import { AltTextResultViewer } from '@/features/alttext/components/AltTextResult
 import { AltTextOverlay } from '@/features/alttext/components/AltTextOverlay';
 
 export default function AltTextPage() {
-  const { config, setConfig, progress, logs, result, startScan } = useAltTextAudit();
+  const { config, setConfig, progress, logs, result, startScan, cancelScan } = useAltTextAudit();
   const [isSavingNotion, setIsSavingNotion] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const resultRef = useRef<HTMLElement>(null);
@@ -84,6 +84,7 @@ export default function AltTextPage() {
           logs={logs}
           progress={progress}
           onClose={() => setShowOverlay(false)}
+          onCancel={cancelScan}
           onScrollToResult={handleScrollToResult}
           onExport={handleExportExcel}
           onSaveToNotion={handleSaveToNotion}

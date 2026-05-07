@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AltTextAuditResult } from '@/types/alt-text';
 
 export interface AltTextConfig {
@@ -14,7 +14,7 @@ export interface AltTextConfig {
 }
 
 export interface AltTextProgressState {
-  status: 'idle' | 'crawling' | 'scanning' | 'completed' | 'error';
+  status: 'idle' | 'crawling' | 'scanning' | 'completed' | 'error' | 'cancelling' | 'cancelled';
   message: string;
   current: number;
   total: number;
@@ -45,6 +45,20 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
   const [logs, setLogs] = useState<AltTextLogEntry[]>([]);
   const [result, setResult] = useState<AltTextAuditResult | null>(null);
 
+  // 진단 abort 컨트롤러 — 정지 버튼 / 새로고침 / 탭 닫기 시 SSE 스트림 중단
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const handler = () => {
+      abortControllerRef.current?.abort();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
   const addLog = useCallback((message: string) => {
     const time = new Date().toLocaleTimeString('ko-KR', {
       hour12: false,
@@ -70,6 +84,11 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
     });
     addLog(`🚀 크롤링 + 이미지 진단 시작: ${config.targetUrl}`);
 
+    // 새 진단 시작 시 이전 컨트롤러 정리 후 새 AbortController 생성
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const res = await fetch('/api/alttext/crawl-scan', {
         method: 'POST',
@@ -83,6 +102,7 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
           maxImagesPerPage: config.maxImagesPerPage,
           useClaudeVision: config.useClaudeVision || false,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -212,11 +232,40 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
         }));
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      addLog(`오류: ${message}`);
-      setProgress(prev => ({ ...prev, status: 'error', message, current: 0, total: 0 }));
+      const isAbort =
+        (error as Error)?.name === 'AbortError' || controller.signal.aborted;
+      if (isAbort) {
+        addLog('진단이 취소되었습니다.');
+        setProgress(prev => ({
+          ...prev,
+          status: 'cancelled',
+          message: '진단이 취소되었습니다.',
+          current: 0,
+          total: 0,
+        }));
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        addLog(`오류: ${message}`);
+        setProgress(prev => ({ ...prev, status: 'error', message, current: 0, total: 0 }));
+      }
+    } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   }, [config, addLog, onHistoryRefresh]);
+
+  /** 진행 중인 이미지 진단을 정지한다. */
+  const cancelScan = useCallback(() => {
+    if (!abortControllerRef.current) return;
+    setProgress(prev => ({
+      ...prev,
+      status: 'cancelling',
+      message: '진단을 정지하는 중...',
+    }));
+    addLog('사용자 요청으로 진단을 정지합니다.');
+    abortControllerRef.current.abort();
+  }, [addLog]);
 
   return {
     config,
@@ -225,5 +274,6 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
     logs,
     result,
     startScan,
+    cancelScan,
   };
 }

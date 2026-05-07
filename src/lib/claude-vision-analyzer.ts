@@ -147,13 +147,26 @@ async function buildImageBlock(imageUrl: string): Promise<ImageContentBlock> {
     throw new Error('SVG 이미지는 Claude Vision에서 지원하지 않습니다.');
   }
 
-  // 일반 URL → 서버에서 직접 다운로드 → base64 변환
-  const res = await fetch(imageUrl, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E-able-A11y/1.0)' },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) {
-    throw new Error(`이미지 다운로드 실패: ${res.status} ${imageUrl}`);
+  // 일반 URL → 서버에서 직접 다운로드 → base64 변환 (1회 재시도)
+  let res: Response;
+  try {
+    res = await fetch(imageUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E-able-A11y/1.0)' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch (firstError) {
+    // 첫 시도 실패 → 2초 대기 후 재시도
+    await new Promise((r) => setTimeout(r, 2000));
+    res = await fetch(imageUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E-able-A11y/1.0)' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) {
+      throw new Error(`이미지 다운로드 실패 (재시도 후): ${res.status} ${imageUrl}`);
+    }
   }
 
   // Content-Type에서도 SVG 재확인
@@ -206,7 +219,21 @@ export async function analyzeImageWithClaude(
 
   const client = new Anthropic({ apiKey });
   const prompt = buildPrompt(currentAlt, ocrText);
-  const imageBlock = await buildImageBlock(imageUrl);
+
+  // 이미지 다운로드 시도 — 실패 시 텍스트 기반 판정으로 fallback
+  let imageBlock: ImageContentBlock | null = null;
+  try {
+    imageBlock = await buildImageBlock(imageUrl);
+  } catch (imgError) {
+    console.warn(
+      '[claude-vision-analyzer] 이미지 다운로드 실패, 텍스트 기반 판정으로 전환:',
+      imgError instanceof Error ? imgError.message : imgError,
+    );
+  }
+
+  const userContent: Anthropic.ContentBlockParam[] = imageBlock
+    ? [imageBlock, { type: 'text', text: prompt }]
+    : [{ type: 'text', text: `(이미지 로드 실패 — 텍스트 정보만으로 판정)\n\n${prompt}` }];
 
   const response = await client.messages.create({
     model: CLAUDE_MODEL,
@@ -214,10 +241,7 @@ export async function analyzeImageWithClaude(
     messages: [
       {
         role: 'user',
-        content: [
-          imageBlock,
-          { type: 'text', text: prompt },
-        ],
+        content: userContent,
       },
     ],
   });

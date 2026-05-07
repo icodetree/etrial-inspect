@@ -9,6 +9,7 @@ interface AltTextOverlayProps {
   logs: AltTextLogEntry[];
   progress: AltTextProgressState;
   onClose: () => void;
+  onCancel?: () => void;
   onExport?: () => void;
   onSaveToNotion?: () => void;
   onScrollToResult?: () => void;
@@ -20,6 +21,8 @@ const STATUS_LABELS: Record<string, string> = {
   scanning: 'OCR 분석 중',
   completed: '이미지 진단 완료',
   error: '오류 발생',
+  cancelling: '정지 중...',
+  cancelled: '진단 취소됨',
 };
 
 const BADGE_ITEMS = [
@@ -33,6 +36,7 @@ export const AltTextOverlay = ({
   logs,
   progress,
   onClose,
+  onCancel,
   onExport,
   onSaveToNotion,
   onScrollToResult,
@@ -257,6 +261,19 @@ export const AltTextOverlay = ({
                 Notion 저장
               </button>
             )}
+          </div>
+        )}
+
+        {/* 진행 중 정지 버튼 */}
+        {isProcessing && onCancel && (
+          <div className={styles.cancelArea}>
+            <button
+              className={styles.actionBtn}
+              onClick={() => onCancel()}
+              style={{ color: '#f87171', borderColor: 'rgba(248,113,113,0.3)' }}
+            >
+              진단 정지
+            </button>
           </div>
         )}
       </div>
