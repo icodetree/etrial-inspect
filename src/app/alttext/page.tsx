@@ -5,12 +5,10 @@ import { Sparkles } from 'lucide-react';
 import { useAltTextAudit } from '@/features/alttext/hooks/useAltTextAudit';
 import { AltTextAuditForm } from '@/features/alttext/components/AltTextAuditForm';
 import { AltTextResultViewer } from '@/features/alttext/components/AltTextResultViewer';
-import { AltTextHistoryList } from '@/features/alttext/components/AltTextHistoryList';
 import { AltTextOverlay } from '@/features/alttext/components/AltTextOverlay';
 
 export default function AltTextPage() {
-  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
-  const { config, setConfig, progress, logs, result, startScan } = useAltTextAudit(() => setHistoryRefreshTrigger(prev => prev + 1));
+  const { config, setConfig, progress, logs, result, startScan } = useAltTextAudit();
   const [isSavingNotion, setIsSavingNotion] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const resultRef = useRef<HTMLElement>(null);
@@ -35,7 +33,6 @@ export default function AltTextPage() {
       }
       const { reportUrl } = await res.json();
       alert(`Notion에 저장되었습니다!\n${reportUrl ?? ''}`);
-      setHistoryRefreshTrigger(prev => prev + 1);
     } catch (e) {
       alert(`저장 실패: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
@@ -129,7 +126,7 @@ export default function AltTextPage() {
 
       {/* 결과 뷰어 */}
       {result && (
-        <section ref={resultRef} aria-label="이미지 진단 결과" style={{ marginBottom: '1.5rem' }}>
+        <section ref={resultRef} aria-label="이미지 진단 결과">
           <AltTextResultViewer
             result={result}
             onSaveToNotion={handleSaveToNotion}
@@ -137,11 +134,6 @@ export default function AltTextPage() {
           />
         </section>
       )}
-
-      {/* 이력 리스트 */}
-      <section aria-label="이미지 진단 이력">
-        <AltTextHistoryList refreshTrigger={historyRefreshTrigger} />
-      </section>
     </div>
   );
 }
