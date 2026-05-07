@@ -83,17 +83,35 @@ export class NotionAltTextWriter {
           ? [buildParagraph('불일치 없음 (모든 이미지 pass)')]
           : mismatches
               .slice(0, 50)
-              .map((item) =>
-                buildParagraph(
-                  `[${item.judgment}] alt="${item.currentAlt ?? '(없음)'}" / OCR="${(item.extractedText ?? '').substring(0, 80)}" / ${item.reason ?? ''}`,
-                ),
-              );
+              .map((item) => {
+                let text = `[${item.judgment}] alt="${item.currentAlt ?? '(없음)'}" / OCR="${(item.extractedText ?? '').substring(0, 80)}" / ${item.reason ?? ''}`;
+                if (item.claudeAnalysis) {
+                  text += ` / 🤖 AI: ${item.claudeAnalysis.isAdequate ? '적절' : '부적절'} — ${(item.claudeAnalysis.suggestedAlt ?? '').substring(0, 60)}`;
+                }
+                return buildParagraph(text);
+              });
       children.push(buildToggle(`[${mismatches.length}건] ${scan.pageUrl ?? '(URL 없음)'}`, detailChildren));
     }
 
-    // 원본 JSON code block 들 — alt-text 는 별도 축소판 없이 원본 그대로 직렬화
+    // 원본 JSON code block — 대용량 필드(imageUrl, claudeAnalysis.suggestedAlt)를 축소하여 저장
     children.push(buildHeading2('💾 원본 데이터 (JSON)'));
-    const jsonString = JSON.stringify(result, null, 2);
+    const compactScans = (result.scans ?? []).map((scan) => ({
+      ...scan,
+      items: (scan.items ?? []).map((item) => ({
+        ...item,
+        imageUrl: item.imageUrl && item.imageUrl.length > 120
+          ? item.imageUrl.substring(0, 120) + '...'
+          : item.imageUrl,
+        claudeAnalysis: item.claudeAnalysis
+          ? {
+              isAdequate: item.claudeAnalysis.isAdequate,
+              reason: (item.claudeAnalysis.reason ?? '').substring(0, 100),
+            }
+          : undefined,
+      })),
+    }));
+    const compactResult = { ...result, scans: compactScans };
+    const jsonString = JSON.stringify(compactResult, null, 2);
     const richTextChunks = chunkRichText(jsonString);
     children.push(...buildJsonCodeBlocks(richTextChunks));
 
