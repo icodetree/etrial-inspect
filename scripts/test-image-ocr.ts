@@ -24,7 +24,7 @@ async function runTest() {
     console.log(`  유형: ${imageType}`);
 
     console.log('\n[3/4] 유사도 계산...');
-    const similarity = computeSimilarity(currentAltText, vision.extractedText);
+    const similarity = computeSimilarity(currentAltText, vision.extractedText, imageType);
     console.log(`  alt: "${currentAltText}"`);
     console.log(`  유사도: ${(similarity * 100).toFixed(1)}%`);
 

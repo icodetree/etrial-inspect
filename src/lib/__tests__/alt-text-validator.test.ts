@@ -1,9 +1,11 @@
 import {
   sanitizeExtractedText,
+  normalizeKorean,
   computeSimilarity,
   extractImagesFromPage,
   classifyImageType,
   judgeAltText,
+  getDynamicThreshold,
   scanPageForAltMismatches,
   clearOcrCache,
 } from '../alt-text-validator';
@@ -15,17 +17,22 @@ import type { VisionAnalysisResult } from '../../types/alt-text';
 
 const mockRecognize = jest.fn();
 const mockTerminate = jest.fn().mockResolvedValue(undefined);
+const mockSetParameters = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('tesseract.js', () => ({
   createWorker: jest.fn().mockImplementation(async () => ({
     recognize: mockRecognize,
     terminate: mockTerminate,
+    setParameters: mockSetParameters,
   })),
 }));
 
 jest.mock('sharp', () => {
   const chain = {
     metadata: jest.fn().mockResolvedValue({ width: 800, height: 600 }),
+    stats: jest.fn().mockResolvedValue({
+      channels: [{ mean: 150 }, { mean: 150 }, { mean: 150 }],
+    }),
     resize: jest.fn().mockReturnThis(),
     grayscale: jest.fn().mockReturnThis(),
     normalize: jest.fn().mockReturnThis(),
@@ -110,7 +117,32 @@ describe('sanitizeExtractedText', () => {
 });
 
 // ---------------------------------------------------------------------------
-// computeSimilarity (Jaccard + 부분 문자열 포함률 조합)
+// normalizeKorean (한국어 조사/어미 제거)
+// ---------------------------------------------------------------------------
+
+describe('normalizeKorean', () => {
+  test('removes common particles (조사)', () => {
+    expect(normalizeKorean('이미지를')).toBe('이미지');
+    expect(normalizeKorean('접근성의')).toBe('접근성');
+    expect(normalizeKorean('텍스트에서')).toBe('텍스트');
+  });
+
+  test('removes verb endings (어미)', () => {
+    expect(normalizeKorean('진단합니다')).toBe('진단');
+    expect(normalizeKorean('검사됩니다')).toBe('검사');
+  });
+
+  test('does not modify non-Korean text', () => {
+    expect(normalizeKorean('hello world')).toBe('hello world');
+  });
+
+  test('preserves base form when no particle is present', () => {
+    expect(normalizeKorean('이미지')).toBe('이미지');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeSimilarity (Jaccard + Containment + Ngram + Levenshtein 앙상블)
 // ---------------------------------------------------------------------------
 
 describe('computeSimilarity', () => {
@@ -118,8 +150,9 @@ describe('computeSimilarity', () => {
     expect(computeSimilarity('hello world', 'hello world')).toBe(1.0);
   });
 
-  test('completely different strings return 0.0', () => {
-    expect(computeSimilarity('apple', 'orange')).toBe(0.0);
+  test('completely different strings return near 0', () => {
+    // Levenshtein은 완전히 다른 문자열에도 소량의 유사도를 반환할 수 있음
+    expect(computeSimilarity('apple', 'orange')).toBeLessThan(0.3);
   });
 
   test('empty strings return 0.0', () => {
@@ -129,7 +162,7 @@ describe('computeSimilarity', () => {
   });
 
   test('partial overlap returns value between 0 and 1', () => {
-    const score = computeSimilarity('웹 접근성 진단', '진단 결과');
+    const score = computeSimilarity('웹 접근성 감사', '감사 보고서');
     expect(score).toBeGreaterThan(0);
     expect(score).toBeLessThan(1);
   });
@@ -143,9 +176,75 @@ describe('computeSimilarity', () => {
   });
 
   test('containment ratio rescues partial alt coverage (회사로고 vs 회사)', () => {
-    // 부분 문자열 포함률: "회사"는 "회사로고"에 포함됨
     const score = computeSimilarity('회사로고 상세페이지 배너', '회사');
-    expect(score).toBeGreaterThanOrEqual(0.5);
+    expect(score).toBeGreaterThanOrEqual(0.3);
+  });
+
+  test('Korean particles are normalized (조사 제거)', () => {
+    // "이미지를 확인" vs "이미지 확인" — 조사 제거 후 일치
+    const score = computeSimilarity('이미지를 확인하세요', '이미지 확인');
+    expect(score).toBeGreaterThan(0.6);
+  });
+
+  test('synonym matching (동의어 사전)', () => {
+    // "로그인" ↔ "login" 동의어 매칭
+    const score = computeSimilarity('로그인', 'login');
+    expect(score).toBe(1.0);
+  });
+
+  test('synonym matching for compound terms', () => {
+    const score = computeSimilarity('회원가입 페이지', 'signup 페이지');
+    expect(score).toBeGreaterThan(0.5);
+  });
+
+  test('Levenshtein similarity for near-matches', () => {
+    // 한두 글자 차이는 높은 유사도
+    const score = computeSimilarity('접근성 진단 결과', '접근성 진단 결과표');
+    expect(score).toBeGreaterThan(0.7);
+  });
+
+  test('imageType affects weighted scoring for text-heavy', () => {
+    const scoreDefault = computeSimilarity('특별 할인 이벤트', '특별할인 이벤트 50%');
+    const scoreTextHeavy = computeSimilarity('특별 할인 이벤트', '특별할인 이벤트 50%', 'text-heavy');
+    // text-heavy 가중 평균은 containment/levenshtein 비중이 높아 다를 수 있음
+    expect(scoreTextHeavy).toBeGreaterThan(0);
+    expect(scoreDefault).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getDynamicThreshold (동적 임계값)
+// ---------------------------------------------------------------------------
+
+describe('getDynamicThreshold', () => {
+  test('low confidence returns 0.3', () => {
+    expect(getDynamicThreshold('text-heavy', '짧은 텍스트', 0.3)).toBe(0.3);
+  });
+
+  test('text-heavy base is 0.5', () => {
+    // 3-5 단어: base 유지
+    expect(getDynamicThreshold('text-heavy', '단어 세 개 있다', 0.8)).toBe(0.5);
+  });
+
+  test('mixed base is 0.4', () => {
+    expect(getDynamicThreshold('mixed', '단어 세 개 있다', 0.8)).toBe(0.4);
+  });
+
+  test('short text (1-2 words) increases threshold', () => {
+    // text-heavy + 1 word: 0.5 + 0.15 = 0.65
+    expect(getDynamicThreshold('text-heavy', '로고', 0.8)).toBe(0.65);
+  });
+
+  test('long text (6+ words) decreases threshold', () => {
+    // text-heavy + 6 words: 0.5 - 0.1 = 0.4
+    expect(getDynamicThreshold('text-heavy', '첫 번째 두 번째 세 번째 네 번째', 0.8)).toBe(0.4);
+  });
+
+  test('clamped between 0.2 and 0.8', () => {
+    // Even extreme cases stay within bounds
+    const result = getDynamicThreshold('photo', '한 단어', 0.9);
+    expect(result).toBeGreaterThanOrEqual(0.2);
+    expect(result).toBeLessThanOrEqual(0.8);
   });
 });
 

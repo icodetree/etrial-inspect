@@ -1,7 +1,7 @@
 import { Page } from 'playwright-core';
 import path from 'path';
 import { createRequire } from 'node:module';
-import { createWorker, Worker } from 'tesseract.js';
+import { createWorker, PSM, Worker } from 'tesseract.js';
 import sharp from 'sharp';
 
 // Next.js(Turbopack) 번들러가 tesseract.js worker-script 경로를 재작성하는 문제 방지
@@ -99,11 +99,21 @@ class TesseractWorkerPool {
     }
   }
 
-  async recognize(imageInput: Buffer | string): Promise<{ text: string; confidence: number }> {
+  async recognize(
+    imageInput: Buffer | string,
+    psmMode?: PSM,
+  ): Promise<{ text: string; confidence: number }> {
     await this.init();
     const pooled = await this.acquire();
     try {
+      if (psmMode) {
+        await pooled.worker.setParameters({ tessedit_pageseg_mode: psmMode });
+      }
       const { data } = await pooled.worker.recognize(imageInput);
+      // PSM을 변경했으면 기본값(AUTO)으로 복원
+      if (psmMode) {
+        await pooled.worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
+      }
       return { text: data.text, confidence: data.confidence };
     } finally {
       pooled.busy = false;
@@ -221,12 +231,22 @@ export async function preprocessImage(input: Buffer): Promise<Buffer> {
   const meta = await sharp(input).metadata();
   const targetWidth = Math.max((meta.width ?? 0) * 2, 800);
 
+  // 적응형 이진화: 이미지 밝기에 따라 threshold 동적 조정
+  const stats = await sharp(input).stats();
+  const meanBrightness = stats.channels[0]?.mean ?? 128;
+
+  let thresholdValue: number;
+  if (meanBrightness > 200) thresholdValue = 220; // 매우 밝은 이미지
+  else if (meanBrightness > 150) thresholdValue = 180; // 일반
+  else if (meanBrightness > 100) thresholdValue = 140; // 약간 어두운
+  else thresholdValue = 100; // 어두운 이미지
+
   return sharp(input)
     .resize({ width: Math.min(targetWidth, 3000), withoutEnlargement: false })
     .grayscale()
     .normalize()
     .sharpen()
-    .threshold(160)
+    .threshold(thresholdValue)
     .png()
     .toBuffer();
 }
@@ -247,14 +267,28 @@ export async function analyzeImageWithVision(
 
   try {
     let recognitionInput: Buffer | string;
+    let psmMode: PSM | undefined;
+
     if (enablePreprocessing) {
       const raw = await fetchImageBuffer(imageUrl);
+      // PSM 튜닝: 이미지 크기/비율에 따라 세그멘테이션 모드 선택
+      try {
+        const meta = await sharp(raw).metadata();
+        const width = meta.width ?? 0;
+        const height = meta.height ?? 1;
+        const aspectRatio = width / height;
+        if (aspectRatio > 5) psmMode = PSM.SINGLE_LINE; // 한 줄 텍스트 (배너, 버튼)
+        else if (aspectRatio > 2) psmMode = PSM.SINGLE_BLOCK; // 균일한 텍스트 블록
+        // else psmMode stays undefined → 기본값(AUTO) 사용
+      } catch {
+        // metadata 실패 시 기본 PSM 사용
+      }
       recognitionInput = await preprocessImage(raw);
     } else {
       recognitionInput = imageUrl;
     }
 
-    const { text, confidence } = await pool.recognize(recognitionInput);
+    const { text, confidence } = await pool.recognize(recognitionInput, psmMode);
     const cleaned = sanitizeExtractedText(text);
     const wordCount = cleaned ? cleaned.split(/\s+/).filter(Boolean).length : 0;
 
@@ -282,6 +316,94 @@ export function sanitizeExtractedText(raw: string): string {
     .replace(/[^\w\sㄱ-ㅎㅏ-ㅣ가-힣.,!?()%$@#-]/gu, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
+}
+
+// ---------------------------------------------------------------------------
+// Step 4-1: 한국어 텍스트 정규화 (조사/어미 제거)
+// ---------------------------------------------------------------------------
+
+/**
+ * 한국어 조사/어미를 토큰 단위로 제거하는 경량 정규화 함수.
+ * 토큰 끝(단어 경계)에 붙은 조사만 제거하여 "결과"의 "과" 등이 오탈되는 것을 방지한다.
+ * 최소 2글자 이상인 토큰에서만 조사를 제거한다 (단일 글자 토큰 보호).
+ */
+export function normalizeKorean(text: string): string {
+  // 2글자 이상 조사 (긴 것부터 먼저 매칭해야 "에서"가 "에"보다 우선)
+  const LONG_PARTICLES =
+    /(?<=[\uAC00-\uD7A3]{2,})(에서|에게|한테|께서|으로|로서|로써|부터|까지|밖에|같이|처럼|만큼|보다|대로|든지|라도|마저|조차)$/;
+  // 1글자 조사 — 흔한 단어 끝("과학"의 "과", "만족"의 "만" 등)과 충돌하므로
+  // 토큰이 3글자 이상일 때만 제거
+  const SHORT_PARTICLES = /(?<=[\uAC00-\uD7A3]{2,})(은|는|이|가|을|를|의|에|와|과|도|만|뿐)$/;
+  // 동사 어미 (토큰 끝)
+  const VERB_ENDINGS =
+    /(합니다|합니까|하세요|하십시오|합시다|하겠습니다|했습니다|됩니다|입니다|입니까|습니다|습니까|세요|시오|겠다|한다|해서|하여|하고|하는|되는|된다|하다)$/;
+
+  return text
+    .split(/\s+/)
+    .map((token) => {
+      if (!token) return token;
+      let t = token;
+      // 긴 조사부터 시도
+      t = t.replace(LONG_PARTICLES, '');
+      // 짧은 조사는 결과 토큰이 2글자 이상 남을 때만
+      const shortMatch = t.match(SHORT_PARTICLES);
+      if (shortMatch && t.length - shortMatch[1].length >= 2) {
+        t = t.replace(SHORT_PARTICLES, '');
+      }
+      // 동사 어미
+      t = t.replace(VERB_ENDINGS, '');
+      return t;
+    })
+    .join(' ')
+    .trim();
+}
+
+// ---------------------------------------------------------------------------
+// Step 4-2: 동의어 사전 (웹 UI 흔한 용어)
+// ---------------------------------------------------------------------------
+
+const SYNONYM_MAP: Record<string, string[]> = {
+  '회사소개': ['기업소개', '기업안내', '회사안내', 'about', 'aboutus'],
+  '문의': ['연락처', '연락', 'contact', '상담'],
+  '로그인': ['login', 'signin', '로그 인'],
+  '회원가입': ['가입', 'signup', 'register', '회원 가입'],
+  '공지사항': ['공지', 'notice', '알림'],
+  '자주묻는질문': ['faq', 'FAQ', '자주 묻는 질문'],
+  '검색': ['search', '찾기'],
+  '홈': ['home', '메인', '첫페이지'],
+  '메뉴': ['menu', '네비게이션', 'nav'],
+  '장바구니': ['cart', '카트', '쇼핑카트'],
+  '주문': ['order', '주문하기'],
+  '결제': ['payment', '결제하기', '구매'],
+  '배송': ['delivery', '배달'],
+  '이전': ['prev', 'previous', '뒤로'],
+  '다음': ['next', '앞으로'],
+  '닫기': ['close', '닫기버튼'],
+  '열기': ['open', '펼치기'],
+  '다운로드': ['download', '내려받기'],
+  '업로드': ['upload', '올리기'],
+};
+
+/** 역방향 룩업 테이블 (초기화 1회) */
+const synonymLookup: Map<string, string> = new Map();
+(function buildSynonymLookup() {
+  for (const [canonical, aliases] of Object.entries(SYNONYM_MAP)) {
+    const lowerCanonical = canonical.toLowerCase().replace(/\s+/g, '');
+    synonymLookup.set(lowerCanonical, lowerCanonical);
+    for (const alias of aliases) {
+      synonymLookup.set(alias.toLowerCase().replace(/\s+/g, ''), lowerCanonical);
+    }
+  }
+})();
+
+function normalizeSynonyms(text: string): string {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  return tokens
+    .map((token) => {
+      const key = token.toLowerCase().replace(/\s+/g, '');
+      return synonymLookup.get(key) ?? token;
+    })
+    .join(' ');
 }
 
 // ---------------------------------------------------------------------------
@@ -336,9 +458,52 @@ function charNgramSimilarity(a: string, b: string, n = 2): number {
   return union === 0 ? 0 : intersection / union;
 }
 
-export function computeSimilarity(altText: string, ocrText: string): number {
-  const na = normalizeForCompare(altText);
-  const nb = normalizeForCompare(ocrText);
+/**
+ * Levenshtein 편집 거리 기반 유사도 (0~1).
+ * 성능 보호: 텍스트가 500자 이상이면 잘라서 비교.
+ */
+function levenshteinSimilarity(a: string, b: string): number {
+  const MAX_LEN = 500;
+  const sa = a.length > MAX_LEN ? a.slice(0, MAX_LEN) : a;
+  const sb = b.length > MAX_LEN ? b.slice(0, MAX_LEN) : b;
+
+  if (sa.length === 0 || sb.length === 0) return 0;
+  if (sa === sb) return 1;
+
+  const m = sa.length;
+  const n = sb.length;
+  // 1-row DP
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = sa[i - 1] === sb[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+
+  return 1 - prev[n] / Math.max(m, n);
+}
+
+/**
+ * 유사도 계산 — Jaccard + Containment + Char-ngram + Levenshtein.
+ * imageType에 따라 가중 평균 또는 max()를 선택한다.
+ */
+export function computeSimilarity(
+  altText: string,
+  ocrText: string,
+  imageType?: ImageType,
+): number {
+  // 한국어 정규화 + 동의어 치환 적용
+  const korNormAlt = normalizeSynonyms(normalizeKorean(altText));
+  const korNormOcr = normalizeSynonyms(normalizeKorean(ocrText));
+
+  const na = normalizeForCompare(korNormAlt);
+  const nb = normalizeForCompare(korNormOcr);
 
   if (!na || !nb) return 0;
   if (na === nb) return 1;
@@ -346,8 +511,22 @@ export function computeSimilarity(altText: string, ocrText: string): number {
   const jaccard = jaccardSimilarity(na, nb);
   const containment = substringContainmentRatio(na, nb);
   const ngram = charNgramSimilarity(na, nb);
+  const levenshtein = levenshteinSimilarity(na, nb);
 
-  return Math.max(jaccard, containment, ngram);
+  // 어떤 단일 메트릭이 0.9 이상이면 확실한 매칭으로 판정
+  const maxScore = Math.max(jaccard, containment, ngram, levenshtein);
+  if (maxScore >= 0.9) return maxScore;
+
+  // 이미지 타입별 가중 평균
+  if (imageType === 'text-heavy') {
+    return containment * 0.35 + levenshtein * 0.3 + jaccard * 0.2 + ngram * 0.15;
+  }
+  if (imageType === 'mixed') {
+    return ngram * 0.3 + levenshtein * 0.3 + containment * 0.25 + jaccard * 0.15;
+  }
+
+  // photo이거나 타입 미확정 → max() 유지
+  return maxScore;
 }
 
 // ---------------------------------------------------------------------------
@@ -367,8 +546,38 @@ export function classifyImageType(vision: VisionAnalysisResult): ImageType {
 }
 
 // ---------------------------------------------------------------------------
-// Step 7: 최종 판정
+// Step 7: 동적 임계값 + 최종 판정
 // ---------------------------------------------------------------------------
+
+/**
+ * 이미지 타입과 OCR 텍스트 길이, 신뢰도에 따라 임계값을 동적으로 결정한다.
+ * - text-heavy: 기본 0.5 (텍스트 이미지는 OCR이 비교적 정확)
+ * - mixed: 기본 0.4 (OCR 품질이 들쭉날쭉)
+ * - photo: 기본 0.6 (판정 자체를 스킵하므로 실사용 빈도 낮음)
+ * - 짧은 텍스트(1-2단어)는 정확해야 하므로 +0.15, 긴 텍스트(6+)는 부분 매칭 허용 -0.1
+ * - OCR confidence가 매우 낮으면(0.5 미만) 임계값 완화
+ */
+export function getDynamicThreshold(
+  imageType: ImageType,
+  ocrText: string,
+  confidence: number,
+): number {
+  const wordCount = ocrText
+    .split(/\s+/)
+    .filter((w) => w.length > 0).length;
+
+  // OCR confidence가 낮으면 임계값 완화
+  if (confidence < 0.5) return 0.3;
+
+  // 이미지 타입별 기본 임계값
+  let base = imageType === 'text-heavy' ? 0.5 : imageType === 'mixed' ? 0.4 : 0.6;
+
+  // 텍스트 길이 보정: 짧으면 엄격, 길면 관대
+  if (wordCount <= 2) base += 0.15; // 1-2단어: 정확해야 함
+  else if (wordCount >= 6) base -= 0.1; // 6+단어: 부분 매칭 허용
+
+  return Math.max(0.2, Math.min(0.8, base));
+}
 
 export interface JudgeParams {
   altAttr: string | null;
@@ -376,10 +585,17 @@ export interface JudgeParams {
   similarity: number;
   ocrText: string;
   threshold: number;
+  /** OCR confidence (0~1). 제공되면 동적 임계값으로 대체됨 */
+  confidence?: number;
 }
 
 export function judgeAltText(params: JudgeParams): { judgment: AltTextJudgment; reason: string } {
-  const { altAttr, imageType, similarity, ocrText, threshold } = params;
+  const { altAttr, imageType, similarity, ocrText, confidence } = params;
+  // confidence가 제공되면 동적 임계값 사용, 아니면 레거시 threshold 사용
+  const threshold =
+    confidence !== undefined
+      ? getDynamicThreshold(imageType, ocrText, confidence)
+      : params.threshold;
 
   if (altAttr === null) {
     return {
@@ -457,13 +673,14 @@ export async function scanPageForAltMismatches(
 
     const vision = await analyzeImageWithVision(img.src, { enablePreprocessing, pool });
     const imageType = classifyImageType(vision);
-    const similarity = computeSimilarity(img.alt ?? '', vision.extractedText);
+    const similarity = computeSimilarity(img.alt ?? '', vision.extractedText, imageType);
     const { judgment, reason } = judgeAltText({
       altAttr: img.alt,
       imageType,
       similarity,
       ocrText: vision.extractedText,
       threshold,
+      confidence: vision.confidenceScore,
     });
 
     countsByJudgment[judgment]++;
