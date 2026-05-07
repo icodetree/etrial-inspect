@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import type { AltTextJudgment, AltTextScanResult } from '@/types/alt-text';
+import { ReportPagination } from './ReportPagination';
+
+const ITEMS_PER_PAGE = 20;
 
 interface Props {
   scans: AltTextScanResult[];
@@ -32,6 +35,7 @@ const IMAGE_TYPE_LABEL = {
 export default function AltTextScanSection({ scans }: Props) {
   const [filter, setFilter] = useState<'all' | AltTextJudgment>('all');
   const [page, setPage] = useState<'all' | string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const totals = useMemo(() => {
     const acc: Record<AltTextJudgment, number> = {
@@ -61,6 +65,12 @@ export default function AltTextScanSection({ scans }: Props) {
       return true;
     });
   }, [scans, filter, page]);
+
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+  const paginatedItems = filteredItems.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
 
   const uniquePages = useMemo(
     () => Array.from(new Set(scans.map((s) => s.pageUrl))),
@@ -96,13 +106,13 @@ export default function AltTextScanSection({ scans }: Props) {
 
       {/* 필터 */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        <select value={filter} onChange={(e) => setFilter(e.target.value as 'all' | AltTextJudgment)}>
+        <select value={filter} onChange={(e) => { setFilter(e.target.value as 'all' | AltTextJudgment); setCurrentPage(1); }}>
           <option value="all">모든 판정</option>
           {(Object.keys(JUDGMENT_LABEL) as AltTextJudgment[]).map((j) => (
             <option key={j} value={j}>{JUDGMENT_LABEL[j]}</option>
           ))}
         </select>
-        <select value={page} onChange={(e) => setPage(e.target.value)}>
+        <select value={page} onChange={(e) => { setPage(e.target.value); setCurrentPage(1); }}>
           <option value="all">모든 페이지</option>
           {uniquePages.map((url) => (
             <option key={url} value={url}>{url}</option>
@@ -115,7 +125,7 @@ export default function AltTextScanSection({ scans }: Props) {
 
       {/* 아이템 목록 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {filteredItems.slice(0, 100).map((item, idx) => {
+        {paginatedItems.map((item, idx) => {
           const color = JUDGMENT_COLOR[item.judgment];
           return (
             <div
@@ -199,12 +209,13 @@ export default function AltTextScanSection({ scans }: Props) {
             </div>
           );
         })}
-        {filteredItems.length > 100 && (
-          <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '0.85rem' }}>
-            … 상위 100건만 표시됩니다. 전체 결과는 JSON 다운로드로 확인하세요.
-          </p>
-        )}
       </div>
+
+      <ReportPagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={setCurrentPage}
+      />
     </div>
   );
 }
