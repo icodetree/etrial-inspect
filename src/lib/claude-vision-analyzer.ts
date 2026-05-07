@@ -5,6 +5,7 @@
  * Claude Vision으로 재검증하여 판정을 업데이트한다.
  */
 import Anthropic from '@anthropic-ai/sdk';
+import sharp from 'sharp';
 import type { AltTextMismatch, ClaudeVisionAnalysis } from '@/types/alt-text';
 
 // ---------------------------------------------------------------------------
@@ -84,40 +85,66 @@ OCR로 추출된 텍스트: "${ocrText}"
 
 type ImageContentBlock = Anthropic.ImageBlockParam;
 
-/** 확장자/Content-Type → Claude 허용 media_type 매핑 */
-function inferMediaType(url: string, contentType?: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
-  const ct = (contentType || '').toLowerCase();
-  if (ct.includes('png')) return 'image/png';
-  if (ct.includes('gif')) return 'image/gif';
-  if (ct.includes('webp')) return 'image/webp';
-  if (ct.includes('jpeg') || ct.includes('jpg')) return 'image/jpeg';
-  // Content-Type 없으면 URL 확장자로 추론
-  const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
-  if (ext === 'png') return 'image/png';
-  if (ext === 'gif') return 'image/gif';
-  if (ext === 'webp') return 'image/webp';
-  return 'image/jpeg'; // 기본값
+/** 바이너리 magic bytes로 실제 이미지 형식 판별 */
+function detectMediaType(buffer: Buffer): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8) return 'image/jpeg';
+  if (buffer[0] === 0x89 && buffer[1] === 0x50) return 'image/png';
+  if (buffer[0] === 0x47 && buffer[1] === 0x49) return 'image/gif';
+  if (buffer[0] === 0x52 && buffer[1] === 0x49) return 'image/webp';
+  return 'image/jpeg'; // fallback
 }
+
+/** SVG 이미지인지 판별 (URL 확장자 또는 Content-Type) */
+function isSvgImage(url: string, contentType?: string): boolean {
+  if (contentType && contentType.toLowerCase().includes('image/svg+xml')) return true;
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+  return ext === 'svg';
+}
+
+/** 4.5MB 임계값 (리사이즈 판단용, Claude 제한은 5MB) */
+const MAX_BASE64_BYTES = 4.5 * 1024 * 1024;
+/** 최소 이미지 크기 (base64 기준 1KB 미만이면 스킵) */
+const MIN_BASE64_BYTES = 1024;
 
 /**
  * 이미지 URL → base64 Claude content block.
  * Claude API는 URL fetch 시 robots.txt를 준수하여 차단될 수 있으므로,
  * 서버에서 직접 다운로드하여 base64로 변환 후 전달한다.
+ *
+ * 검증:
+ *  - SVG는 Claude Vision 미지원 → 에러
+ *  - 1KB 미만 이미지는 깨진/너무 작은 이미지로 간주 → 에러
+ *  - 5MB 초과 이미지는 sharp로 리사이즈
+ *  - media_type은 magic bytes로 판별 (Content-Type/확장자 무시)
  */
 async function buildImageBlock(imageUrl: string): Promise<ImageContentBlock> {
   // data: URL인 경우 base64 + media_type 추출
   if (imageUrl.startsWith('data:')) {
     const match = imageUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
     if (match) {
+      const dataMediaType = match[1].toLowerCase();
+      if (dataMediaType === 'image/svg+xml') {
+        throw new Error('SVG 이미지는 Claude Vision에서 지원하지 않습니다.');
+      }
+      const dataBuffer = Buffer.from(match[2], 'base64');
+      if (dataBuffer.byteLength < MIN_BASE64_BYTES) {
+        throw new Error(`이미지가 너무 작습니다 (${dataBuffer.byteLength} bytes). 스킵합니다.`);
+      }
+      const actualMediaType = detectMediaType(dataBuffer);
       return {
         type: 'image',
         source: {
           type: 'base64',
-          media_type: match[1] as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+          media_type: actualMediaType,
           data: match[2],
         },
       };
     }
+  }
+
+  // SVG 사전 검사 (URL 확장자)
+  if (isSvgImage(imageUrl)) {
+    throw new Error('SVG 이미지는 Claude Vision에서 지원하지 않습니다.');
   }
 
   // 일반 URL → 서버에서 직접 다운로드 → base64 변환
@@ -128,9 +155,30 @@ async function buildImageBlock(imageUrl: string): Promise<ImageContentBlock> {
   if (!res.ok) {
     throw new Error(`이미지 다운로드 실패: ${res.status} ${imageUrl}`);
   }
-  const buffer = await res.arrayBuffer();
-  const base64 = Buffer.from(buffer).toString('base64');
-  const mediaType = inferMediaType(imageUrl, res.headers.get('content-type') || undefined);
+
+  // Content-Type에서도 SVG 재확인
+  const contentType = res.headers.get('content-type') || '';
+  if (isSvgImage(imageUrl, contentType)) {
+    throw new Error('SVG 이미지는 Claude Vision에서 지원하지 않습니다.');
+  }
+
+  let buf: Buffer = Buffer.from(await res.arrayBuffer());
+
+  // 크기 검증: 너무 작으면 스킵
+  if (buf.byteLength < MIN_BASE64_BYTES) {
+    throw new Error(`이미지가 너무 작습니다 (${buf.byteLength} bytes). 스킵합니다.`);
+  }
+
+  // 5MB 초과 시 sharp로 리사이즈
+  if (buf.byteLength > MAX_BASE64_BYTES) {
+    buf = await sharp(buf)
+      .resize({ width: 1920, withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+  }
+
+  const mediaType = detectMediaType(buf);
+  const base64 = buf.toString('base64');
 
   return {
     type: 'image',

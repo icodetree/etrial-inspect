@@ -226,7 +226,7 @@ input:focus, select:focus, textarea:focus {
 .form-group label:has(input[type="checkbox"]),
 .form-group label:has(input[type="radio"]) {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.5rem;
   cursor: pointer;
 }

@@ -82,6 +82,16 @@ export const AltTextResultViewer = ({ result, onSaveToNotion, isSavingNotion }: 
 
   const counts = result.countsByJudgment;
 
+  // 소요 시간 계산
+  const elapsedSeconds = result.startTime && result.endTime
+    ? Math.round((new Date(result.endTime).getTime() - new Date(result.startTime).getTime()) / 1000)
+    : null;
+  const elapsedDisplay = elapsedSeconds !== null
+    ? elapsedSeconds >= 60
+      ? `${Math.floor(elapsedSeconds / 60)}분 ${elapsedSeconds % 60}초`
+      : `${elapsedSeconds}초`
+    : null;
+
   return (
     <div className="container">
       <header className={`${styles['report-header']} ${styles['report-header-column']}`}>
@@ -97,6 +107,7 @@ export const AltTextResultViewer = ({ result, onSaveToNotion, isSavingNotion }: 
                 minute: '2-digit',
                 hour12: false,
               })}
+              {elapsedDisplay ? ` · 소요 시간: ${elapsedDisplay}` : ''}
               {result.inspector ? ` · 점검자: ${result.inspector}` : ''}
             </p>
           </div>

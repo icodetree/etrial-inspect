@@ -60,11 +60,24 @@ export class NotionAltTextWriter {
         ? targetUrls[0]
         : `이미지 진단 - URL ${targetUrls.length}개`;
 
+    // 소요 시간 계산
+    let elapsedText = '';
+    if (result.startTime && result.endTime) {
+      const elapsedSec = Math.round(
+        (new Date(result.endTime).getTime() - new Date(result.startTime).getTime()) / 1000,
+      );
+      elapsedText =
+        elapsedSec >= 60
+          ? `${Math.floor(elapsedSec / 60)}분 ${elapsedSec % 60}초`
+          : `${elapsedSec}초`;
+    }
+
     const children: NotionBlock[] = [
       buildHeading2('🖼️ 이미지 진단 요약'),
       buildBullet(`대상 URL: ${result.totalUrls}개`),
       buildBullet(`OCR 실행 이미지: ${result.totalImagesScanned}장`),
       buildBullet(`불일치(pass 제외): ${result.totalMismatches}건`),
+      ...(elapsedText ? [buildBullet(`소요 시간: ${elapsedText}`)] : []),
       buildHeading3('판정별 카운트'),
       buildBullet(`✅ pass: ${counts.pass ?? 0}`),
       buildBullet(`🔴 missing_alt: ${counts.missing_alt ?? 0}`),
