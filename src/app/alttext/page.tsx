@@ -1,16 +1,24 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useAltTextAudit } from '@/features/alttext/hooks/useAltTextAudit';
 import { AltTextAuditForm } from '@/features/alttext/components/AltTextAuditForm';
 import { AltTextResultViewer } from '@/features/alttext/components/AltTextResultViewer';
 import { AltTextHistoryList } from '@/features/alttext/components/AltTextHistoryList';
+import { AltTextOverlay } from '@/features/alttext/components/AltTextOverlay';
 
 export default function AltTextPage() {
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
   const { config, setConfig, progress, logs, result, startScan } = useAltTextAudit(() => setHistoryRefreshTrigger(prev => prev + 1));
   const [isSavingNotion, setIsSavingNotion] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const resultRef = useRef<HTMLElement>(null);
+
+  const handleStartScan = useCallback(() => {
+    setShowOverlay(true);
+    startScan();
+  }, [startScan]);
 
   const handleSaveToNotion = useCallback(async () => {
     if (!result) return;
@@ -35,10 +43,57 @@ export default function AltTextPage() {
     }
   }, [result]);
 
+  const handleScrollToResult = useCallback(() => {
+    resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  const handleExportExcel = useCallback(async () => {
+    if (!result) return;
+    try {
+      const res = await fetch('/api/alttext/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || '엑셀 생성 실패');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `alttext-audit-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (error) {
+      alert(`엑셀 다운로드 실패: ${error instanceof Error ? error.message : error}`);
+    }
+  }, [result]);
+
   const isProcessing = progress.status === 'running';
+
+  const resultSummary = result
+    ? { pages: result.totalUrls, images: result.totalImagesScanned, mismatches: result.totalMismatches }
+    : null;
 
   return (
     <div style={{ padding: '2rem' }}>
+      {/* 오버레이 */}
+      {showOverlay && progress.status !== 'idle' && (
+        <AltTextOverlay
+          logs={logs}
+          progress={progress}
+          onClose={() => setShowOverlay(false)}
+          onScrollToResult={handleScrollToResult}
+          onExport={handleExportExcel}
+          onSaveToNotion={handleSaveToNotion}
+          resultSummary={resultSummary}
+        />
+      )}
+
       {/* 헤더 */}
       <div
         style={{
@@ -53,7 +108,7 @@ export default function AltTextPage() {
         </h1>
         <button
           className="btn btn-primary"
-          onClick={startScan}
+          onClick={handleStartScan}
           disabled={isProcessing}
           style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
         >
@@ -67,46 +122,14 @@ export default function AltTextPage() {
         <AltTextAuditForm
           config={config}
           setConfig={setConfig}
-          onStart={startScan}
+          onStart={handleStartScan}
           isProcessing={isProcessing}
         />
       </section>
 
-      {/* 진행 로그 */}
-      {(progress.status !== 'idle' || logs.length > 0) && (
-        <section
-          aria-label="진행 로그"
-          style={{
-            marginBottom: '1.5rem',
-            padding: '1rem 1.25rem',
-            background: '#0f172a',
-            color: '#e2e8f0',
-            borderRadius: '10px',
-            fontFamily: 'monospace',
-            fontSize: '0.85rem',
-            lineHeight: 1.6,
-            maxHeight: '240px',
-            overflowY: 'auto',
-          }}
-        >
-          {logs.map((log, i) => (
-            <div key={i}>
-              <span style={{ color: '#64748b' }}>[{log.time}]</span> {log.message}
-            </div>
-          ))}
-          {progress.status === 'running' && <div style={{ color: '#fbbf24' }}>실행 중...</div>}
-          {progress.status === 'completed' && (
-            <div style={{ color: '#34d399', marginTop: '0.5rem' }}>{progress.message}</div>
-          )}
-          {progress.status === 'error' && (
-            <div style={{ color: '#f87171', marginTop: '0.5rem' }}>오류: {progress.message}</div>
-          )}
-        </section>
-      )}
-
       {/* 결과 뷰어 */}
       {result && (
-        <section aria-label="이미지 진단 결과" style={{ marginBottom: '1.5rem' }}>
+        <section ref={resultRef} aria-label="이미지 진단 결과" style={{ marginBottom: '1.5rem' }}>
           <AltTextResultViewer
             result={result}
             onSaveToNotion={handleSaveToNotion}
