@@ -10,6 +10,7 @@ export interface AltTextConfig {
   maxDepth?: number;
   excludePaths?: string;
   maxImagesPerPage?: number;
+  useClaudeVision?: boolean;
 }
 
 export interface AltTextProgressState {
@@ -36,6 +37,7 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
     maxDepth: undefined,
     excludePaths: '',
     maxImagesPerPage: undefined,
+    useClaudeVision: false,
   });
   const [progress, setProgress] = useState<AltTextProgressState>({
     status: 'idle', message: '', current: 0, total: 0, currentUrl: '',
@@ -79,6 +81,7 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
           maxDepth: config.maxDepth,
           excludePaths: config.excludePaths,
           maxImagesPerPage: config.maxImagesPerPage,
+          useClaudeVision: config.useClaudeVision || false,
         }),
       });
 

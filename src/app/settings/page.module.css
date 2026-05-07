@@ -90,3 +90,71 @@
   display: flex;
   justify-content: flex-end;
 }
+
+/* ============================================
+   Anthropic API Key 관리 섹션
+   ============================================ */
+
+.anthropicStatus {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  background: var(--c-canvas-subtle, #f6f8fa);
+  border: 1px solid var(--c-border, #d0d7de);
+}
+
+.anthropicStatusText {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.statusIndicatorConnected,
+.statusIndicatorDisconnected {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.statusIndicatorConnected {
+  background: var(--c-success, #1a7f37);
+}
+
+.statusIndicatorDisconnected {
+  background: var(--c-fg-muted, #636c76);
+}
+
+.maskedKey {
+  font-family: monospace;
+  font-size: 0.8125rem;
+  background: var(--c-neutral-muted, #eaeef2);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.apiKeyInputRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.apiKeyInputRow input {
+  flex: 1;
+}
+
+.feedbackSuccess {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--c-success, #1a7f37);
+}
+
+.feedbackError {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--c-danger, #cf222e);
+}

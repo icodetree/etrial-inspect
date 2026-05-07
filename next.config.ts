@@ -22,7 +22,8 @@ const nextConfig: NextConfig = {
     "@sparticuz/chromium",
     "llms-txt-generator",
     "tesseract.js",
-    "sharp"
+    "sharp",
+    "@anthropic-ai/sdk"
   ],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   outputFileTracingIncludes: {

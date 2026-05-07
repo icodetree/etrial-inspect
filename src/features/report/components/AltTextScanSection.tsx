@@ -225,6 +225,55 @@ export default function AltTextScanSection({ scans }: Props) {
                 <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.3rem', wordBreak: 'break-all' }}>
                   {item.pageUrl} · {item.elementId}
                 </div>
+
+                {/* Claude Vision AI 판정 결과 */}
+                {item.claudeAnalysis && (
+                  <div
+                    style={{
+                      marginTop: '0.75rem',
+                      padding: '0.75rem',
+                      borderRadius: '0.375rem',
+                      background: item.claudeAnalysis.isAdequate ? '#f0fdf4' : '#fef2f2',
+                      border: `1px solid ${item.claudeAnalysis.isAdequate ? '#86efac' : '#fca5a5'}`,
+                    }}
+                    aria-label={`AI 판정: ${item.claudeAnalysis.isAdequate ? '적절' : '부적절'}`}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem' }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '9999px',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          letterSpacing: '0.02em',
+                          background: item.claudeAnalysis.isAdequate ? '#22c55e' : '#ef4444',
+                          color: '#fff',
+                        }}
+                      >
+                        AI 판정
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: item.claudeAnalysis.isAdequate ? '#15803d' : '#b91c1c',
+                        }}
+                      >
+                        {item.claudeAnalysis.isAdequate ? '적절한 대체텍스트' : '부적절한 대체텍스트'}
+                      </span>
+                    </div>
+                    {item.claudeAnalysis.suggestedAlt && (
+                      <div style={{ fontSize: '0.8125rem', marginBottom: '0.25rem' }}>
+                        <strong>추천 alt:</strong>{' '}
+                        <span style={{ color: '#374151' }}>{`"${item.claudeAnalysis.suggestedAlt}"`}</span>
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                      {item.claudeAnalysis.reason}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );

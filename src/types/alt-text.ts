@@ -54,6 +54,13 @@ export type AltTextJudgment =
  */
 export type AltTextExecutionMode = 'integrated' | 'separate' | 'standalone';
 
+/** Claude Vision API 재검증 결과 */
+export interface ClaudeVisionAnalysis {
+  suggestedAlt: string;
+  isAdequate: boolean;
+  reason: string;
+}
+
 /** 개별 이미지 판정 결과 */
 export interface AltTextMismatch {
   /** 이미지 식별자: id 있으면 `#id`, 없으면 XPath */
@@ -74,6 +81,8 @@ export interface AltTextMismatch {
   judgment: AltTextJudgment;
   /** 판정 사유 (사람이 읽는 설명) */
   reason: string;
+  /** Claude Vision API 재검증 결과 (AI 정밀 분석 활성 시) */
+  claudeAnalysis?: ClaudeVisionAnalysis;
 }
 
 /** 스캔 동작 제어 옵션 */
@@ -104,6 +113,12 @@ export interface AltTextScanOptions {
    * @default 32
    */
   minImageSizePx?: number;
+  /**
+   * Claude Vision API로 OCR 결과를 재검증할지 여부.
+   * ANTHROPIC_API_KEY가 설정되어 있어야 동작한다.
+   * @default false
+   */
+  useClaudeVision?: boolean;
   /**
    * 사용자 취소 신호.
    */
@@ -179,6 +194,7 @@ export interface AltTextAuditResult {
   scans: AltTextScanResult[];
   options?: {
     maxImagesPerPage?: number;
+    useClaudeVision?: boolean;
   };
   /** 대표 사이트 유형 정보 (첫 페이지 기준) */
   siteInfo?: AltTextScanSiteInfo;

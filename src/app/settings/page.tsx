@@ -1,12 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSettings } from '@/features/settings/hooks/useSettings';
 import styles from './page.module.css';
 
 interface IntegrationStatus {
   notion: { configured: boolean };
   github: { configured: boolean };
+  hasAnthropicKey?: boolean;
+}
+
+interface AnthropicKeyState {
+  hasKey: boolean;
+  masked: string | null;
 }
 
 export default function SettingsPage() {
@@ -14,18 +20,77 @@ export default function SettingsPage() {
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [statusError, setStatusError] = useState(false);
 
+  // Anthropic API Key 관리 상태
+  const [anthropicState, setAnthropicState] = useState<AnthropicKeyState>({ hasKey: false, masked: null });
+  const [anthropicKeyInput, setAnthropicKeyInput] = useState('');
+  const [anthropicSaving, setAnthropicSaving] = useState(false);
+  const [anthropicFeedback, setAnthropicFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const fetchAnthropicKey = useCallback(async () => {
+    try {
+      const res = await fetch('/api/settings/anthropic-key');
+      const data = await res.json();
+      setAnthropicState({ hasKey: data.hasKey, masked: data.masked });
+    } catch {
+      // 상태 조회 실패 시 기본값 유지
+    }
+  }, []);
+
   useEffect(() => {
     fetch('/api/settings/status')
       .then(r => r.json())
       .then(setIntegrationStatus)
       .catch(() => setStatusError(true));
-  }, []);
+
+    fetchAnthropicKey();
+  }, [fetchAnthropicKey]);
 
   if (!isLoaded) return null;
 
   const handleReset = () => {
     if (window.confirm('모든 설정을 기본값으로 초기화하시겠습니까?')) {
       resetSettings();
+    }
+  };
+
+  const handleSaveAnthropicKey = async () => {
+    if (!anthropicKeyInput.trim()) return;
+    setAnthropicSaving(true);
+    setAnthropicFeedback(null);
+    try {
+      const res = await fetch('/api/settings/anthropic-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: anthropicKeyInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '저장 실패');
+      setAnthropicState({ hasKey: data.hasKey, masked: data.masked });
+      setAnthropicKeyInput('');
+      setAnthropicFeedback({ type: 'success', message: 'API 키가 저장되었습니다.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setAnthropicFeedback({ type: 'error', message: `저장 실패: ${msg}` });
+    } finally {
+      setAnthropicSaving(false);
+    }
+  };
+
+  const handleDeleteAnthropicKey = async () => {
+    if (!window.confirm('Anthropic API 키를 삭제하시겠습니까? AI 정밀 분석 기능을 사용할 수 없게 됩니다.')) return;
+    setAnthropicSaving(true);
+    setAnthropicFeedback(null);
+    try {
+      const res = await fetch('/api/settings/anthropic-key', { method: 'DELETE' });
+      if (!res.ok) throw new Error('삭제 실패');
+      setAnthropicState({ hasKey: false, masked: null });
+      setAnthropicKeyInput('');
+      setAnthropicFeedback({ type: 'success', message: 'API 키가 삭제되었습니다.' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setAnthropicFeedback({ type: 'error', message: `삭제 실패: ${msg}` });
+    } finally {
+      setAnthropicSaving(false);
     }
   };
 
@@ -69,12 +134,95 @@ export default function SettingsPage() {
                 {integrationStatus.github.configured ? '연결됨' : '미설정'}
               </span>
             </div>
+
+            <div className={styles.integrationRow}>
+              <span className={styles.integrationLabel}>Anthropic API</span>
+              <span
+                className={`${styles.statusBadge} ${
+                  anthropicState.hasKey
+                    ? styles.statusConnected
+                    : styles.statusDisconnected
+                }`}
+              >
+                {anthropicState.hasKey ? '연결됨' : '미설정'}
+              </span>
+            </div>
           </>
         )}
 
         <p className={styles.helpText} style={{ marginTop: '0.75rem' }}>
-          API 키는 서버 환경변수(.env)에서 설정합니다.
+          API 키는 서버 환경변수(.env)에서 설정하거나, 아래 AI 설정에서 직접 관리할 수 있습니다.
         </p>
+      </section>
+
+      {/* 1-1. Anthropic API Key 관리 */}
+      <section aria-labelledby="section-anthropic" className={`card ${styles.sectionCard}`}>
+        <h2 id="section-anthropic" className={styles.sectionTitle}>AI 설정 (Anthropic API)</h2>
+
+        <div className={styles.anthropicStatus} aria-live="polite">
+          {anthropicState.hasKey ? (
+            <p className={styles.anthropicStatusText}>
+              <span className={styles.statusIndicatorConnected} aria-hidden="true" />
+              API 키 설정됨 — <code className={styles.maskedKey}>{anthropicState.masked}</code>
+            </p>
+          ) : (
+            <p className={styles.anthropicStatusText}>
+              <span className={styles.statusIndicatorDisconnected} aria-hidden="true" />
+              API 키 미설정
+            </p>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="anthropic-api-key">Anthropic API 키</label>
+          <div className={styles.apiKeyInputRow}>
+            <input
+              id="anthropic-api-key"
+              type="password"
+              placeholder="sk-ant-api03-..."
+              autoComplete="off"
+              value={anthropicKeyInput}
+              onChange={(e) => setAnthropicKeyInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSaveAnthropicKey();
+                }
+              }}
+              aria-describedby="anthropic-key-help"
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSaveAnthropicKey}
+              disabled={anthropicSaving || !anthropicKeyInput.trim()}
+            >
+              {anthropicSaving ? '저장 중...' : '저장'}
+            </button>
+            {anthropicState.hasKey && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleDeleteAnthropicKey}
+                disabled={anthropicSaving}
+              >
+                삭제
+              </button>
+            )}
+          </div>
+          <p id="anthropic-key-help" className={styles.helpText}>
+            Claude Vision 이미지 정밀 분석에 사용됩니다. 키는 서버의 .env.local에 저장되며, 서버 재시작 없이 즉시 반영됩니다.
+          </p>
+        </div>
+
+        {anthropicFeedback && (
+          <p
+            className={anthropicFeedback.type === 'success' ? styles.feedbackSuccess : styles.feedbackError}
+            role="alert"
+          >
+            {anthropicFeedback.message}
+          </p>
+        )}
       </section>
 
       {/* 2. 기본 진단 설정 */}

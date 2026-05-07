@@ -253,6 +253,7 @@ export interface CrawlAltTextAuditConfig {
   maxDepth?: number;
   excludePaths?: string;
   maxImagesPerPage?: number;
+  useClaudeVision?: boolean;
 }
 
 export async function runCrawlAltTextAudit(
@@ -318,6 +319,10 @@ export async function runCrawlAltTextAudit(
   const scans: AltTextScanResult[] = [];
   let firstSpaReady: Awaited<ReturnType<typeof waitForSpaReady>> | null = null;
 
+  if (config.useClaudeVision) {
+    log('[AI 정밀 분석] Claude Vision 재검증이 활성화되었습니다.');
+  }
+
   try {
     let done = 0;
     for (const page of crawledPages) {
@@ -329,6 +334,7 @@ export async function runCrawlAltTextAudit(
         const scan = await scanPageForAltMismatches(ocrPage, {
           maxImages: maxImagesPerPage,
           spaReadyResult: spaReady,
+          useClaudeVision: config.useClaudeVision,
         });
         scans.push(scan);
         done++;
@@ -383,7 +389,7 @@ export async function runCrawlAltTextAudit(
     totalMismatches,
     countsByJudgment: counts,
     scans,
-    options: { maxImagesPerPage },
+    options: { maxImagesPerPage, useClaudeVision: config.useClaudeVision || undefined },
     siteInfo: firstSpaReady
       ? {
           framework: firstSpaReady.framework,

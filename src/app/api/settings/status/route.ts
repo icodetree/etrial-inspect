@@ -8,5 +8,6 @@ export async function GET() {
     github: {
       configured: !!(process.env.GITHUB_API_TOKEN),
     },
+    hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
   });
 }

@@ -698,6 +698,25 @@ export async function scanPageForAltMismatches(
     });
   }
 
+  // Claude Vision 재검증 (옵션 활성 시)
+  if (options.useClaudeVision && process.env.ANTHROPIC_API_KEY) {
+    const { revalidateWithClaude } = await import('./claude-vision-analyzer');
+    const revalidated = await revalidateWithClaude(items, (current, total) => {
+      options.onProgress?.(current, total, `[AI 정밀 분석] ${current}/${total}`);
+    });
+    // items 교체 및 countsByJudgment 재계산
+    items.length = 0;
+    items.push(...revalidated);
+    countsByJudgment.pass = 0;
+    countsByJudgment.missing_alt = 0;
+    countsByJudgment.decorative_mismatch = 0;
+    countsByJudgment.text_mismatch = 0;
+    countsByJudgment.review_needed = 0;
+    for (const item of items) {
+      countsByJudgment[item.judgment]++;
+    }
+  }
+
   const mismatchCount = items.filter((it) => it.judgment !== 'pass').length;
 
   return {

@@ -11,6 +11,7 @@ interface CrawlScanRequestBody {
   maxDepth?: number;
   excludePaths?: string;
   maxImagesPerPage?: number;
+  useClaudeVision?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
             maxDepth: body.maxDepth,
             excludePaths: body.excludePaths,
             maxImagesPerPage: body.maxImagesPerPage,
+            useClaudeVision: body.useClaudeVision,
           },
           (event: ProgressEvent) => {
             switch (event.type) {

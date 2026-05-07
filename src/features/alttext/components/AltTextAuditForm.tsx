@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Asterisk, HelpCircle } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { AltTextConfig } from '../hooks/useAltTextAudit';
@@ -13,6 +15,14 @@ interface AltTextAuditFormProps {
 }
 
 export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: AltTextAuditFormProps) => {
+  const [hasAnthropicKey, setHasAnthropicKey] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch('/api/settings/status')
+      .then(r => r.json())
+      .then(data => setHasAnthropicKey(!!data.hasAnthropicKey))
+      .catch(() => setHasAnthropicKey(false));
+  }, []);
   return (
     <Card title="">
       {/* 대상 설정 */}
@@ -123,6 +133,61 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
               onChange={(e) => setConfig({ ...config, inspector: e.target.value })}
             />
           </div>
+        </div>
+      </fieldset>
+
+      {/* AI 정밀 분석 옵션 */}
+      <fieldset className="form-section">
+        <legend className="form-section-legend">AI 정밀 분석</legend>
+
+        <div className="form-group">
+          <label
+            htmlFor="alttext-claude-vision"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.5rem',
+              cursor: hasAnthropicKey ? 'pointer' : 'not-allowed',
+              opacity: hasAnthropicKey ? 1 : 0.6,
+            }}
+          >
+            <input
+              id="alttext-claude-vision"
+              type="checkbox"
+              checked={config.useClaudeVision ?? false}
+              disabled={!hasAnthropicKey}
+              onChange={(e) => setConfig({ ...config, useClaudeVision: e.target.checked })}
+              style={{ marginTop: '0.2rem', flexShrink: 0 }}
+              aria-describedby="claude-vision-desc"
+            />
+            <span>AI 정밀 분석 (Claude Vision)</span>
+          </label>
+
+          {hasAnthropicKey === false && (
+            <p
+              id="claude-vision-desc"
+              style={{ fontSize: '0.8125rem', color: '#ef4444', marginTop: '0.375rem' }}
+              role="alert"
+            >
+              설정 페이지에서 Anthropic API 키를 먼저 등록하세요.{' '}
+              <Link
+                href="/settings"
+                style={{ color: '#3b82f6', textDecoration: 'underline' }}
+              >
+                설정으로 이동
+              </Link>
+            </p>
+          )}
+
+          {hasAnthropicKey && config.useClaudeVision && (
+            <p
+              id="claude-vision-desc"
+              style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '0.375rem' }}
+            >
+              Anthropic Claude API를 사용하여 이미지를 직접 분석합니다.
+              review_needed/text_mismatch 항목만 재검증하며, 이미지당 약 $0.01 비용이 발생합니다.
+            </p>
+          )}
         </div>
       </fieldset>
 
