@@ -84,7 +84,27 @@ OCR로 추출된 텍스트: "${ocrText}"
 
 type ImageContentBlock = Anthropic.ImageBlockParam;
 
-function buildImageBlock(imageUrl: string): ImageContentBlock {
+/** 확장자/Content-Type → Claude 허용 media_type 매핑 */
+function inferMediaType(url: string, contentType?: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
+  const ct = (contentType || '').toLowerCase();
+  if (ct.includes('png')) return 'image/png';
+  if (ct.includes('gif')) return 'image/gif';
+  if (ct.includes('webp')) return 'image/webp';
+  if (ct.includes('jpeg') || ct.includes('jpg')) return 'image/jpeg';
+  // Content-Type 없으면 URL 확장자로 추론
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase();
+  if (ext === 'png') return 'image/png';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'webp') return 'image/webp';
+  return 'image/jpeg'; // 기본값
+}
+
+/**
+ * 이미지 URL → base64 Claude content block.
+ * Claude API는 URL fetch 시 robots.txt를 준수하여 차단될 수 있으므로,
+ * 서버에서 직접 다운로드하여 base64로 변환 후 전달한다.
+ */
+async function buildImageBlock(imageUrl: string): Promise<ImageContentBlock> {
   // data: URL인 경우 base64 + media_type 추출
   if (imageUrl.startsWith('data:')) {
     const match = imageUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
@@ -100,12 +120,24 @@ function buildImageBlock(imageUrl: string): ImageContentBlock {
     }
   }
 
-  // 일반 URL
+  // 일반 URL → 서버에서 직접 다운로드 → base64 변환
+  const res = await fetch(imageUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E-able-A11y/1.0)' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) {
+    throw new Error(`이미지 다운로드 실패: ${res.status} ${imageUrl}`);
+  }
+  const buffer = await res.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString('base64');
+  const mediaType = inferMediaType(imageUrl, res.headers.get('content-type') || undefined);
+
   return {
     type: 'image',
     source: {
-      type: 'url',
-      url: imageUrl,
+      type: 'base64',
+      media_type: mediaType,
+      data: base64,
     },
   };
 }
@@ -126,6 +158,7 @@ export async function analyzeImageWithClaude(
 
   const client = new Anthropic({ apiKey });
   const prompt = buildPrompt(currentAlt, ocrText);
+  const imageBlock = await buildImageBlock(imageUrl);
 
   const response = await client.messages.create({
     model: CLAUDE_MODEL,
@@ -134,7 +167,7 @@ export async function analyzeImageWithClaude(
       {
         role: 'user',
         content: [
-          buildImageBlock(imageUrl),
+          imageBlock,
           { type: 'text', text: prompt },
         ],
       },
