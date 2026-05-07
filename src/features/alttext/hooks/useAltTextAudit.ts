@@ -59,6 +59,7 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
     addLog(`🚀 크롤링 + 이미지 진단 시작: ${config.targetUrl}`);
 
     try {
+      addLog('[크롤링] 진행 중...');
       const res = await fetch('/api/alttext/crawl-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,6 +77,7 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
         throw new Error(err.error || `HTTP ${res.status}`);
       }
       const audit: AltTextAuditResult = await res.json();
+      addLog('[이미지 분석] 결과 집계 중...');
       setResult(audit);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(audit));

@@ -8,6 +8,7 @@ export interface ProgressState {
     | 'idle'
     | 'crawling'
     | 'auditing'
+    | 'summarizing'
     | 'completed'
     | 'error'
     | 'github_polling'

@@ -112,6 +112,7 @@ export async function runCrawlPhase(
   if (crawlResult.detectedFramework !== 'unknown') {
     log(`🔎 SPA 감지: ${crawlResult.detectedFramework} — 자동 발견 활성`);
   }
+  log('[접근성 진단] 준비 중...');
 
   return {
     crawler,

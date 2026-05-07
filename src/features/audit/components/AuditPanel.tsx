@@ -31,6 +31,7 @@ const STATUS_LABELS: Record<ProgressState['status'], string> = {
   idle: '대기',
   crawling: '크롤링 중',
   auditing: '진단 중',
+  summarizing: '결과 집계 중',
   completed: '진단 완료',
   error: '오류 발생',
   github_polling: 'GitHub 대기 중',

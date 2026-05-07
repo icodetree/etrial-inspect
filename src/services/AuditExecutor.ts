@@ -144,6 +144,7 @@ export async function runAudit(
     }
 
     // 6. 집계
+    log('[리포트 생성] 진행 중...');
     const { summary, warnings } = summarize({
       config,
       needsCrawl,

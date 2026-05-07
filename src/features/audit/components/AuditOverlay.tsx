@@ -22,6 +22,7 @@ const STATUS_LABELS: Record<string, string> = {
   completed: '진단 완료',
   error: '오류 발생',
   github_polling: 'GitHub Actions 대기',
+  summarizing: '결과 집계 중',
   cancelling: '정지 중...',
   cancelled: '취소됨',
 };

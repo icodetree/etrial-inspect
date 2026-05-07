@@ -59,6 +59,7 @@ export default function Home() {
 
   const statusLabel = {
     idle: '대기', crawling: '크롤링 중', auditing: '진단 중',
+    summarizing: '집계 중',
     completed: '완료', error: '오류', github_polling: '대기 중',
     cancelling: '정지 중', cancelled: '취소됨',
   }[progress.status] ?? '대기';
@@ -67,6 +68,7 @@ export default function Home() {
     idle: '#9ca3af',
     crawling: '#3b82f6',
     auditing: '#f59e0b',
+    summarizing: '#8b5cf6',
     completed: '#10b981',
     error: '#ef4444',
     github_polling: '#8b5cf6',

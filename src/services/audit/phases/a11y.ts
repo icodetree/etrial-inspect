@@ -54,7 +54,7 @@ export async function runA11yPhase(input: A11yPhaseInput): Promise<RunA11yPhaseR
     maxWaitMs: 30000,
   });
 
-  log('♿ 접근성 검사 시작...');
+  log('[접근성 진단] 진행 중...');
   try {
     await auditor.init();
   } catch (e) {
@@ -160,6 +160,7 @@ export async function runA11yPhase(input: A11yPhaseInput): Promise<RunA11yPhaseR
   await Promise.all(workers);
 
   log('✅ 접근성 검사 완료');
+  log('[결과 집계] 진행 중...');
 
   return { pageAuditResults, auditor };
 }
