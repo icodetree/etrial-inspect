@@ -1,27 +1,50 @@
 'use client';
 
-import { AltTextHistoryList } from '@/features/alttext/components/AltTextHistoryList';
-import { FileText } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { AltTextResultViewer } from '@/features/alttext/components/AltTextResultViewer';
+import type { AltTextAuditResult } from '@/types/alt-text';
+import styles from '@/app/page.module.css';
+
+const STORAGE_KEY = 'altTextAuditResult';
 
 export default function AltTextReportPage() {
-  return (
-    <div style={{ padding: '2rem' }}>
-      {/* 페이지 헤더 */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        <div style={{ background: '#f3f4f6', borderRadius: '8px', padding: '8px' }}>
-          <FileText size={20} color="#6b7280" aria-hidden="true" />
-        </div>
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: 0 }}>
-            이미지 진단 보고서
-          </h1>
-          <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: '2px 0 0' }}>
-            Notion에 저장된 이미지 진단 보고서를 조회합니다.
-          </p>
-        </div>
-      </div>
+  const [result, setResult] = useState<AltTextAuditResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-      <AltTextHistoryList />
-    </div>
-  );
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as AltTextAuditResult;
+        if (parsed && parsed.scans && parsed.totalUrls !== undefined) {
+          setResult(parsed);
+        }
+      }
+    } catch {
+      // localStorage 파싱 실패 시 무시
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  if (isLoading) return null;
+
+  if (!result) {
+    return (
+      <main className="container">
+        <section className={`card ${styles['empty-card']}`}>
+          <h2>이미지 진단 결과가 없습니다</h2>
+          <p className={styles['empty-text']}>
+            먼저 이미지 진단 페이지에서 진단을 수행해주세요.
+          </p>
+          <Link href="/alttext" className={`btn btn-primary ${styles['back-link']}`}>
+            ← 이미지 진단으로 이동
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
+  return <AltTextResultViewer result={result} />;
 }
