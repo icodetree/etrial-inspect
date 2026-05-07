@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { AltTextAuditResult } from '@/types/alt-text';
 
 export interface AltTextConfig {
@@ -13,8 +13,12 @@ export interface AltTextConfig {
 }
 
 export interface AltTextProgressState {
-  status: 'idle' | 'running' | 'completed' | 'error';
+  status: 'idle' | 'crawling' | 'scanning' | 'completed' | 'error';
   message: string;
+  current: number;
+  total: number;
+  currentUrl: string;
+  startTime?: number;
 }
 
 export interface AltTextLogEntry {
@@ -33,7 +37,9 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
     excludePaths: '',
     maxImagesPerPage: undefined,
   });
-  const [progress, setProgress] = useState<AltTextProgressState>({ status: 'idle', message: '' });
+  const [progress, setProgress] = useState<AltTextProgressState>({
+    status: 'idle', message: '', current: 0, total: 0, currentUrl: '',
+  });
   const [logs, setLogs] = useState<AltTextLogEntry[]>([]);
   const [result, setResult] = useState<AltTextAuditResult | null>(null);
 
@@ -53,13 +59,16 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
       return;
     }
 
+    const now = Date.now();
     setLogs([]);
     setResult(null);
-    setProgress({ status: 'running', message: '크롤링 + OCR 시작...' });
+    setProgress({
+      status: 'crawling', message: '크롤링 + OCR 시작...',
+      current: 0, total: 0, currentUrl: '', startTime: now,
+    });
     addLog(`🚀 크롤링 + 이미지 진단 시작: ${config.targetUrl}`);
 
     try {
-      addLog('[크롤링] 진행 중...');
       const res = await fetch('/api/alttext/crawl-scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -72,12 +81,84 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
           maxImagesPerPage: config.maxImagesPerPage,
         }),
       });
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `HTTP ${res.status}`);
       }
-      const audit: AltTextAuditResult = await res.json();
-      addLog('[이미지 분석] 결과 집계 중...');
+
+      // SSE 스트리밍 파싱
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let audit: AltTextAuditResult | null = null;
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+
+        for (const block of blocks) {
+          if (!block.trim()) continue;
+
+          const eventMatch = block.match(/^event:\s*(\S+)\ndata:\s*([\s\S]+)$/);
+          if (!eventMatch) continue;
+
+          const [, eventType, dataStr] = eventMatch;
+          let parsed: Record<string, unknown>;
+          try {
+            parsed = JSON.parse(dataStr);
+          } catch {
+            continue;
+          }
+
+          switch (eventType) {
+            case 'crawl-progress':
+              setProgress(prev => ({
+                ...prev,
+                status: 'crawling',
+                message: `크롤링: ${parsed.current}/${parsed.total} - ${parsed.url}`,
+                current: parsed.current as number,
+                total: parsed.total as number,
+                currentUrl: parsed.url as string,
+              }));
+              addLog(`크롤링: ${parsed.current}/${parsed.total} - ${parsed.url}`);
+              break;
+
+            case 'progress':
+              setProgress(prev => ({
+                ...prev,
+                status: 'scanning',
+                message: `OCR 분석: ${parsed.current}/${parsed.total} - ${parsed.url}`,
+                current: parsed.current as number,
+                total: parsed.total as number,
+                currentUrl: parsed.url as string,
+              }));
+              addLog(`OCR 분석: ${parsed.current}/${parsed.total} - ${parsed.url}`);
+              break;
+
+            case 'log':
+              addLog(parsed.message as string);
+              break;
+
+            case 'result':
+              audit = parsed as unknown as AltTextAuditResult;
+              break;
+
+            case 'error':
+              throw new Error(String(parsed.message || '이미지 진단 실패'));
+          }
+        }
+      }
+
+      if (!audit) {
+        throw new Error('서버에서 결과를 수신하지 못했습니다.');
+      }
+
       setResult(audit);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(audit));
@@ -88,10 +169,11 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
       addLog(
         `🎉 진단 완료 — 페이지 ${audit.totalUrls}개, 이미지 ${audit.totalImagesScanned}장, 불일치 ${audit.totalMismatches}건`,
       );
-      setProgress({
+      setProgress(prev => ({
+        ...prev,
         status: 'completed',
         message: `완료 — 페이지 ${audit.totalUrls}개 / 이미지 ${audit.totalImagesScanned}장 / 불일치 ${audit.totalMismatches}건 (Notion 자동 저장 중...)`,
-      });
+      }));
 
       // Auto-save to Notion
       try {
@@ -108,53 +190,30 @@ export function useAltTextAudit(onHistoryRefresh?: () => void) {
         }
 
         const { reportUrl } = await saveRes.json();
-        addLog(`Notion 자동 저장 완료! ✅ ${reportUrl ? `(${reportUrl})` : ''}`);
-        setProgress({
+        addLog(`Notion 자동 저장 완료! ${reportUrl ? `(${reportUrl})` : ''}`);
+        setProgress(prev => ({
+          ...prev,
           status: 'completed',
-          message: `완료 및 Notion 저장 완료 — 페이지 ${audit.totalUrls}개 / 이미지 ${audit.totalImagesScanned}장 / 불일치 ${audit.totalMismatches}건`,
-        });
+          message: `완료 및 Notion 저장 완료 — 페이지 ${audit!.totalUrls}개 / 이미지 ${audit!.totalImagesScanned}장 / 불일치 ${audit!.totalMismatches}건`,
+        }));
         if (onHistoryRefresh) {
           onHistoryRefresh();
         }
       } catch (saveError) {
-        const message = saveError instanceof Error ? saveError.message : String(saveError);
-        addLog(`Notion 자동 저장 오류: ${message}`);
-        setProgress({
+        const msg = saveError instanceof Error ? saveError.message : String(saveError);
+        addLog(`Notion 자동 저장 오류: ${msg}`);
+        setProgress(prev => ({
+          ...prev,
           status: 'completed',
-          message: `완료 (Notion 저장 실패) — 페이지 ${audit.totalUrls}개 / 이미지 ${audit.totalImagesScanned}장 / 불일치 ${audit.totalMismatches}건`,
-        });
+          message: `완료 (Notion 저장 실패) — 페이지 ${audit!.totalUrls}개 / 이미지 ${audit!.totalImagesScanned}장 / 불일치 ${audit!.totalMismatches}건`,
+        }));
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      addLog(`❌ 오류: ${message}`);
-      setProgress({ status: 'error', message });
+      addLog(`오류: ${message}`);
+      setProgress(prev => ({ ...prev, status: 'error', message, current: 0, total: 0 }));
     }
-  }, [config, addLog]);
-
-  // 실행 중 페이크 로그 — 일반 진단(useAudit.ts) 패턴 미러링
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (progress.status === 'running') {
-      const messages = [
-        `${config.targetUrl} 접속 중...`,
-        'DOM 구조 분석 중...',
-        '링크 추출 중...',
-        'sitemap.xml 확인 중...',
-        '서버 응답 대기 중...',
-        'HTML 콘텐츠 파싱 중...',
-        '내부 링크 식별 중...',
-        '이미지 OCR 엔진 준비 중...',
-        '대체 텍스트 유사도 판정 중...',
-        '이미지 전처리 중...',
-        'OCR 결과 분석 중...',
-      ];
-      interval = setInterval(() => {
-        const msg = messages[Math.floor(Math.random() * messages.length)];
-        addLog(msg);
-      }, 2000);
-    }
-    return () => clearInterval(interval);
-  }, [progress.status, config.targetUrl, addLog]);
+  }, [config, addLog, onHistoryRefresh]);
 
   return {
     config,

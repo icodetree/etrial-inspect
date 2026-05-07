@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import type { AltTextLogEntry, AltTextProgressState } from '../hooks/useAltTextAudit';
 import styles from '@/features/audit/components/AuditOverlay.module.css';
@@ -16,7 +16,8 @@ interface AltTextOverlayProps {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  running: '이미지 진단 진행 중',
+  crawling: '크롤링 진행 중',
+  scanning: 'OCR 분석 중',
   completed: '이미지 진단 완료',
   error: '오류 발생',
 };
@@ -46,8 +47,32 @@ export const AltTextOverlay = ({
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  const isRunning = progress.status === 'running';
+  const isProcessing = progress.status === 'crawling' || progress.status === 'scanning';
   const isCompleted = progress.status === 'completed';
+
+  // 진행률 계산
+  const progressRatio = isProcessing && progress.total > 0
+    ? Math.min(progress.current / progress.total, 1)
+    : 0;
+  const progressPct = Math.round(progressRatio * 100);
+
+  // 경과 시간 (1초마다 갱신)
+  const [elapsedSec, setElapsedSec] = useState(0);
+  useEffect(() => {
+    if (!isProcessing || !progress.startTime) return;
+    const id = setInterval(() => {
+      setElapsedSec(Math.round((Date.now() - progress.startTime!) / 1000));
+    }, 1000);
+    return () => { clearInterval(id); setElapsedSec(0); };
+  }, [isProcessing, progress.startTime]);
+
+  const elapsedText = useMemo(() => {
+    if (elapsedSec <= 0) return '';
+    if (elapsedSec < 60) return `${elapsedSec}초 경과`;
+    const min = Math.floor(elapsedSec / 60);
+    const sec = elapsedSec % 60;
+    return `${min}분 ${sec}초 경과`;
+  }, [elapsedSec]);
 
   const statusMessage = useMemo(() => {
     if (isCompleted && resultSummary) {
@@ -62,7 +87,12 @@ export const AltTextOverlay = ({
 
   const statusLabel = STATUS_LABELS[progress.status] ?? '진행 중';
 
-  const ariaLabel = isRunning
+  // SVG 원형 게이지 파라미터
+  const gaugeRadius = 118;
+  const gaugeCircumference = 2 * Math.PI * gaugeRadius;
+  const gaugeOffset = gaugeCircumference * (1 - progressRatio);
+
+  const ariaLabel = isProcessing
     ? '이미지 진단 진행 중'
     : isCompleted
       ? '이미지 진단 완료'
@@ -112,6 +142,34 @@ export const AltTextOverlay = ({
               <div className={styles.pingRing} />
               <div className={styles.pingRing} />
             </div>
+            {/* SVG 원형 프로그레스 게이지 */}
+            {isProcessing && progress.total > 0 && (
+              <svg className={styles.progressGauge} viewBox="0 0 260 260">
+                <circle
+                  cx="130" cy="130" r={gaugeRadius}
+                  fill="none"
+                  stroke="rgba(99, 102, 241, 0.15)"
+                  strokeWidth="4"
+                />
+                <circle
+                  cx="130" cy="130" r={gaugeRadius}
+                  fill="none"
+                  stroke="url(#altGaugeGradient)"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeDasharray={gaugeCircumference}
+                  strokeDashoffset={gaugeOffset}
+                  transform="rotate(-90 130 130)"
+                  style={{ transition: 'stroke-dashoffset 0.5s ease-out' }}
+                />
+                <defs>
+                  <linearGradient id="altGaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#6366f1" />
+                    <stop offset="100%" stopColor="#06b6d4" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            )}
           </div>
 
           {/* 플랫폼 글로우 */}
@@ -124,15 +182,52 @@ export const AltTextOverlay = ({
           <div className={styles.statusMessage} key={statusMessage}>
             {statusMessage}
           </div>
+
+          {/* 진행률 정보 */}
+          {isProcessing && progress.total > 0 && (
+            <div className={styles.progressInfo}>
+              <div className={styles.progressCount}>
+                {progress.current} / {progress.total} 페이지
+                <span className={styles.progressPct}>{progressPct}%</span>
+              </div>
+              {elapsedText && (
+                <div className={styles.progressEta}>{elapsedText}</div>
+              )}
+            </div>
+          )}
+          {isProcessing && progress.total === 0 && elapsedText && (
+            <div className={styles.progressInfo}>
+              <div className={styles.progressEta}>{elapsedText}</div>
+            </div>
+          )}
         </div>
 
-        {/* 진행 중 shimmer 바 (정확한 진행률 데이터가 없으므로 indeterminate) */}
-        {isRunning && (
+        {/* 프로그레스 바 */}
+        {isProcessing && (
           <div
             className={styles.progressBar}
             role="progressbar"
+            aria-valuenow={progress.current}
+            aria-valuemax={progress.total || undefined}
             aria-label="이미지 진단 진행 중"
-          />
+          >
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(90deg, #6366f1, #06b6d4, #6366f1)',
+                borderRadius: 'inherit',
+                transform: progress.total > 0
+                  ? `scaleX(${progressRatio})`
+                  : undefined,
+                transformOrigin: 'left',
+                transition: 'transform 0.5s ease-out',
+                animation: progress.total === 0
+                  ? 'shimmer 2s linear infinite'
+                  : undefined,
+              }}
+            />
+          </div>
         )}
 
         {/* 완료 후 버튼 */}

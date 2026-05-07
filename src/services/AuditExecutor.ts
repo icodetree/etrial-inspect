@@ -301,6 +301,9 @@ export async function runCrawlAltTextAudit(
     log(`🔍 페이지 크롤링 시작: ${config.targetUrl}`);
     const crawlResult = await crawler.crawl(config.targetUrl, (p) => {
       log(`  크롤링: ${p.current}/${p.found} - ${p.url}`);
+      if (onProgress) {
+        onProgress({ type: 'progress', current: p.current, total: p.found, url: p.url });
+      }
     });
     crawledPages = crawlResult.pages;
     log(`✅ 크롤링 완료: ${crawledPages.length}개 페이지 발견`);

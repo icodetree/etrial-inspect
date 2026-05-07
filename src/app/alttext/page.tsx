@@ -70,7 +70,7 @@ export default function AltTextPage() {
     }
   }, [result]);
 
-  const isProcessing = progress.status === 'running';
+  const isProcessing = progress.status === 'crawling' || progress.status === 'scanning';
 
   const resultSummary = result
     ? { pages: result.totalUrls, images: result.totalImagesScanned, mismatches: result.totalMismatches }

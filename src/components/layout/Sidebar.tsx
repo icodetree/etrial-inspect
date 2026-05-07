@@ -9,7 +9,7 @@ import {
   Settings, HelpCircle,
   ChevronsLeft, ChevronDown,
   Image as ImageIcon,
-  History,
+  History, CheckSquare,
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
 
@@ -37,6 +37,7 @@ const mainNav: NavItem[] = [
     children: [
       { label: '보고서', href: '/report', icon: FileText },
       { label: '진단 이력', href: '/history', icon: History },
+      { label: '체크리스트', href: '/report/checklist', icon: CheckSquare },
     ],
   },
   {
@@ -55,13 +56,27 @@ const bottomNav = [
   { label: '도움말', href: '/help', icon: HelpCircle },
 ];
 
+/** 모든 네비게이션 항목의 href를 수집 (더 구체적인 경로 우선 매칭에 사용) */
+const allNavHrefs: string[] = [
+  ...mainNav.flatMap(item => [item.href, ...(item.children?.map(c => c.href) ?? [])]),
+  ...bottomNav.map(item => item.href),
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  /** 특정 href가 현재 경로와 일치하는지 */
+  /** 특정 href가 현재 경로와 일치하는지 (더 구체적인 경로가 존재하면 덜 구체적인 경로는 비활성) */
   const isActive = useCallback((href: string) => {
     if (href === '/') return pathname === '/';
-    return pathname === href || pathname.startsWith(href + '/');
+    if (pathname === href) return true;
+    if (pathname.startsWith(href + '/')) {
+      // 더 구체적으로 매칭되는 다른 href가 있으면 현재 href는 비활성
+      const hasMoreSpecific = allNavHrefs.some(
+        other => other !== href && other.startsWith(href + '/') && (pathname === other || pathname.startsWith(other + '/'))
+      );
+      return !hasMoreSpecific;
+    }
+    return false;
   }, [pathname]);
 
   /** 부모 메뉴가 활성 상태인지 (자신 또는 자식 중 하나가 active) */
