@@ -151,9 +151,11 @@ export async function shutdownSharedWorkerPool(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const ocrCache = new Map<string, VisionAnalysisResult>();
+const imageBufferCache = new Map<string, Buffer>();
 
 export function clearOcrCache(): void {
   ocrCache.clear();
+  imageBufferCache.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +273,14 @@ export async function analyzeImageWithVision(
 
     if (enablePreprocessing) {
       const raw = await fetchImageBuffer(imageUrl);
+
+      // 이미지 버퍼를 캐시에 저장 (Claude Vision 재검증 시 재다운로드 방지)
+      if (imageBufferCache.size >= 100) {
+        const oldestKey = imageBufferCache.keys().next().value;
+        if (oldestKey !== undefined) imageBufferCache.delete(oldestKey);
+      }
+      imageBufferCache.set(imageUrl, raw);
+
       // PSM 튜닝: 이미지 크기/비율에 따라 세그멘테이션 모드 선택
       try {
         const meta = await sharp(raw).metadata();
@@ -701,9 +711,13 @@ export async function scanPageForAltMismatches(
   // Claude Vision 재검증 (옵션 활성 시)
   if (options.useClaudeVision && process.env.ANTHROPIC_API_KEY) {
     const { revalidateWithClaude } = await import('./claude-vision-analyzer');
-    const revalidated = await revalidateWithClaude(items, (current, total) => {
-      options.onProgress?.(current, total, `[AI 정밀 분석] ${current}/${total}`);
-    });
+    const revalidated = await revalidateWithClaude(
+      items,
+      (current, total) => {
+        options.onProgress?.(current, total, `[AI 정밀 분석] ${current}/${total}`);
+      },
+      imageBufferCache,
+    );
     // items 교체 및 countsByJudgment 재계산
     items.length = 0;
     items.push(...revalidated);

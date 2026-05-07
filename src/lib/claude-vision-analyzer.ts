@@ -117,7 +117,7 @@ const MIN_BASE64_BYTES = 1024;
  *  - 5MB 초과 이미지는 sharp로 리사이즈
  *  - media_type은 magic bytes로 판별 (Content-Type/확장자 무시)
  */
-async function buildImageBlock(imageUrl: string): Promise<ImageContentBlock> {
+async function buildImageBlock(imageUrl: string, cachedBuffer?: Buffer): Promise<ImageContentBlock> {
   // data: URL인 경우 base64 + media_type 추출
   if (imageUrl.startsWith('data:')) {
     const match = imageUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
@@ -147,35 +147,42 @@ async function buildImageBlock(imageUrl: string): Promise<ImageContentBlock> {
     throw new Error('SVG 이미지는 Claude Vision에서 지원하지 않습니다.');
   }
 
-  // 일반 URL → 서버에서 직접 다운로드 → base64 변환 (1회 재시도)
-  let res: Response;
-  try {
-    res = await fetch(imageUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E-able-A11y/1.0)' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-  } catch (firstError) {
-    // 첫 시도 실패 → 2초 대기 후 재시도
-    await new Promise((r) => setTimeout(r, 2000));
-    res = await fetch(imageUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E-able-A11y/1.0)' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) {
-      throw new Error(`이미지 다운로드 실패 (재시도 후): ${res.status} ${imageUrl}`);
-    }
-  }
+  let buf: Buffer;
 
-  // Content-Type에서도 SVG 재확인
-  const contentType = res.headers.get('content-type') || '';
-  if (isSvgImage(imageUrl, contentType)) {
-    throw new Error('SVG 이미지는 Claude Vision에서 지원하지 않습니다.');
-  }
+  if (cachedBuffer) {
+    // OCR 단계에서 캐시된 버퍼 재사용 — 대상 사이트 재다운로드 완전 스킵
+    buf = cachedBuffer;
+  } else {
+    // 일반 URL → 서버에서 직접 다운로드 → base64 변환 (1회 재시도)
+    let res: Response;
+    try {
+      res = await fetch(imageUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E-able-A11y/1.0)' },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+    } catch (firstError) {
+      // 첫 시도 실패 → 2초 대기 후 재시도
+      await new Promise((r) => setTimeout(r, 2000));
+      res = await fetch(imageUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; E-able-A11y/1.0)' },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) {
+        throw new Error(`이미지 다운로드 실패 (재시도 후): ${res.status} ${imageUrl}`);
+      }
+    }
 
-  let buf: Buffer = Buffer.from(await res.arrayBuffer());
+    // Content-Type에서도 SVG 재확인
+    const contentType = res.headers.get('content-type') || '';
+    if (isSvgImage(imageUrl, contentType)) {
+      throw new Error('SVG 이미지는 Claude Vision에서 지원하지 않습니다.');
+    }
+
+    buf = Buffer.from(await res.arrayBuffer());
+  }
 
   // 크기 검증: 너무 작으면 스킵
   if (buf.byteLength < MIN_BASE64_BYTES) {
@@ -211,6 +218,7 @@ export async function analyzeImageWithClaude(
   imageUrl: string,
   currentAlt: string | null,
   ocrText: string,
+  cachedBuffer?: Buffer,
 ): Promise<ClaudeVisionResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -223,7 +231,7 @@ export async function analyzeImageWithClaude(
   // 이미지 다운로드 시도 — 실패 시 텍스트 기반 판정으로 fallback
   let imageBlock: ImageContentBlock | null = null;
   try {
-    imageBlock = await buildImageBlock(imageUrl);
+    imageBlock = await buildImageBlock(imageUrl, cachedBuffer);
   } catch (imgError) {
     console.warn(
       '[claude-vision-analyzer] 이미지 다운로드 실패, 텍스트 기반 판정으로 전환:',
@@ -280,6 +288,7 @@ export async function analyzeImageWithClaude(
 export async function revalidateWithClaude(
   items: AltTextMismatch[],
   onProgress?: (current: number, total: number) => void,
+  bufferCache?: Map<string, Buffer>,
 ): Promise<AltTextMismatch[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return items;
@@ -303,10 +312,12 @@ export async function revalidateWithClaude(
     await semaphore.acquire();
     try {
       const item = items[idx];
+      const cachedBuf = bufferCache?.get(item.imageUrl);
       const analysis: ClaudeVisionAnalysis = await analyzeImageWithClaude(
         item.imageUrl,
         item.currentAlt,
         item.extractedText,
+        cachedBuf,
       );
 
       // 결과 반영
