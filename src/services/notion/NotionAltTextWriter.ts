@@ -40,20 +40,25 @@ import {
 const FIRST_BATCH_SIZE_ALTTEXT = 100;
 
 export class NotionAltTextWriter {
+  private readonly formattedDbId: string;
+
   constructor(
     private readonly notion: Client,
     private readonly databaseId: string,
-  ) {}
+  ) {
+    this.formattedDbId = formatUUID(databaseId);
+  }
 
   async saveAltTextAuditResult(
     result: AltTextAuditResult,
     reportUrl?: string,
   ): Promise<string> {
-    const counts = result.countsByJudgment;
+    const counts = result.countsByJudgment ?? {};
+    const targetUrls = result.targetUrls ?? [];
     const titleText =
-      result.targetUrls.length === 1
-        ? result.targetUrls[0]
-        : `이미지 진단 - URL ${result.targetUrls.length}개`;
+      targetUrls.length === 1
+        ? targetUrls[0]
+        : `이미지 진단 - URL ${targetUrls.length}개`;
 
     const children: NotionBlock[] = [
       buildHeading2('🖼️ 이미지 진단 요약'),
@@ -70,8 +75,9 @@ export class NotionAltTextWriter {
     ];
 
     // 페이지별 toggle — pass 제외 항목만 50건 까지
-    for (const scan of result.scans) {
-      const mismatches = scan.items.filter((i) => i.judgment !== 'pass');
+    for (const scan of result.scans ?? []) {
+      const items = scan.items ?? [];
+      const mismatches = items.filter((i) => i.judgment !== 'pass');
       const detailChildren: NotionBlock[] =
         mismatches.length === 0
           ? [buildParagraph('불일치 없음 (모든 이미지 pass)')]
@@ -79,10 +85,10 @@ export class NotionAltTextWriter {
               .slice(0, 50)
               .map((item) =>
                 buildParagraph(
-                  `[${item.judgment}] alt="${item.currentAlt ?? '(없음)'}" / OCR="${item.extractedText.substring(0, 80)}" / ${item.reason}`,
+                  `[${item.judgment}] alt="${item.currentAlt ?? '(없음)'}" / OCR="${(item.extractedText ?? '').substring(0, 80)}" / ${item.reason ?? ''}`,
                 ),
               );
-      children.push(buildToggle(`[${mismatches.length}건] ${scan.pageUrl}`, detailChildren));
+      children.push(buildToggle(`[${mismatches.length}건] ${scan.pageUrl ?? '(URL 없음)'}`, detailChildren));
     }
 
     // 원본 JSON code block 들 — alt-text 는 별도 축소판 없이 원본 그대로 직렬화
@@ -104,6 +110,7 @@ export class NotionAltTextWriter {
       'Text Mismatch': { number: counts.text_mismatch ?? 0 },
       'Review Needed': { number: counts.review_needed ?? 0 },
       'Report Link': { url: reportUrl || null },
+      Deleted: { checkbox: false },
     };
     if (result.inspector) {
       properties['Inspector'] = {
@@ -113,7 +120,7 @@ export class NotionAltTextWriter {
 
     // 첫 호출에 100블록까지, 나머지 100/call
     const response = await this.notion.pages.create({
-      parent: { database_id: this.databaseId },
+      parent: { database_id: this.formattedDbId },
       properties: properties as Parameters<Client['pages']['create']>[0]['properties'],
       children: children.slice(0, FIRST_BATCH_SIZE_ALTTEXT) as Parameters<
         Client['pages']['create']
@@ -173,11 +180,9 @@ export class NotionAltTextWriter {
   }
 
   async getAltTextHistory(): Promise<AltTextHistoryItem[]> {
-    const formattedDbId = formatUUID(this.databaseId);
-
     try {
       const response = await this.notion.request<QueryDatabaseResponse>({
-        path: `databases/${formattedDbId}/query`,
+        path: `databases/${this.formattedDbId}/query`,
         method: 'post',
         body: {
           filter: { property: 'Deleted', checkbox: { equals: false } },
