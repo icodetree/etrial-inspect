@@ -144,11 +144,8 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
           <label
             htmlFor="alttext-claude-vision"
             style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.5rem',
-              cursor: hasAnthropicKey ? 'pointer' : 'not-allowed',
               opacity: hasAnthropicKey ? 1 : 0.6,
+              cursor: hasAnthropicKey ? undefined : 'not-allowed',
             }}
           >
             <input
@@ -157,7 +154,6 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
               checked={config.useClaudeVision ?? false}
               disabled={!hasAnthropicKey}
               onChange={(e) => setConfig({ ...config, useClaudeVision: e.target.checked })}
-              style={{ marginTop: '0.2rem', flexShrink: 0 }}
               aria-describedby="claude-vision-desc"
             />
             <span>AI 정밀 분석 (Claude Vision)</span>

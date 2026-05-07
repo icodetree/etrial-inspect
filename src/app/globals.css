@@ -218,9 +218,18 @@ input:focus, select:focus, textarea:focus {
   font-size: 0.875rem;
   color: var(--c-fg);
 }
-.form-group input,
+.form-group input:not([type="checkbox"]):not([type="radio"]),
 .form-group select,
 .form-group textarea { width: 100%; }
+.form-group input[type="checkbox"],
+.form-group input[type="radio"] { width: auto; }
+.form-group label:has(input[type="checkbox"]),
+.form-group label:has(input[type="radio"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
 
 .form-group span + label {
   margin-bottom:0;
