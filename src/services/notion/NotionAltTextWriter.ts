@@ -95,36 +95,31 @@ export class NotionAltTextWriter {
         mismatches.length === 0
           ? [buildParagraph('불일치 없음 (모든 이미지 pass)')]
           : mismatches
-              .slice(0, 50)
+              .slice(0, 20)
               .map((item) => {
-                let text = `[${item.judgment}] alt="${item.currentAlt ?? '(없음)'}" / OCR="${(item.extractedText ?? '').substring(0, 80)}" / ${item.reason ?? ''}`;
+                let text = `[${item.judgment}] alt="${(item.currentAlt ?? '(없음)').substring(0, 40)}" / OCR="${(item.extractedText ?? '').substring(0, 50)}" / ${(item.reason ?? '').substring(0, 60)}`;
                 if (item.claudeAnalysis) {
-                  text += ` / 🤖 AI: ${item.claudeAnalysis.isAdequate ? '적절' : '부적절'} — ${(item.claudeAnalysis.suggestedAlt ?? '').substring(0, 60)}`;
+                  text += ` / 🤖 ${item.claudeAnalysis.isAdequate ? '적절' : '부적절'}`;
                 }
                 return buildParagraph(text);
               });
       children.push(buildToggle(`[${mismatches.length}건] ${scan.pageUrl ?? '(URL 없음)'}`, detailChildren));
     }
 
-    // 원본 JSON code block — 대용량 필드(imageUrl, claudeAnalysis.suggestedAlt)를 축소하여 저장
-    children.push(buildHeading2('💾 원본 데이터 (JSON)'));
-    const compactScans = (result.scans ?? []).map((scan) => ({
-      ...scan,
-      items: (scan.items ?? []).map((item) => ({
-        ...item,
-        imageUrl: item.imageUrl && item.imageUrl.length > 120
-          ? item.imageUrl.substring(0, 120) + '...'
-          : item.imageUrl,
-        claudeAnalysis: item.claudeAnalysis
-          ? {
-              isAdequate: item.claudeAnalysis.isAdequate,
-              reason: (item.claudeAnalysis.reason ?? '').substring(0, 100),
-            }
-          : undefined,
-      })),
-    }));
-    const compactResult = { ...result, scans: compactScans };
-    const jsonString = JSON.stringify(compactResult, null, 2);
+    // 원본 JSON — 요약 통계만 저장 (전체 JSON은 크기 초과로 생략, 앱 내 보고서에서 확인)
+    children.push(buildHeading2('💾 진단 메타 정보'));
+    const meta = {
+      startTime: result.startTime,
+      endTime: result.endTime,
+      totalUrls: result.totalUrls,
+      totalImagesScanned: result.totalImagesScanned,
+      totalMismatches: result.totalMismatches,
+      countsByJudgment: result.countsByJudgment,
+      targetUrls: result.targetUrls,
+      inspector: result.inspector,
+      options: result.options,
+    };
+    const jsonString = JSON.stringify(meta, null, 2);
     const richTextChunks = chunkRichText(jsonString);
     children.push(...buildJsonCodeBlocks(richTextChunks));
 
