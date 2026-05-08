@@ -99,26 +99,47 @@
 
 ---
 
-## 대규모 리팩토링 (별도 트랙)
+## 대규모 리팩토링 (별도 트랙) — ✅ 완료 (2026-05-08)
 
-**계획 문서**: `docs/plans/PLAN_refactor_2026-05-06.md` (전체 5 Phase)
+**계획 문서**: `docs/plans/PLAN_refactor_2026-05-06.md` (원본 5 Phase)
 
-### 현황
-- **Phase 0** (기준선 확보): 미착수 — 테스트 그린화 + 데드코드 정리 + 스타일 정책 결정
-- **Phase 1~4**: Phase 0 완료 후 순차 진행
+### 완료 이력
 
-### Phase 요약
+| Phase | 내용 | 완료일 | 커밋 |
+|-------|------|--------|------|
+| 0 | 테스트 그린화, 데드코드 정리 | 2026-05-07~08 | v2.4.0~v2.6.0 |
+| 1 | kwcag-mapping 테스트, AuditResult 픽스처, any 제거 | 2026-05-08 | v2.4.0 + R1 |
+| 2 | runtime-config, waf-detector, api-helpers, 공통 추출 | 2026-05-07~08 | v2.5.0 + R2 |
+| 3 | God 모듈 분해 (crawler 7모듈, AuditExecutor 5 phase, NotionService 분리, ReportViewer 분해, seo-analyzer 13모듈) | 2026-05-07~08 | v2.5.0 + R2 |
+| 4 | UI 정합성, 접근성 자기위반 수정, 인라인 스타일 CSS 모듈화 | 2026-05-08 | R3 |
 
-| Phase | 내용 | 소요 | 선행 조건 |
-|-------|------|------|----------|
-| 0 | 테스트 그린화, 데드코드, 스타일 정책 | 1.5~2d | 없음 |
-| 1 | kwcag-mapping 테스트, AuditResult 픽스처, any 제거 | 2~3d | Phase 0 |
-| 2 | runtime-config, waf-detector, api-helpers 추출 | 3~4d | Phase 1 |
-| 3 | God 모듈 분해 (crawler, AuditExecutor, NotionService, ReportViewer) | 8~11d | Phase 2 |
-| 4 | UI 정합성, 접근성 자체 위반, 인라인 스타일 제거 | 4~5d | Phase 3 |
-| **총계** | | **4~5주** (1인) / **3~3.5주** (2인) | |
+### 최종 리팩토링 결과 (R1~R3, 2026-05-08)
 
-**참고**: Phase 2-1(runtime-config), 2-2(waf-detector), 2-3(api-helpers), 3-3(NotionService 분리)은 이미 부분적으로 완료됨 (2026-05-07 작업에서 일부 추출/분리 진행)
+**R1 — 안전망 보강**
+- `any` 타입 13건 → 0건 (서비스/라이브러리 계층)
+- 누락 테스트 70건 추가 (custom-rules, runtime-config, browser-session, a11y phase)
+- `puppeteer-core` 미사용 의존성 제거, 타입 중복 통합, helpUrl 수정
+
+**R2 — God Module 분해**
+- `seo-analyzer.ts` 1,336줄 → 13개 모듈 (`src/lib/seo/analyzers/*`)
+- positional array indexing → named object mapping (순서 의존성 제거)
+- SSE 보일러플레이트 추출 (`sse-stream.ts`): audit 83줄→31줄, crawl-scan 98줄→57줄
+
+**R3 — UI 정합성**
+- 인라인 `style={{}}` 200회+ → 24건 (동적 스타일만 잔존)
+- `globals.css`에 13개 시맨틱 토큰 추가, CSS Module 8개 신규 생성
+- `<div onClick>` 2건 → 0건 (모달 backdrop 분리 + focus 복원)
+- 역방향 import 2건 제거 (AuditTerminal, AltTextResultViewer)
+
+**검증**: 531 tests / 37 suites 전체 통과, 빌드 성공
+
+### 잔여 기술 부채 (낮음)
+
+| 항목 | 위치 | 비고 |
+|------|------|------|
+| report 컴포넌트 `@/app/page.module.css` import | `src/features/report/components/` 7개 파일 | 기능상 문제 없으나 도메인 경계 위반 |
+| `'use client'` 34개 | 프로젝트 전체 | 축소 검토했으나 모두 클라이언트 기능 필요 |
+| 동적 인라인 스타일 24건 | SEODetailView, AIDetailView 등 | JS 변수 의존으로 인라인 유지 정당 |
 
 ---
 
@@ -129,9 +150,9 @@
 | ~~UI 컴포넌트 테스트 부재~~ | ~~중간~~ | `src/features/**/*.tsx` | ✅ ④에서 해결 (2026-05-08) |
 | ~~Notion API 재시도 없음~~ | ~~중간~~ | `NotionService.ts` | ✅ ⑤에서 해결 (2026-05-08) |
 | ~~browser-utils 테스트 실패~~ | ~~낮음~~ | `browser-utils.test.ts` | ✅ ⑦에서 해결 (2026-05-08) |
-| 인라인 스타일 다수 | 중간 | 여러 컴포넌트 | 리팩토링 Phase 4 |
-| CSS 3중 혼재 | 높음 | 프로젝트 전체 | 리팩토링 Phase 0-3 결정 |
-| God 모듈 | 높음 | crawler, AuditExecutor | 리팩토링 Phase 3 |
+| ~~인라인 스타일 다수~~ | ~~중간~~ | 여러 컴포넌트 | ✅ R3에서 해결 (200→24건, 동적만 잔존) |
+| ~~CSS 3중 혼재~~ | ~~높음~~ | 프로젝트 전체 | ✅ R1+R3에서 해결 (CSS Modules 단일화) |
+| ~~God 모듈~~ | ~~높음~~ | crawler, AuditExecutor, seo-analyzer | ✅ R2에서 해결 (전체 분해 완료) |
 
 ---
 
