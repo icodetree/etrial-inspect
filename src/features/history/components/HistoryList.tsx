@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { HistoryItem } from '@/types';
 import styles from './HistoryList.module.css';
 
@@ -11,6 +12,8 @@ interface HistoryListProps {
 export function HistoryList({ refreshTrigger }: HistoryListProps) {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [compareBaseId, setCompareBaseId] = useState<string | null>(null);
+  const router = useRouter();
 
   const fetchHistory = async () => {
     setIsLoading(true);
@@ -54,6 +57,18 @@ export function HistoryList({ refreshTrigger }: HistoryListProps) {
     }
   };
 
+  const handleCompareClick = (id: string) => {
+    if (compareBaseId === null) {
+      setCompareBaseId(id);
+    } else {
+      router.push(`/report/compare?base=${compareBaseId}&current=${id}`);
+    }
+  };
+
+  const handleCompareCancel = () => {
+    setCompareBaseId(null);
+  };
+
   if (isLoading) return <div className={styles.loading}>히스토리 불러오는 중...</div>;
 
   const notionDbUrl = process.env.NEXT_PUBLIC_NOTION_URL || null;
@@ -84,29 +99,68 @@ export function HistoryList({ refreshTrigger }: HistoryListProps) {
           </a>
         )}
       </div>
+
+      {compareBaseId !== null && (
+        <div className={styles.compareBanner} role="status" aria-live="polite">
+          <span>비교할 대상을 선택하세요</span>
+          <button
+            type="button"
+            className={styles.btnCompareCancel}
+            onClick={handleCompareCancel}
+            aria-label="비교 모드 취소"
+          >
+            취소
+          </button>
+        </div>
+      )}
+
       <div className={styles.historyList}>
-        {history.map(item => (
-          <div key={item.id} className={styles.historyItem}>
-            <div className={styles.itemInfo}>
-              <span className={styles.date}>{new Date(item.date).toLocaleDateString()}</span>
-              <span className={styles.url}>{item.url}</span>
-              <span className={styles.score}>SEO {item.score}점</span>
-              <span className={styles.violations}>위반 {item.violationCount}건</span>
+        {history.map(item => {
+          const isBase = compareBaseId === item.id;
+
+          return (
+            <div
+              key={item.id}
+              className={`${styles.historyItem}${isBase ? ` ${styles.compareSelected}` : ''}`}
+            >
+              <div className={styles.itemInfo}>
+                <span className={styles.date}>{new Date(item.date).toLocaleDateString()}</span>
+                <span className={styles.url}>{item.url}</span>
+                <span className={styles.score}>SEO {item.score}점</span>
+                <span className={styles.violations}>위반 {item.violationCount}건</span>
+              </div>
+              <div className={styles.itemActions}>
+                <a href={`/report/${item.id}`} className={styles.btnLink}>
+                  리포트 보기
+                </a>
+                {history.length >= 2 && (
+                  <button
+                    type="button"
+                    className={styles.btnCompare}
+                    onClick={() => handleCompareClick(item.id)}
+                    disabled={isBase}
+                    aria-label={
+                      isBase
+                        ? '기준으로 선택됨'
+                        : compareBaseId !== null
+                          ? `${item.url} 선택하여 비교`
+                          : `${item.url} 비교 기준으로 선택`
+                    }
+                  >
+                    {isBase ? '기준' : compareBaseId !== null ? '선택' : '비교'}
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className={styles.btnDelete}
+                  aria-label="리포트 삭제"
+                >
+                  삭제
+                </button>
+              </div>
             </div>
-            <div className={styles.itemActions}>
-              <a href={`/report/${item.id}`} className={styles.btnLink}>
-                리포트 보기
-              </a>
-              <button
-                onClick={() => handleDelete(item.id)}
-                className={styles.btnDelete}
-                aria-label="리포트 삭제"
-              >
-                삭제
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

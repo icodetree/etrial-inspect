@@ -16,7 +16,7 @@
  * 외부 호출자는 `src/lib/crawler.ts` (facade) 를 통해 import 한다.
  */
 
-import { chromium, Browser, BrowserContext } from 'playwright-core';
+import { chromium, Browser, BrowserContext, Page } from 'playwright-core';
 import { PageInfo } from '@/types';
 import {
   getBrowserLaunchOptions,
@@ -24,6 +24,7 @@ import {
   STEALTH_INIT_SCRIPT,
 } from '../browser-utils';
 import { getRuntimeProfile } from '../runtime-config';
+import { shouldReduceConcurrency, logMemorySnapshot } from '../memory-monitor';
 import { detectWafChallengeWithRetry } from '../waf-detector';
 import { waitForSpaReady, SpaFramework } from '../spa-readiness';
 import { fetchSitemapUrls } from './sitemap';
@@ -42,6 +43,12 @@ import type {
 // 페이지 간 기본 딜레이 / WAF 쿨다운 (ms)
 const PAGE_DELAY_MS = 800;
 const WAF_COOLDOWN_MS = 15_000;
+
+// 페이지 풀 acquire 폴링 간격 (ms)
+const POOL_POLL_MS = 50;
+
+// 주기적 컨텍스트 정리 간격 (페이지 수)
+const CONTEXT_CLEANUP_INTERVAL = 100;
 
 // 페이지 goto 타임아웃 (ms) — 첫 페이지는 hydration 여유, 나머지는 짧게
 const FIRST_PAGE_GOTO_TIMEOUT_MS = 60_000;
@@ -78,6 +85,16 @@ export class WebCrawler {
   /** WAF 차단 감지 시각 — 다른 워커가 속도를 줄이도록 공유 */
   private lastBlockedAt = 0;
 
+  // ── 페이지 풀 (메모리 최적화) ──────────────────────────────────
+  /** 재사용 가능한 페이지 풀 */
+  private pagePool: Page[] = [];
+  /** 풀 내 사용 중인 페이지 추적 */
+  private pagePoolBusy: Set<Page> = new Set();
+  /** 주기적 컨텍스트 정리용 카운터 */
+  private pagesProcessedSinceCleanup = 0;
+  /** storageState 가 로드되었는지 여부 — 로드 시 clearCookies 스킵 */
+  private hasStorageState = false;
+
   constructor(options: CrawlerOptions = {}) {
     this.options = {
       maxDepth: 4,
@@ -110,9 +127,97 @@ export class WebCrawler {
     await installHistoryHook(this.context, {
       getSink: () => this.routeCaptureSink,
     });
+
+    // 페이지 풀 초기화
+    await this.initPagePool();
+  }
+
+  /**
+   * 페이지 풀을 동시성 수만큼 미리 생성한다.
+   * init() 및 loadStorageState() 후에 호출.
+   */
+  private async initPagePool(): Promise<void> {
+    // 기존 풀 정리
+    await this.drainPagePool();
+
+    const concurrency = this.options.crawlConcurrency ?? getRuntimeProfile().crawlConcurrency;
+    // 첫 페이지 순차 처리용 +1
+    const poolSize = concurrency + 1;
+    for (let i = 0; i < poolSize; i++) {
+      const page = await this.context!.newPage();
+      this.pagePool.push(page);
+    }
+  }
+
+  /** 풀의 모든 페이지를 닫고 초기화한다. */
+  private async drainPagePool(): Promise<void> {
+    const allPages = [...this.pagePool, ...this.pagePoolBusy];
+    await Promise.all(allPages.map((p) => p.close().catch(() => {})));
+    this.pagePool = [];
+    this.pagePoolBusy.clear();
+  }
+
+  /**
+   * 풀에서 사용 가능한 페이지를 가져온다.
+   * 모든 페이지가 사용 중이면 50ms 폴링으로 대기한다.
+   */
+  private async acquirePage(): Promise<Page> {
+    while (true) {
+      const page = this.pagePool.pop();
+      if (page) {
+        // 페이지가 이미 닫혀 있으면 교체 — isClosed() 가 없는 환경(테스트 mock)도 안전 처리
+        try {
+          const closed = typeof page.isClosed === 'function' ? page.isClosed() : false;
+          if (closed) {
+            const replacement = await this.context!.newPage();
+            this.pagePoolBusy.add(replacement);
+            return replacement;
+          }
+        } catch {
+          // isClosed 호출 실패 시 그대로 사용
+        }
+        this.pagePoolBusy.add(page);
+        return page;
+      }
+      // 모든 페이지가 사용 중 — 잠시 대기
+      await new Promise((r) => setTimeout(r, POOL_POLL_MS));
+    }
+  }
+
+  /**
+   * 사용 완료된 페이지를 풀에 반환한다.
+   * about:blank 로 이동하여 DOM 메모리를 해제한 뒤 풀에 돌려놓는다.
+   */
+  private async releasePage(page: Page): Promise<void> {
+    this.pagePoolBusy.delete(page);
+    const closed = typeof page.isClosed === 'function' ? page.isClosed() : false;
+    if (closed) {
+      // 닫힌 페이지는 교체
+      try {
+        const replacement = await this.context!.newPage();
+        this.pagePool.push(replacement);
+      } catch {
+        // context 가 이미 닫힌 경우 무시
+      }
+      return;
+    }
+    try {
+      await page.goto('about:blank', { timeout: 5000 });
+      this.pagePool.push(page);
+    } catch {
+      // 네비게이션 실패 시 폐기 후 교체
+      await page.close().catch(() => {});
+      try {
+        const replacement = await this.context!.newPage();
+        this.pagePool.push(replacement);
+      } catch {
+        // context 가 이미 닫힌 경우 무시
+      }
+    }
   }
 
   async close(): Promise<void> {
+    await this.drainPagePool();
     if (this.context) await this.context.close();
     if (this.browser) await this.browser.close();
   }
@@ -161,6 +266,9 @@ export class WebCrawler {
     this.queuedUrls.clear();
     this.peakFound = 0;
     this.detectedFramework = 'unknown';
+    this.pagesProcessedSinceCleanup = 0;
+
+    logMemorySnapshot('crawl-start');
 
     const pages: PageInfo[] = [];
     const errors: string[] = [];
@@ -232,6 +340,14 @@ export class WebCrawler {
           continue;
         }
 
+        // 메모리 압박 시 딜레이를 2배로 늘려 동시성 효과를 축소
+        const memoryHigh = shouldReduceConcurrency();
+        if (memoryHigh) {
+          console.warn('[Crawler] 메모리 압박 감지 — 딜레이 2배 적용');
+          logMemorySnapshot('memory-pressure');
+        }
+        const effectiveDelay = memoryHigh ? PAGE_DELAY_MS * 2 : PAGE_DELAY_MS;
+
         // WAF rate limiting 회피: 최근 차단이 감지되었으면 백오프 대기
         const sinceLast = Date.now() - this.lastBlockedAt;
         if (this.lastBlockedAt > 0 && sinceLast < WAF_COOLDOWN_MS) {
@@ -240,7 +356,7 @@ export class WebCrawler {
           await new Promise((r) => setTimeout(r, cooldown));
         }
         // 페이지 간 기본 딜레이 (Cloudflare rate limit 회피)
-        await new Promise((r) => setTimeout(r, PAGE_DELAY_MS));
+        await new Promise((r) => setTimeout(r, effectiveDelay));
 
         activeWorkers++;
         try {
@@ -263,6 +379,8 @@ export class WebCrawler {
 
     // sink 해제 — close() 이후 binding 이 호출되지 않도록
     this.routeCaptureSink = null;
+
+    logMemorySnapshot(`crawl-end (${pages.length} pages)`);
 
     return {
       pages,
@@ -298,7 +416,22 @@ export class WebCrawler {
 
     this.visitedUrls.add(normalizedUrl);
 
-    const page = await this.context!.newPage();
+    // 주기적 컨텍스트 정리 — 쿠키/캐시 비대화 방지
+    this.pagesProcessedSinceCleanup++;
+    if (
+      this.pagesProcessedSinceCleanup >= CONTEXT_CLEANUP_INTERVAL &&
+      !this.hasStorageState
+    ) {
+      this.pagesProcessedSinceCleanup = 0;
+      try {
+        await this.context!.clearCookies();
+        logMemorySnapshot(`context-cleanup (${this.visitedUrls.size} pages visited)`);
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    const page = await this.acquirePage();
     try {
       const gotoTimeout = isFirstPage ? FIRST_PAGE_GOTO_TIMEOUT_MS : SUBSEQUENT_GOTO_TIMEOUT_MS;
       await page.goto(normalizedUrl, { waitUntil: 'domcontentloaded', timeout: gotoTimeout });
@@ -403,7 +536,7 @@ export class WebCrawler {
     } catch (error) {
       ctx.errors.push(`Error crawling ${normalizedUrl}: ${error}`);
     } finally {
-      await page.close();
+      await this.releasePage(page);
     }
   }
 
@@ -448,6 +581,12 @@ export class WebCrawler {
     await installHistoryHook(this.context, {
       getSink: () => this.routeCaptureSink,
     });
+
+    // storageState 플래그 설정 — clearCookies 스킵용
+    this.hasStorageState = true;
+
+    // 페이지 풀 재초기화 (새 context 에서 생성해야 함)
+    await this.initPagePool();
   }
 }
 

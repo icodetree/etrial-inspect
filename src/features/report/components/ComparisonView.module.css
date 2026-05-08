@@ -1,0 +1,281 @@
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* 뒤로가기 */
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #6b7280;
+  text-decoration: none;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.backLink:hover {
+  color: #374151;
+}
+
+/* 헤더 */
+.header {
+  margin-bottom: 2rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 0.5rem;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 델타 요약 카드 그리드 */
+.deltaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.deltaCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.deltaCardLabel {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  margin: 0 0 0.5rem;
+}
+
+.deltaValue {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.deltaBeforeAfter {
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+.improved {
+  color: #059669;
+}
+
+.regressed {
+  color: #dc2626;
+}
+
+.neutral {
+  color: #6b7280;
+}
+
+/* Impact 테이블 */
+.impactSection {
+  margin-bottom: 2rem;
+}
+
+.sectionTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.75rem;
+}
+
+.impactTable {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.impactTable th,
+.impactTable td {
+  padding: 0.75rem 1rem;
+  text-align: center;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.impactTable th {
+  background: #f9fafb;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.impactTable td {
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.impactTable td:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+/* 위반 섹션 (접기/펴기) */
+.section {
+  margin-bottom: 1.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  background: #fff;
+  text-align: left;
+}
+
+.sectionHeader:hover {
+  background: #f9fafb;
+}
+
+.sectionHeaderNew {
+  color: #dc2626;
+}
+
+.sectionHeaderResolved {
+  color: #059669;
+}
+
+.sectionToggle {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-left: auto;
+  padding-left: 1rem;
+}
+
+.sectionBody {
+  border-top: 1px solid #f3f4f6;
+}
+
+/* 위반 항목 */
+.violationItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f9fafb;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.violationItem:last-child {
+  border-bottom: none;
+}
+
+.impactBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.impactCritical {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.impactSerious {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.impactModerate {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.impactMinor {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.violationInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.violationId {
+  font-weight: 600;
+}
+
+.violationPage {
+  display: block;
+  font-size: 0.8125rem;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+/* 경고 배너 */
+.warningBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #92400e;
+  margin-bottom: 1.5rem;
+}
+
+/* 로딩 / 에러 */
+.loading {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #6b7280;
+  font-size: 0.9375rem;
+}
+
+.error {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #dc2626;
+  font-size: 0.9375rem;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .deltaGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .impactTable th,
+  .impactTable td {
+    padding: 0.5rem;
+    font-size: 0.8125rem;
+  }
+}

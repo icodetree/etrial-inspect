@@ -183,6 +183,9 @@ describe('WebCrawler — abort 거동', () => {
     const crawler = new WebCrawler({ enableSitemap: false });
     await crawler.init();
 
+    // init() 에서 페이지 풀 초기화가 newPage 를 호출하므로 카운터 리셋
+    const newPageCallsAfterInit = mockNewPage.mock.calls.length;
+
     const controller = new AbortController();
     controller.abort();
 
@@ -193,8 +196,8 @@ describe('WebCrawler — abort 거동', () => {
     );
 
     expect(result.pages).toHaveLength(0);
-    // newPage 가 호출되지 않았는지 확인 (시작 URL 도 처리 못 함)
-    expect(mockNewPage).not.toHaveBeenCalled();
+    // crawl 중 newPage 가 추가로 호출되지 않았는지 확인 (시작 URL 도 처리 못 함)
+    expect(mockNewPage.mock.calls.length).toBe(newPageCallsAfterInit);
 
     await crawler.close();
   });

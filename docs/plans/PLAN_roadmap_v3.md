@@ -77,14 +77,22 @@
 
 ## 3순위 — 고급 기능
 
-### ⑧ 비교 분석 (이전 vs 현재)
-- 이전 진단 결과와 점수/위반 수 차이 시각화
+### ~~⑧ 비교 분석 (이전 vs 현재)~~ → ✅ 완료 (2026-05-08)
+- 복합키 diff 로직 (`src/lib/comparison/diff.ts`) — 신규/해결/지속 위반 분류
+- API 엔드포인트 `/api/history/compare?baseId=&currentId=`
+- 비교 페이지 `/report/compare` — 델타 카드, 영향도 테이블, 신규/해결 위반 목록
+- HistoryList에 "비교" 선택 모드 추가
+- 17개 diff 단위 테스트 통과
 
 ### ⑨ 자동 스케줄링 진단
 - GitHub Actions cron 활용 주기적 자동 진단 + Notion 자동 저장
 
-### ⑩ 대규모 크롤링 메모리 최적화
-- Playwright 페이지 풀 또는 순차 닫기
+### ~~⑩ 대규모 크롤링 메모리 최적화~~ → ✅ 완료 (2026-05-08)
+- `src/lib/memory-monitor.ts` — 힙 메모리 모니터링 (512MB 경고, 768MB 위험)
+- WebCrawler 페이지 풀링 — newPage/close 대신 재사용 (about:blank 해제)
+- 적응적 동시성 — 메모리 압박 시 자동 감속
+- 100페이지마다 쿠키 정리 (로그인 세션 보존)
+- 11개 메모리 모니터 단위 테스트 통과
 
 ### ⑪ OCR 엔진 업그레이드
 - Tesseract.js 한계 시 PaddleOCR ONNX 검토 (모델 ~50MB, Vercel 배포 제약 사전 검토)

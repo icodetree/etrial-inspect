@@ -8,6 +8,11 @@ jest.mock('../HistoryList.module.css', () =>
   new Proxy({}, { get: (_, key) => key })
 );
 
+const mockPush = jest.fn();
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
 import { HistoryList } from '../HistoryList';
 
 const mockHistoryItems = [
