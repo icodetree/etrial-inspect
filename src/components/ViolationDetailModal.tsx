@@ -169,11 +169,15 @@ export const ViolationDetailModal: React.FC<ViolationDetailModalProps> = ({
     : '#';
 
   return (
-    <div className={styles['modal-overlay']} onClick={onClose}>
+    <div className={styles['modal-overlay']}>
+      <div
+        className={styles['modal-backdrop']}
+        role="presentation"
+        onClick={onClose}
+      />
       <div
         ref={dialogRef}
         className={styles['modal-content']}
-        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -221,37 +225,36 @@ export const ViolationDetailModal: React.FC<ViolationDetailModalProps> = ({
               )}
             </div>
           ) : showArtifactNote ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
-              <p style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>
-                📦 스크린샷 확인 안내
+            <div className={styles['artifact-panel']}>
+              <p className={styles['artifact-title']}>
+                스크린샷 확인 안내
               </p>
               <p>GitHub Actions 환경에서는 보안 정책상 이미지를 바로 볼 수 없으며,<br />압축 파일(ZIP)로 다운로드해야 합니다.</p>
 
-              <div style={{ margin: '20px 0', padding: '16px', background: '#f8f9fa', borderRadius: '8px' }}>
-                <p style={{ fontSize: '14px', marginBottom: '4px' }}>Artifact 이름</p>
-                <code style={{ background: '#e9ecef', padding: '4px 8px', borderRadius: '4px', color: '#333' }}>{artifactName}</code>
+              <div className={styles['artifact-info-box']}>
+                <p className={styles['artifact-info-label']}>Artifact 이름</p>
+                <code className={styles['artifact-code']}>{artifactName}</code>
               </div>
 
               {isLoadingArtifact ? (
-                <p style={{ marginTop: '12px', fontSize: '13px' }}>⏳ 다운로드 링크 생성 중...</p>
+                <p className={styles['artifact-loading']}>다운로드 링크 생성 중...</p>
               ) : artifactUrl ? (
                 <a
                   href={artifactUrl}
-                  className={styles['open-link-btn']}
-                  style={{ display: 'inline-block', marginTop: '12px', background: '#2da44e', border: 'none', color: 'white', padding: '10px 20px', borderRadius: '6px', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold' }}
+                  className={`${styles['open-link-btn']} ${styles['artifact-download-btn']}`}
                 >
-                  📥 Artifact ZIP 다운로드
+                  Artifact ZIP 다운로드
                 </a>
               ) : (
-                <div style={{ marginTop: '12px' }}>
-                  <p style={{ color: '#d73a49', fontSize: '13px', marginBottom: '8px' }}>
-                    ⚠️ 다운로드 링크를 가져올 수 없습니다.
+                <div className={styles['artifact-error']}>
+                  <p className={styles['artifact-error-text']}>
+                    다운로드 링크를 가져올 수 없습니다.
                   </p>
                   <a
                     href={actionsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: '#0366d6', textDecoration: 'underline', fontSize: '13px', cursor: 'pointer' }}
+                    className={styles['artifact-actions-link']}
                   >
                     GitHub Actions 실행 페이지에서 직접 확인하기 &rarr;
                   </a>
@@ -259,7 +262,7 @@ export const ViolationDetailModal: React.FC<ViolationDetailModalProps> = ({
               )}
             </div>
           ) : (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+            <div className={styles['empty-screenshot']}>
               <p>스크린샷 이미지가 없습니다.</p>
               <p>최신 검사를 실행하면 스크린샷이 생성됩니다.</p>
             </div>

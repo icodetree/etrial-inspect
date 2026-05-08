@@ -1,0 +1,31 @@
+/* ============================================
+   이미지 진단 페이지 전용 스타일
+   ============================================ */
+
+.page {
+  padding: 2rem;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.page-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--c-text-primary);
+  margin: 0;
+}
+
+.start-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.config-section {
+  margin-bottom: 1.5rem;
+}

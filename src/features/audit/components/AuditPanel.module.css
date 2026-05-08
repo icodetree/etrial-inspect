@@ -148,6 +148,10 @@
   overflow-y: auto;
 }
 
+.cancelBtn {
+  color: #dc2626;
+}
+
 /* 반응형 — 모바일에서 사이드바 없음 */
 @media (max-width: 900px) {
   .panel {

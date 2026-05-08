@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
-jest.mock('@/app/page.module.css', () =>
+jest.mock('../AuditTerminal.module.css', () =>
   new Proxy({}, { get: (_, key) => key })
 );
 

@@ -54,6 +54,24 @@
   --c-severe-bg: #fff1e5;
   --c-white: #ffffff;
   --header-height: 56px;
+
+  /* ── 추가 시맨틱 토큰 (R3-1 인라인 제거) ── */
+  --c-text-primary: #111827;
+  --c-text-secondary: #6b7280;
+  --c-text-muted: #9ca3af;
+  --c-text-slate: #94a3b8;
+  --c-text-slate-dark: #475569;
+  --c-text-dark: #374151;
+  --c-text-heading: #334155;
+  --c-text-link: #64748b;
+  --c-surface: #f9fafb;
+  --c-surface-alt: #fafafa;
+  --c-border-light: #e5e7eb;
+  --c-border-slate: #e2e8f0;
+  --c-bg-slate: #f1f5f9;
+  --c-radius-md: 8px;
+  --c-radius-lg: 10px;
+  --c-radius-xl: 12px;
 }
 
 /* ===================================================
@@ -463,4 +481,21 @@ h2 {
 h3 {
   font-size: 1.2rem;
   font-weight: 500;
+}
+
+/* ===================================================
+   Root Layout — body/main 레이아웃
+   =================================================== */
+.app-body {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f6f8fa;
+}
+
+.app-main {
+  margin-left: var(--sidebar-width, 220px);
+  flex: 1;
+  overflow-x: hidden;
+  min-height: 100vh;
+  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }

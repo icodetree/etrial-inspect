@@ -4,14 +4,24 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 9999;
 }
 
+.modal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+}
+
 .modal-content {
+  position: relative;
   background: white;
   border-radius: 12px;
   width: 95vw;
@@ -125,4 +135,78 @@
 
 .open-link-btn:hover {
   background-color: var(--c-primary-hover);
+}
+
+/* Artifact 안내 영역 */
+.artifact-panel {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+}
+
+.artifact-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.artifact-info-box {
+  margin: 20px 0;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: var(--c-radius-md);
+}
+
+.artifact-info-label {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.artifact-code {
+  background: #e9ecef;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #333;
+}
+
+.artifact-loading {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.artifact-download-btn {
+  display: inline-block;
+  margin-top: 12px;
+  background: #2da44e;
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.artifact-error {
+  margin-top: 12px;
+}
+
+.artifact-error-text {
+  color: #d73a49;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.artifact-actions-link {
+  color: #0366d6;
+  text-decoration: underline;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* 빈 상태 */
+.empty-screenshot {
+  padding: 40px;
+  text-align: center;
+  color: #666;
 }

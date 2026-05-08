@@ -1,0 +1,70 @@
+/* ============================================
+   AltTextHistoryList 전용 스타일
+   ============================================ */
+
+.loading {
+  padding: 1rem;
+}
+
+.container {
+  background: #fff;
+  border: 1px solid var(--c-border-light);
+  border-radius: var(--c-radius-lg);
+  overflow: hidden;
+}
+
+.header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--c-border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: var(--c-text-muted);
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 0.875rem;
+}
+
+.item-date {
+  color: var(--c-text-secondary);
+  white-space: nowrap;
+}
+
+.item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-images {
+  color: var(--c-text-secondary);
+  white-space: nowrap;
+}
+
+.item-mismatches {
+  color: #b91c1c;
+  white-space: nowrap;
+}
+
+.item-btn {
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.625rem;
+}

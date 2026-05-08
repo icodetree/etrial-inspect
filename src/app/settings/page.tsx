@@ -95,7 +95,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '720px' }}>
+    <div className={styles.page}>
       <h1 className={styles.pageTitle}>설정</h1>
       <p className={styles.pageDesc}>시스템 설정을 관리합니다.</p>
 
@@ -150,7 +150,7 @@ export default function SettingsPage() {
           </>
         )}
 
-        <p className={styles.helpText} style={{ marginTop: '0.75rem' }}>
+        <p className={styles['help-text-mt']}>
           API 키는 서버 환경변수(.env)에서 설정하거나, 아래 AI 설정에서 직접 관리할 수 있습니다.
         </p>
       </section>

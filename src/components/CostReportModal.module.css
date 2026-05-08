@@ -203,3 +203,7 @@
 .confirm-btn:hover {
   background: var(--c-primary-hover);
 }
+
+.col-role { width: 5%; }
+.col-count { width: 10%; }
+.col-hours { width: 15%; }

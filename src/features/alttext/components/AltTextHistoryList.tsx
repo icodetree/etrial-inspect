@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { AltTextHistoryItem } from '@/types/alt-text';
+import styles from './AltTextHistoryList.module.css';
 
 interface Props {
   refreshTrigger?: number;
@@ -48,63 +49,37 @@ export function AltTextHistoryList({ refreshTrigger }: Props) {
     }
   };
 
-  if (isLoading) return <div style={{ padding: '1rem' }}>이미지 진단 이력 불러오는 중...</div>;
+  if (isLoading) return <div className={styles.loading}>이미지 진단 이력 불러오는 중...</div>;
 
   return (
-    <div
-      style={{
-        background: '#fff',
-        border: '1px solid #e5e7eb',
-        borderRadius: '10px',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          padding: '1rem 1.25rem',
-          borderBottom: '1px solid #e5e7eb',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <h3 style={{ margin: 0, fontSize: '1rem' }}>이미지 진단 이력</h3>
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <h3 className={styles['header-title']}>이미지 진단 이력</h3>
       </div>
 
       {items.length === 0 ? (
-        <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>
+        <div className={styles['empty-state']}>
           저장된 이미지 진단 이력이 없습니다.
         </div>
       ) : (
         <div>
           {items.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1rem',
-                padding: '0.875rem 1.25rem',
-                borderBottom: '1px solid #f3f4f6',
-                fontSize: '0.875rem',
-              }}
-            >
-              <span style={{ color: '#6b7280', whiteSpace: 'nowrap' }}>
+            <div key={item.id} className={styles['item-row']}>
+              <span className={styles['item-date']}>
                 {item.date ? new Date(item.date).toLocaleDateString('ko-KR') : '-'}
               </span>
-              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.title}>
+              <span className={styles['item-title']} title={item.title}>
                 {item.title || '(제목 없음)'}
               </span>
-              <span style={{ color: '#6b7280', whiteSpace: 'nowrap' }}>이미지 {item.totalImages}장</span>
-              <span style={{ color: '#b91c1c', whiteSpace: 'nowrap' }}>불일치 {item.mismatches}건</span>
-              <a href={`/alttext/${item.id}`} className="btn btn-secondary" style={{ fontSize: '0.8125rem', padding: '0.25rem 0.625rem' }}>
+              <span className={styles['item-images']}>이미지 {item.totalImages}장</span>
+              <span className={styles['item-mismatches']}>불일치 {item.mismatches}건</span>
+              <a href={`/alttext/${item.id}`} className={`btn btn-secondary ${styles['item-btn']}`}>
                 리포트 보기
               </a>
               <button
                 onClick={() => handleDelete(item.id)}
-                className="btn btn-secondary"
+                className={`btn btn-secondary ${styles['item-btn']}`}
                 aria-label="이미지 진단 리포트 삭제"
-                style={{ fontSize: '0.8125rem', padding: '0.25rem 0.625rem' }}
               >
                 삭제
               </button>

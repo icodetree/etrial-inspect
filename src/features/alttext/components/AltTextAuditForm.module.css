@@ -1,0 +1,54 @@
+/* ============================================
+   AltTextAuditForm 전용 스타일
+   ============================================ */
+
+.label-with-asterisk {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.asterisk-icon {
+  margin-bottom: 2px;
+}
+
+.help-text {
+  font-size: 0.8125rem;
+  color: var(--c-text-secondary);
+  margin-top: 0.25rem;
+}
+
+.textarea-mono {
+  resize: vertical;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+.label-flex {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Claude Vision 비활성 상태 */
+.label-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-text {
+  font-size: 0.8125rem;
+  color: #ef4444;
+  margin-top: 0.375rem;
+}
+
+.error-link {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.info-text {
+  font-size: 0.8125rem;
+  color: var(--c-text-secondary);
+  margin-top: 0.375rem;
+}

@@ -7,6 +7,7 @@ import { AuditOverlay } from '@/features/audit/components/AuditOverlay';
 import { useRouter } from 'next/navigation';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, Gauge } from 'lucide-react';
+import styles from './home.module.css';
 
 export default function Home() {
   const router = useRouter();
@@ -101,40 +102,29 @@ export default function Home() {
   ];
 
   return (
-    <div style={{ padding: '2rem' }}>
+    <div className={styles.page}>
       {/* 페이지 헤더 */}
-      <div style={{ marginBottom: '1.75rem' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
+      <div className={styles['page-header']}>
+        <h1 className={styles['page-title']}>
           웹접근성 자동 진단
         </h1>
-        <p style={{ fontSize: '0.875rem', color: '#6b7280', margin: 0 }}>
+        <p className={styles['page-subtitle']}>
           KWCAG 2.2 기반 · 이트라이브 E-able 시스템
         </p>
       </div>
 
       {/* 통계 카드 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.875rem', marginBottom: '1.5rem' }}>
+      <div className={styles['stats-grid']}>
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div
-              key={stat.label}
-              style={{
-                background: '#fff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '10px',
-                padding: '1rem 1.125rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.875rem',
-              }}
-            >
-              <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '7px', flexShrink: 0 }}>
+            <div key={stat.label} className={styles['stat-card']}>
+              <div className={styles['stat-icon-wrap']}>
                 <Icon size={18} color="#9ca3af" aria-hidden="true" />
               </div>
-              <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: '0.75rem', color: '#6b7280', margin: '0 0 3px', whiteSpace: 'nowrap' }}>{stat.label}</p>
-                <p style={{ fontSize: '1.375rem', fontWeight: 700, color: stat.valueColor ?? '#111827', margin: 0, lineHeight: 1 }}>
+              <div className={styles['stat-text-wrap']}>
+                <p className={styles['stat-label']}>{stat.label}</p>
+                <p className={styles['stat-value']} style={stat.valueColor ? { color: stat.valueColor } : undefined}>
                   {stat.value}
                 </p>
               </div>
@@ -144,7 +134,7 @@ export default function Home() {
       </div>
 
       {/* 진단 설정 */}
-      <section aria-label="진단 설정" style={{ marginBottom: '1.5rem' }}>
+      <section aria-label="진단 설정" className={styles['config-section']}>
         <AuditConfigForm
           config={config}
           setConfig={setConfig}
@@ -156,34 +146,21 @@ export default function Home() {
 
       {/* 진단 완료 후 결과 액션 바 */}
       {progress.status === 'completed' && results && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            padding: '1rem 1.25rem',
-            marginBottom: '1.5rem',
-            background: '#fff',
-            border: '1px solid #e5e7eb',
-            borderRadius: '10px',
-            borderLeft: '4px solid var(--c-success)',
-          }}
-        >
-          <span style={{ fontSize: '0.875rem', color: '#374151', fontWeight: 500 }}>
+        <div className={styles['result-bar']}>
+          <span className={styles['result-bar-text']}>
             진단 완료 — {results.pages}페이지, 위반 {results.violations}건
           </span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-primary" onClick={() => handleViewLatestReport()} style={{ fontSize: '0.8125rem' }}>
+          <div className={styles['result-bar-actions']}>
+            <button className={`btn btn-primary ${styles['result-btn']}`} onClick={() => handleViewLatestReport()}>
               리포트 보기
             </button>
             <button
-              className="btn btn-secondary"
+              className={`btn btn-secondary ${styles['notion-btn']}`}
               onClick={handleSaveToNotion}
-              style={{ fontSize: '0.8125rem', background: '#1a1a1a', color: '#fff', borderColor: '#1a1a1a' }}
             >
               Notion 저장
             </button>
-            <button className="btn btn-secondary" onClick={exportExcel} style={{ fontSize: '0.8125rem' }}>
+            <button className={`btn btn-secondary ${styles['result-btn']}`} onClick={exportExcel}>
               엑셀 다운로드
             </button>
           </div>

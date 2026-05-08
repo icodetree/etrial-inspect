@@ -22,6 +22,17 @@
   overflow: hidden;
 }
 
+.brand-logo {
+  object-fit: contain;
+  object-position: left;
+}
+
+.brand-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--c-text-primary);
+}
+
 .brandSpacer {
   height: 60px;
   flex-shrink: 0;

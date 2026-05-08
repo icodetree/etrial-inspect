@@ -6,6 +6,7 @@ import { useAltTextAudit } from '@/features/alttext/hooks/useAltTextAudit';
 import { AltTextAuditForm } from '@/features/alttext/components/AltTextAuditForm';
 import { AltTextResultViewer } from '@/features/alttext/components/AltTextResultViewer';
 import { AltTextOverlay } from '@/features/alttext/components/AltTextOverlay';
+import styles from './page.module.css';
 
 export default function AltTextPage() {
   const { config, setConfig, progress, logs, result, startScan, cancelScan } = useAltTextAudit();
@@ -77,7 +78,7 @@ export default function AltTextPage() {
     : null;
 
   return (
-    <div style={{ padding: '2rem' }}>
+    <div className={styles.page}>
       {/* 오버레이 */}
       {showOverlay && progress.status !== 'idle' && (
         <AltTextOverlay
@@ -93,22 +94,14 @@ export default function AltTextPage() {
       )}
 
       {/* 헤더 */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '1.5rem',
-        }}
-      >
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 700, color: '#111827', margin: 0 }}>
+      <div className={styles['page-header']}>
+        <h1 className={styles['page-title']}>
           이미지 진단 (대체 텍스트 OCR 검증)
         </h1>
         <button
-          className="btn btn-primary"
+          className={`btn btn-primary ${styles['start-btn']}`}
           onClick={handleStartScan}
           disabled={isProcessing}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
         >
           <Sparkles size={15} aria-hidden="true" />
           <span>이미지 진단 시작</span>
@@ -116,7 +109,7 @@ export default function AltTextPage() {
       </div>
 
       {/* 입력 폼 */}
-      <section aria-label="이미지 진단 설정" style={{ marginBottom: '1.5rem' }}>
+      <section aria-label="이미지 진단 설정" className={styles['config-section']}>
         <AltTextAuditForm
           config={config}
           setConfig={setConfig}

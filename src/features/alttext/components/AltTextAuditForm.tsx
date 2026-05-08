@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import type { AltTextConfig } from '../hooks/useAltTextAudit';
+import styles from './AltTextAuditForm.module.css';
 
 interface AltTextAuditFormProps {
   config: AltTextConfig;
@@ -30,9 +31,9 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
         <legend className="form-section-legend">대상 설정</legend>
 
         <div className="form-group">
-          <label htmlFor="alttext-target-url" style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          <label htmlFor="alttext-target-url" className={styles['label-with-asterisk']}>
             대표 URL
-            <Asterisk size={10} color="#ef4444" strokeWidth={3} aria-label="필수 입력" style={{ marginBottom: '2px' }} />
+            <Asterisk size={10} color="#ef4444" strokeWidth={3} aria-label="필수 입력" className={styles['asterisk-icon']} />
           </label>
           <input
             id="alttext-target-url"
@@ -41,7 +42,7 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
             value={config.targetUrl}
             onChange={(e) => setConfig({ ...config, targetUrl: e.target.value })}
           />
-          <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '0.25rem' }}>
+          <p className={styles['help-text']}>
             입력한 URL을 시작점으로 크롤링하여 발견된 모든 페이지에 대해 OCR을 수행합니다.
           </p>
         </div>
@@ -79,13 +80,12 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
         </div>
 
         <div className="form-group">
-          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <label className={styles['label-flex']}>
             제외 경로
             <span className="tooltip-wrap">
               <HelpCircle
                 size={14}
                 color="#9ca3af"
-                style={{ cursor: 'pointer' }}
                 tabIndex={0}
                 aria-label="제외 경로 도움말"
               />
@@ -100,7 +100,7 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
             value={config.excludePaths || ''}
             onChange={(e) => setConfig({ ...config, excludePaths: e.target.value })}
             rows={3}
-            style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.85rem' }}
+            className={styles['textarea-mono']}
           />
         </div>
       </fieldset>
@@ -143,10 +143,7 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
         <div className="form-group">
           <label
             htmlFor="alttext-claude-vision"
-            style={{
-              opacity: hasAnthropicKey ? 1 : 0.6,
-              cursor: hasAnthropicKey ? undefined : 'not-allowed',
-            }}
+            className={!hasAnthropicKey ? styles['label-disabled'] : undefined}
           >
             <input
               id="alttext-claude-vision"
@@ -162,14 +159,11 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
           {hasAnthropicKey === false && (
             <p
               id="claude-vision-desc"
-              style={{ fontSize: '0.8125rem', color: '#ef4444', marginTop: '0.375rem' }}
+              className={styles['error-text']}
               role="alert"
             >
               설정 페이지에서 Anthropic API 키를 먼저 등록하세요.{' '}
-              <Link
-                href="/settings"
-                style={{ color: '#3b82f6', textDecoration: 'underline' }}
-              >
+              <Link href="/settings" className={styles['error-link']}>
                 설정으로 이동
               </Link>
             </p>
@@ -178,7 +172,7 @@ export const AltTextAuditForm = ({ config, setConfig, onStart, isProcessing }: A
           {hasAnthropicKey && config.useClaudeVision && (
             <p
               id="claude-vision-desc"
-              style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '0.375rem' }}
+              className={styles['info-text']}
             >
               Anthropic Claude API를 사용하여 이미지를 직접 분석합니다.
               review_needed/text_mismatch 항목만 재검증하며, 이미지당 약 $0.01 비용이 발생합니다.

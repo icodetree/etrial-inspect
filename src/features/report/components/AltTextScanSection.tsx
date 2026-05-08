@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { AltTextJudgment, AltTextScanResult } from '@/types/alt-text';
 import { ReportPagination } from './ReportPagination';
+import styles from './AltTextScanSection.module.css';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -80,23 +81,19 @@ export default function AltTextScanSection({ scans }: Props) {
   if (scans.length === 0) return null;
 
   return (
-    <div className="card" style={{ marginTop: '2rem' }}>
-      <h2 style={{ marginBottom: '0.5rem' }}>이미지 대체텍스트 OCR 검증</h2>
-      <p style={{ color: '#64748b', marginBottom: '1rem', fontSize: '0.9rem' }}>
-        KWCAG 2.2 §1.1.1 — Tesseract.js OCR로 이미지 내 텍스트를 추출해 alt 속성과 비교합니다.
+    <div className={`card ${styles['section-card']}`}>
+      <h2 className={styles['section-title']}>이미지 대체텍스트 OCR 검증</h2>
+      <p className={styles['section-desc']}>
+        KWCAG 2.2 &sect;1.1.1 — Tesseract.js OCR로 이미지 내 텍스트를 추출해 alt 속성과 비교합니다.
       </p>
 
       {/* 요약 통계 — 클릭 시 해당 판정으로 필터링 */}
-      <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
+      <div className={`stats-grid ${styles['stats-wrap']}`}>
         <button
           type="button"
-          className="stat-card"
+          className={`stat-card ${filter === 'all' ? styles['stat-card-pressed'] : ''}`}
           onClick={() => { setFilter('all'); setCurrentPage(1); }}
-          style={{
-            cursor: 'pointer',
-            outline: filter === 'all' ? '2px solid var(--c-primary, #f97316)' : undefined,
-            outlineOffset: '-2px',
-          }}
+          style={filter === 'all' ? { outline: '2px solid var(--c-primary, #f97316)', outlineOffset: '-2px' } : undefined}
           aria-pressed={filter === 'all'}
           aria-label="전체 이미지 보기"
         >
@@ -110,10 +107,9 @@ export default function AltTextScanSection({ scans }: Props) {
             key={j}
             onClick={() => { setFilter(filter === j ? 'all' : j); setCurrentPage(1); }}
             style={{
-              cursor: 'pointer',
               borderLeft: `4px solid ${JUDGMENT_COLOR[j].border}`,
               outline: filter === j ? `2px solid ${JUDGMENT_COLOR[j].border}` : undefined,
-              outlineOffset: '-2px',
+              outlineOffset: filter === j ? '-2px' : undefined,
             }}
             aria-pressed={filter === j}
             aria-label={`${JUDGMENT_LABEL[j]} ${totals[j]}건 필터`}
@@ -125,7 +121,7 @@ export default function AltTextScanSection({ scans }: Props) {
       </div>
 
       {/* 필터 */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+      <div className={styles['filter-bar']}>
         <select value={filter} onChange={(e) => { setFilter(e.target.value as 'all' | AltTextJudgment); setCurrentPage(1); }}>
           <option value="all">모든 판정</option>
           {(Object.keys(JUDGMENT_LABEL) as AltTextJudgment[]).map((j) => (
@@ -138,24 +134,21 @@ export default function AltTextScanSection({ scans }: Props) {
             <option key={url} value={url}>{url}</option>
           ))}
         </select>
-        <span style={{ color: '#94a3b8', alignSelf: 'center', fontSize: '0.9rem' }}>
+        <span className={styles['filter-count']}>
           {filteredItems.length}건 표시
         </span>
       </div>
 
       {/* 아이템 목록 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div className={styles['item-list']}>
         {paginatedItems.map((item, idx) => {
           const color = JUDGMENT_COLOR[item.judgment];
           return (
             <div
               key={`${item.pageUrl}-${item.elementId}-${idx}`}
+              className={styles['item-card']}
               style={{
-                display: 'flex',
-                gap: '1rem',
-                padding: '1rem',
                 border: `1px solid ${color.border}`,
-                borderRadius: '0.5rem',
                 background: color.bg,
               }}
             >
@@ -163,113 +156,79 @@ export default function AltTextScanSection({ scans }: Props) {
                 src={item.imageUrl}
                 alt=""
                 loading="lazy"
-                style={{
-                  width: '120px',
-                  height: '90px',
-                  objectFit: 'contain',
-                  background: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '0.25rem',
-                  flexShrink: 0,
-                }}
+                className={styles['item-thumb']}
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
                 }}
               />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+              <div className={styles['item-body']}>
+                <div className={styles['item-meta']}>
                   <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '0.2rem 0.6rem',
-                      borderRadius: '9999px',
-                      background: color.border,
-                      color: '#fff',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                    }}
+                    className={styles['judgment-badge']}
+                    style={{ background: color.border }}
                   >
                     {JUDGMENT_LABEL[item.judgment]}
                   </span>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  <span className={styles['meta-text']}>
                     {IMAGE_TYPE_LABEL[item.imageType]}
                   </span>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  <span className={styles['meta-text']}>
                     유사도 {(item.similarity * 100).toFixed(0)}%
                   </span>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  <span className={styles['meta-text']}>
                     신뢰도 {(item.confidenceScore * 100).toFixed(0)}%
                   </span>
                 </div>
-                <div style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                <div className={styles['alt-line']}>
                   <strong>현재 alt:</strong>{' '}
                   {item.currentAlt === null ? (
-                    <em style={{ color: '#ef4444' }}>(속성 없음)</em>
+                    <em className={styles['alt-missing']}>(속성 없음)</em>
                   ) : item.currentAlt === '' ? (
-                    <em style={{ color: '#f59e0b' }}>(빈 문자열 — 장식 이미지)</em>
+                    <em className={styles['alt-empty']}>(빈 문자열 — 장식 이미지)</em>
                   ) : (
                     <span>{`"${item.currentAlt}"`}</span>
                   )}
                 </div>
-                <div style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}>
+                <div className={styles['alt-line']}>
                   <strong>OCR 추출:</strong>{' '}
                   {item.extractedText ? (
                     <span>{`"${item.extractedText}"`}</span>
                   ) : (
-                    <em style={{ color: '#9ca3af' }}>(추출된 텍스트 없음)</em>
+                    <em className={styles['ocr-missing']}>(추출된 텍스트 없음)</em>
                   )}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: color.fg, marginTop: '0.4rem' }}>
+                <div className={styles['reason-text']} style={{ color: color.fg }}>
                   {item.reason}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.3rem', wordBreak: 'break-all' }}>
-                  {item.pageUrl} · {item.elementId}
+                <div className={styles['element-info']}>
+                  {item.pageUrl} &middot; {item.elementId}
                 </div>
 
                 {/* Claude Vision AI 판정 결과 */}
                 {item.claudeAnalysis && (
                   <div
-                    style={{
-                      marginTop: '0.75rem',
-                      padding: '0.75rem',
-                      borderRadius: '0.375rem',
-                      background: item.claudeAnalysis.isAdequate ? '#f0fdf4' : '#fef2f2',
-                      border: `1px solid ${item.claudeAnalysis.isAdequate ? '#86efac' : '#fca5a5'}`,
-                    }}
+                    className={`${styles['ai-panel']} ${item.claudeAnalysis.isAdequate ? styles['ai-panel-adequate'] : styles['ai-panel-inadequate']}`}
                     aria-label={`AI 판정: ${item.claudeAnalysis.isAdequate ? '적절' : '부적절'}`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem' }}>
+                    <div className={styles['ai-header']}>
                       <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '0.15rem 0.5rem',
-                          borderRadius: '9999px',
-                          fontSize: '0.7rem',
-                          fontWeight: 700,
-                          letterSpacing: '0.02em',
-                          background: item.claudeAnalysis.isAdequate ? '#22c55e' : '#ef4444',
-                          color: '#fff',
-                        }}
+                        className={`${styles['ai-badge']} ${item.claudeAnalysis.isAdequate ? styles['ai-badge-adequate'] : styles['ai-badge-inadequate']}`}
                       >
                         AI 판정
                       </span>
                       <span
-                        style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          color: item.claudeAnalysis.isAdequate ? '#15803d' : '#b91c1c',
-                        }}
+                        className={`${styles['ai-verdict']} ${item.claudeAnalysis.isAdequate ? styles['ai-verdict-adequate'] : styles['ai-verdict-inadequate']}`}
                       >
                         {item.claudeAnalysis.isAdequate ? '적절한 대체텍스트' : '부적절한 대체텍스트'}
                       </span>
                     </div>
                     {item.claudeAnalysis.suggestedAlt && (
-                      <div style={{ fontSize: '0.8125rem', marginBottom: '0.25rem' }}>
+                      <div className={styles['ai-suggested']}>
                         <strong>추천 alt:</strong>{' '}
-                        <span style={{ color: '#374151' }}>{`"${item.claudeAnalysis.suggestedAlt}"`}</span>
+                        <span className={styles['ai-suggested-text']}>{`"${item.claudeAnalysis.suggestedAlt}"`}</span>
                       </div>
                     )}
-                    <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                    <div className={styles['ai-reason']}>
                       {item.claudeAnalysis.reason}
                     </div>
                   </div>

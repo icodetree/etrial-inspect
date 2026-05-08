@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import styles from '@/app/page.module.css';
+import styles from './AuditTerminal.module.css';
 import { LogEntry, ProgressState } from '../hooks/useAudit';
 import { Button } from '@/components/ui/Button';
 
@@ -25,7 +25,7 @@ export const AuditTerminal = ({ logs, progress, onExport, onSaveToNotion, result
   }, [logs]);
 
   return (
-    <div style={{ height: '100%' }}>
+    <div className={styles['full-height']}>
       <div className={styles['terminal-window']}>
         <div className={styles['terminal-header']}>
           <div className={styles['terminal-controls']}>
@@ -37,7 +37,7 @@ export const AuditTerminal = ({ logs, progress, onExport, onSaveToNotion, result
         </div>
         <div className={styles['terminal-body']} ref={terminalRef}>
           {logs.length === 0 && (
-            <div style={{ opacity: 0.5 }}>
+            <div className={styles.placeholder}>
               <span className={styles['log-time']}>[시스템]</span>
               스캔 준비 완료. 입력을 기다리는 중...
             </div>
@@ -51,7 +51,7 @@ export const AuditTerminal = ({ logs, progress, onExport, onSaveToNotion, result
           ))}
 
           {(progress.status === 'crawling' || progress.status === 'auditing') && (
-            <div style={{ marginTop: '0.5rem' }}>
+            <div className={styles['cursor-wrap']}>
               <span className={styles.cursor}></span>
             </div>
           )}
@@ -76,7 +76,7 @@ export const AuditTerminal = ({ logs, progress, onExport, onSaveToNotion, result
           <Button variant="success" onClick={onExport}>
             📊 엑셀 다운로드
           </Button>
-          <Button variant="primary" onClick={onSaveToNotion} style={{ background: '#000000', color: '#fff' }}>
+          <Button variant="primary" onClick={onSaveToNotion} className={styles['notion-btn']}>
             📝 Notion 저장
           </Button>
           <button
@@ -87,8 +87,7 @@ export const AuditTerminal = ({ logs, progress, onExport, onSaveToNotion, result
                 window.location.href = '/report';
               }
             }}
-            className="btn btn-secondary"
-            style={{ flex: 1, textAlign: 'center', lineHeight: '46px', cursor: 'pointer', display: 'block', textDecoration: 'none' }}
+            className={`btn btn-secondary ${styles['report-btn']}`}
           >
             📄 상세 리포트 보기
           </button>

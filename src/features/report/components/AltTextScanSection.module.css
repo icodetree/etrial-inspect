@@ -1,0 +1,182 @@
+/* ============================================
+   AltTextScanSection 전용 스타일
+   ============================================ */
+
+.section-card {
+  margin-top: 2rem;
+}
+
+.section-title {
+  margin-bottom: 0.5rem;
+}
+
+.section-desc {
+  color: var(--c-text-link);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.stats-wrap {
+  margin-bottom: 1.5rem;
+}
+
+/* 필터 바 */
+.filter-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.filter-count {
+  color: var(--c-text-slate);
+  align-self: center;
+  font-size: 0.9rem;
+}
+
+/* 아이템 리스트 */
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.item-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.item-thumb {
+  width: 120px;
+  height: 90px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--c-border-light);
+  border-radius: 0.25rem;
+  flex-shrink: 0;
+}
+
+.item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.item-meta {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.judgment-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.meta-text {
+  font-size: 0.75rem;
+  color: var(--c-text-secondary);
+}
+
+.alt-line {
+  font-size: 0.85rem;
+  margin-bottom: 0.4rem;
+}
+
+.alt-missing {
+  color: #ef4444;
+  font-style: italic;
+}
+
+.alt-empty {
+  color: #f59e0b;
+  font-style: italic;
+}
+
+.ocr-missing {
+  color: var(--c-text-muted);
+  font-style: italic;
+}
+
+.reason-text {
+  font-size: 0.8rem;
+  margin-top: 0.4rem;
+}
+
+.element-info {
+  font-size: 0.75rem;
+  color: var(--c-text-muted);
+  margin-top: 0.3rem;
+  word-break: break-all;
+}
+
+/* Claude AI 분석 결과 */
+.ai-panel {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+}
+
+.ai-panel-adequate {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+}
+
+.ai-panel-inadequate {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+}
+
+.ai-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+}
+
+.ai-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.ai-badge-adequate { background: #22c55e; }
+.ai-badge-inadequate { background: #ef4444; }
+
+.ai-verdict {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ai-verdict-adequate { color: #15803d; }
+.ai-verdict-inadequate { color: #b91c1c; }
+
+.ai-suggested {
+  font-size: 0.8125rem;
+  margin-bottom: 0.25rem;
+}
+
+.ai-suggested-text {
+  color: var(--c-text-dark);
+}
+
+.ai-reason {
+  font-size: 0.8rem;
+  color: var(--c-text-secondary);
+}
+
+/* stat-card 스타일 확장 */
+.stat-card-pressed {
+  outline-offset: -2px;
+}

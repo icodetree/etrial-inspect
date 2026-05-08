@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState, useCallback } from 'react';
-import styles from '../../page.module.css';
+import pageStyles from '../../page.module.css';
+import styles from './page.module.css';
 
 // KWCAG 2.2 33개 검사항목 정의
 const KWCAG_ITEMS = [
@@ -141,24 +142,24 @@ export default function ChecklistPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pass':
-        return <span className={styles['status-pass']}>통과</span>;
+        return <span className={pageStyles['status-pass']}>통과</span>;
       case 'fail':
-        return <span className={styles['status-fail']}>위반</span>;
+        return <span className={pageStyles['status-fail']}>위반</span>;
       case 'manual':
-        return <span className={styles['status-manual']}>수동확인</span>;
+        return <span className={pageStyles['status-manual']}>수동확인</span>;
       default:
-        return <span className={styles['status-na']}>N/A</span>;
+        return <span className={pageStyles['status-na']}>N/A</span>;
     }
   };
 
   const getAutomationBadge = (level: string) => {
     switch (level) {
       case 'high':
-        return <span className={styles['auto-high']}>자동</span>;
+        return <span className={pageStyles['auto-high']}>자동</span>;
       case 'medium':
-        return <span className={styles['auto-medium']}>반자동</span>;
+        return <span className={pageStyles['auto-medium']}>반자동</span>;
       case 'manual':
-        return <span className={styles['auto-manual']}>수동</span>;
+        return <span className={pageStyles['auto-manual']}>수동</span>;
       default:
         return null;
     }
@@ -192,15 +193,27 @@ export default function ChecklistPage() {
   // 원칙별 그룹화
   const principles = ['인식의 용이성', '운용의 용이성', '이해의 용이성', '견고성'];
 
+  const complianceBarClass = complianceRate >= 80
+    ? styles['compliance-bar-fill-high']
+    : complianceRate >= 50
+      ? styles['compliance-bar-fill-mid']
+      : styles['compliance-bar-fill-low'];
+
+  const compliancePctClass = complianceRate >= 80
+    ? styles['compliance-pct-high']
+    : complianceRate >= 50
+      ? styles['compliance-pct-mid']
+      : styles['compliance-pct-low'];
+
   if (results.length === 0) {
     return (
       <div className="container">
-        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+        <div className={`card ${styles['empty-card']}`}>
           <h2>진단 결과가 없습니다</h2>
-          <p style={{ color: '#94a3b8', marginTop: '1rem' }}>
+          <p className={styles['empty-desc']}>
             먼저 메인 페이지에서 접근성 진단을 수행해주세요.
           </p>
-          <a href="/" className="btn btn-primary" style={{ marginTop: '1.5rem' }}>
+          <a href="/" className={`btn btn-primary ${styles['empty-link']}`}>
             메인으로 돌아가기
           </a>
         </div>
@@ -210,14 +223,14 @@ export default function ChecklistPage() {
 
   return (
     <div className="container">
-      <header className={styles['report-header']}>
+      <header className={pageStyles['report-header']}>
         <div>
-          <h1 className={styles['report-title']}>KWCAG 2.2 체크리스트</h1>
-          <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>
+          <h1 className={pageStyles['report-title']}>KWCAG 2.2 체크리스트</h1>
+          <p className={styles['header-desc']}>
             33개 검사항목 전체 점검 결과
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div className={styles['header-actions']}>
           <button type="button" className="btn btn-primary" onClick={exportCSV}>
             CSV 내보내기
           </button>
@@ -231,21 +244,14 @@ export default function ChecklistPage() {
       </header>
 
       {/* 준수율 게이지 */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1rem', fontWeight: 600, color: '#334155', marginBottom: '1rem' }}>
+      <div className={`card ${styles['compliance-card']}`}>
+        <h2 className={styles['compliance-title']}>
           전체 준수율 (자동 검사 항목 기준)
         </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ flex: 1 }}>
+        <div className={styles['compliance-body']}>
+          <div className={styles['compliance-bar-wrap']}>
             <div
-              style={{
-                width: '100%',
-                height: '24px',
-                background: '#f1f5f9',
-                borderRadius: '12px',
-                overflow: 'hidden',
-                border: '1px solid #e2e8f0',
-              }}
+              className={styles['compliance-bar-track']}
               role="progressbar"
               aria-valuenow={complianceRate}
               aria-valuemin={0}
@@ -253,31 +259,16 @@ export default function ChecklistPage() {
               aria-label={`준수율 ${complianceRate}%`}
             >
               <div
-                style={{
-                  width: `${complianceRate}%`,
-                  height: '100%',
-                  background: complianceRate >= 80
-                    ? 'linear-gradient(90deg, #22c55e, #16a34a)'
-                    : complianceRate >= 50
-                      ? 'linear-gradient(90deg, #f59e0b, #d97706)'
-                      : 'linear-gradient(90deg, #ef4444, #dc2626)',
-                  borderRadius: '12px',
-                  transition: 'width 0.5s ease',
-                }}
+                className={`${styles['compliance-bar-fill']} ${complianceBarClass}`}
+                style={{ width: `${complianceRate}%` }}
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+            <div className={styles['compliance-sub']}>
               <span>통과 {stats.pass}개 / 위반 {stats.fail}개</span>
               <span>수동확인 제외 ({stats.manual}개)</span>
             </div>
           </div>
-          <div style={{
-            minWidth: '80px',
-            textAlign: 'center',
-            fontSize: '2rem',
-            fontWeight: 700,
-            color: complianceRate >= 80 ? '#16a34a' : complianceRate >= 50 ? '#d97706' : '#dc2626',
-          }}>
+          <div className={`${styles['compliance-pct']} ${compliancePctClass}`}>
             {complianceRate}%
           </div>
         </div>
@@ -287,7 +278,7 @@ export default function ChecklistPage() {
       <div className="stats-grid">
         <button
           type="button"
-          className={styles['stat-card-clickable']}
+          className={pageStyles['stat-card-clickable']}
           onClick={() => setFilter('all')}
           aria-label="전체 검사항목 33개 보기"
           aria-pressed={filter === 'all'}
@@ -297,40 +288,40 @@ export default function ChecklistPage() {
         </button>
         <button
           type="button"
-          className={styles['stat-card-clickable']}
+          className={pageStyles['stat-card-clickable']}
           onClick={() => setFilter('pass')}
           aria-label={`통과 ${stats.pass}건 보기`}
           aria-pressed={filter === 'pass'}
         >
-          <div className="stat-value" style={{ background: '#22c55e', backgroundClip: 'text' }}>{stats.pass}</div>
+          <div className={`stat-value ${styles['stat-value-green']}`}>{stats.pass}</div>
           <div className="stat-label">통과</div>
         </button>
         <button
           type="button"
-          className={styles['stat-card-clickable']}
+          className={pageStyles['stat-card-clickable']}
           onClick={() => setFilter('fail')}
           aria-label={`위반 ${stats.fail}건 보기`}
           aria-pressed={filter === 'fail'}
         >
-          <div className="stat-value" style={{ background: '#ef4444', backgroundClip: 'text' }}>{stats.fail}</div>
+          <div className={`stat-value ${styles['stat-value-red']}`}>{stats.fail}</div>
           <div className="stat-label">위반</div>
         </button>
         <button
           type="button"
-          className={styles['stat-card-clickable']}
+          className={pageStyles['stat-card-clickable']}
           onClick={() => setFilter('manual')}
           aria-label={`수동확인 필요 ${stats.manual}건 보기`}
           aria-pressed={filter === 'manual'}
         >
-          <div className="stat-value" style={{ background: '#f59e0b', backgroundClip: 'text' }}>{stats.manual}</div>
+          <div className={`stat-value ${styles['stat-value-amber']}`}>{stats.manual}</div>
           <div className="stat-label">수동확인 필요</div>
         </button>
       </div>
 
       {/* 필터 */}
       <div className="card">
-        <div className={styles['filter-bar']}>
-          <label htmlFor="checklist-filter" style={{ fontSize: '0.9rem', fontWeight: 600, color: '#475569', marginRight: '0.5rem' }}>
+        <div className={pageStyles['filter-bar']}>
+          <label htmlFor="checklist-filter" className={styles['filter-label']}>
             필터
           </label>
           <select id="checklist-filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -347,17 +338,17 @@ export default function ChecklistPage() {
           if (principleItems.length === 0) return null;
 
           return (
-            <div key={principle} className={styles['checklist-section']}>
-              <h3 className={styles['principle-title']}>{principle}</h3>
+            <div key={principle} className={pageStyles['checklist-section']}>
+              <h3 className={pageStyles['principle-title']}>{principle}</h3>
               <div className="table-container">
                 <table>
                   <thead>
                     <tr>
-                      <th style={{ width: '100px' }}>항목</th>
+                      <th className={styles['col-id']}>항목</th>
                       <th>검사항목명</th>
-                      <th style={{ width: '90px' }}>검사방식</th>
-                      <th style={{ width: '120px' }}>결과</th>
-                      <th style={{ width: '80px' }}>위반 수</th>
+                      <th className={styles['col-method']}>검사방식</th>
+                      <th className={styles['col-result']}>결과</th>
+                      <th className={styles['col-count']}>위반 수</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -366,43 +357,30 @@ export default function ChecklistPage() {
                       const hasViolations = (result?.violationCount || 0) > 0;
 
                       return (
-                        <tr key={item.id} className={result?.status === 'fail' ? styles['fail-row'] : ''}>
-                          <td colSpan={5} style={{ padding: 0 }}>
+                        <tr key={item.id} className={result?.status === 'fail' ? pageStyles['fail-row'] : ''}>
+                          <td colSpan={5} className={styles['cell-full']}>
                             {hasViolations ? (
                               <details>
-                                <summary
-                                  style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '100px 1fr 90px 120px 80px',
-                                    alignItems: 'center',
-                                    cursor: 'pointer',
-                                    padding: '0.75rem 1rem',
-                                    listStyle: 'none',
-                                  }}
-                                >
+                                <summary className={styles['row-grid-summary']}>
                                   <span><strong>{item.id}</strong></span>
                                   <span>{item.name}</span>
                                   <span>{getAutomationBadge(item.automationLevel)}</span>
                                   <span>{getStatusBadge(result?.status || 'na')}</span>
-                                  <span style={{ textAlign: 'center' }}>{result?.violationCount || 0}</span>
+                                  <span className={styles['count-center']}>{result?.violationCount || 0}</span>
                                 </summary>
-                                <div style={{
-                                  padding: '0.75rem 1rem 0.75rem 2rem',
-                                  background: '#fafafa',
-                                  borderTop: '1px solid #e2e8f0',
-                                }}>
-                                  <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 600 }}>
+                                <div className={styles['violation-panel']}>
+                                  <p className={styles['violation-panel-title']}>
                                     위반 페이지 ({result?.pages.length || 0}개)
                                   </p>
-                                  <ul style={{ margin: 0, paddingLeft: '1.25rem', listStyle: 'disc' }}>
+                                  <ul className={styles['violation-list']}>
                                     {result?.violations.map((v, i) => (
-                                      <li key={i} style={{ fontSize: '0.8rem', color: '#475569', marginBottom: '0.375rem', lineHeight: 1.5 }}>
-                                        <span style={{ color: '#1e293b', fontWeight: 500 }}>
+                                      <li key={i} className={styles['violation-item']}>
+                                        <span className={styles['violation-item-url']}>
                                           {v.pageUrl.length > 60 ? v.pageUrl.slice(0, 60) + '...' : v.pageUrl}
                                         </span>
-                                        <span style={{ color: '#94a3b8' }}> - {v.count}건</span>
+                                        <span className={styles['violation-item-count']}> - {v.count}건</span>
                                         {v.description && (
-                                          <span style={{ display: 'block', color: '#64748b', fontSize: '0.75rem' }}>
+                                          <span className={styles['violation-item-desc']}>
                                             {v.description}
                                           </span>
                                         )}
@@ -412,19 +390,12 @@ export default function ChecklistPage() {
                                 </div>
                               </details>
                             ) : (
-                              <div
-                                style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: '100px 1fr 90px 120px 80px',
-                                  alignItems: 'center',
-                                  padding: '0.75rem 1rem',
-                                }}
-                              >
+                              <div className={styles['row-grid']}>
                                 <span><strong>{item.id}</strong></span>
                                 <span>{item.name}</span>
                                 <span>{getAutomationBadge(item.automationLevel)}</span>
                                 <span>{getStatusBadge(result?.status || 'na')}</span>
-                                <span style={{ textAlign: 'center' }}>{result?.violationCount || 0}</span>
+                                <span className={styles['count-center']}>{result?.violationCount || 0}</span>
                               </div>
                             )}
                           </td>

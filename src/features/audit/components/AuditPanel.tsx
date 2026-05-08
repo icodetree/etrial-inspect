@@ -172,7 +172,7 @@ export const AuditPanel = ({
           {canCancel && (
             <button
               type="button"
-              className={styles.iconButton}
+              className={`${styles.iconButton} ${styles.cancelBtn}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onCancel?.();
@@ -186,7 +186,6 @@ export const AuditPanel = ({
               }}
               aria-label="진단 정지"
               title="진단 정지"
-              style={{ color: '#dc2626' }}
             >
               <Square size={16} aria-hidden="true" fill="currentColor" />
             </button>

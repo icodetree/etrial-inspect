@@ -33,10 +33,10 @@ export default function CostReportModal({ violations, onClose }: Props) {
 
             <table className={styles.table}>
               <colgroup>
-                <col span={1} style={{ width: '5%' }} />
-                <col span={1} style={{ width: '10%' }} />
-                <col span={1} style={{ width: '15%' }} />
-                <col span={1} style={{ width: '' }} />
+                <col span={1} className={styles['col-role']} />
+                <col span={1} className={styles['col-count']} />
+                <col span={1} className={styles['col-hours']} />
+                <col span={1} />
               </colgroup>
               <thead>
                 <tr>

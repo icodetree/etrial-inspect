@@ -1,0 +1,110 @@
+/* ============================================
+   홈 페이지 레이아웃 전용 스타일
+   ============================================ */
+
+.page {
+  padding: 2rem;
+}
+
+/* 페이지 헤더 */
+.page-header {
+  margin-bottom: 1.75rem;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--c-text-primary);
+  margin: 0 0 4px;
+}
+
+.page-subtitle {
+  font-size: 0.875rem;
+  color: var(--c-text-secondary);
+  margin: 0;
+}
+
+/* 통계 그리드 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--c-border-light);
+  border-radius: var(--c-radius-lg);
+  padding: 1rem 1.125rem;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.stat-icon-wrap {
+  background: var(--c-surface);
+  border-radius: var(--c-radius-md);
+  padding: 7px;
+  flex-shrink: 0;
+}
+
+.stat-text-wrap {
+  min-width: 0;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--c-text-secondary);
+  margin: 0 0 3px;
+  white-space: nowrap;
+}
+
+.stat-value {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--c-text-primary);
+  margin: 0;
+  line-height: 1;
+}
+
+/* 진단 설정 섹션 */
+.config-section {
+  margin-bottom: 1.5rem;
+}
+
+/* 결과 액션 바 */
+.result-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: #fff;
+  border: 1px solid var(--c-border-light);
+  border-radius: var(--c-radius-lg);
+  border-left: 4px solid var(--c-success);
+}
+
+.result-bar-text {
+  font-size: 0.875rem;
+  color: var(--c-text-dark);
+  font-weight: 500;
+}
+
+.result-bar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.result-btn {
+  font-size: 0.8125rem;
+}
+
+.notion-btn {
+  font-size: 0.8125rem;
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}

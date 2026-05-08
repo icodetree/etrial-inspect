@@ -40,3 +40,180 @@
 .platformOptionSelected:hover {
   border-color: #111827;
 }
+
+/* 라벨 + 필수 마크 */
+.label-with-asterisk {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.asterisk-icon {
+  margin-bottom: 2px;
+}
+
+/* 진단 항목 체크박스 그룹 */
+.check-group {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  color: var(--c-text-dark);
+  font-weight: 400;
+}
+
+.check-input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--c-text-primary);
+  cursor: pointer;
+}
+
+/* 마진 상단 보정 */
+.mt-half {
+  margin-top: 0.5rem;
+}
+
+/* 고급 설정 토글 버튼 */
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0.5rem 0;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.advanced-toggle-open {
+  margin-bottom: 1rem;
+}
+
+/* 고급 설정 컨테이너 */
+.advanced-panel {
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* 내부 fieldset 카드 */
+.inner-fieldset {
+  padding: 1rem;
+  margin: 0;
+  background: var(--c-surface);
+  border-radius: var(--c-radius-md);
+  border: 1px solid var(--c-border-light);
+}
+
+.inner-legend {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--c-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0 6px;
+  margin-bottom: 0.75rem;
+}
+
+.inner-legend-flex {
+  composes: inner-legend;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inner-legend-login {
+  composes: inner-legend-flex;
+  margin-bottom: 0.5rem;
+}
+
+/* 로그인 체크박스 줄 */
+.login-check-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--c-text-dark);
+  font-weight: 500;
+}
+
+/* 로그인 URL 입력 */
+.login-url-group {
+  margin-bottom: 0;
+  padding-left: 1.5rem;
+}
+
+/* 마진 하단 제거 */
+.no-mb {
+  margin-bottom: 0;
+}
+
+/* 크롤링 form-row 하단 마진 */
+.crawl-row {
+  margin-bottom: 1rem;
+}
+
+/* textarea 모노스페이스 */
+.textarea-mono {
+  resize: vertical;
+  font-family: monospace;
+}
+
+.textarea-mono-sm {
+  resize: vertical;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+
+/* 실행 버튼 영역 */
+.action-area {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--c-border-light);
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  padding: 0.875rem 1.5rem;
+  font-size: 0.9375rem;
+  border-radius: var(--c-radius-md);
+  font-weight: 600;
+  flex: 1;
+}
+
+.action-btn-github {
+  composes: action-btn;
+  max-width: 220px;
+  background: #24292e;
+  color: #fff;
+  border-color: #24292e;
+}
+
+.action-btn-primary {
+  composes: action-btn;
+  max-width: 300px;
+}
+
+.action-btn-primary-narrow {
+  composes: action-btn;
+  max-width: 220px;
+}

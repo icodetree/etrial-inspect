@@ -16,10 +16,18 @@ export default function ProposalModal({ result, onClose }: ProposalModalProps) {
   const [error, setError] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const companyInputRef = useRef<HTMLInputElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
-  // 모달 열릴 때 첫 입력 필드에 포커스
+  // 모달 열릴 때 첫 입력 필드에 포커스, 닫힐 때 trigger 요소로 복원
   useEffect(() => {
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
     companyInputRef.current?.focus();
+    return () => {
+      const prev = previouslyFocusedRef.current;
+      if (prev && typeof prev.focus === 'function') {
+        prev.focus();
+      }
+    };
   }, []);
 
   // ESC 키로 닫기
@@ -63,10 +71,8 @@ export default function ProposalModal({ result, onClose }: ProposalModalProps) {
     return () => document.removeEventListener('keydown', handleTab);
   }, []);
 
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
+  const handleBackdropClick = () => {
+    onClose();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,7 +117,12 @@ export default function ProposalModal({ result, onClose }: ProposalModalProps) {
   };
 
   return (
-    <div className={styles.overlay} onClick={handleOverlayClick}>
+    <div className={styles.overlay}>
+      <div
+        className={styles.backdrop}
+        role="presentation"
+        onClick={handleBackdropClick}
+      />
       <div
         ref={modalRef}
         className={styles.modal}

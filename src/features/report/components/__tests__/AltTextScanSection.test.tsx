@@ -4,8 +4,9 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import type { AltTextScanResult } from '@/types/alt-text';
 
-// Mock CSS module (component uses inline styles, but just in case)
+// Mock CSS modules
 jest.mock('@/app/page.module.css', () => new Proxy({}, { get: (_, key) => key }));
+jest.mock('../AltTextScanSection.module.css', () => new Proxy({}, { get: (_, key) => key }));
 
 // Mock ReportPagination to a simple stub that exposes props
 jest.mock('../ReportPagination', () => ({

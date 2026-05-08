@@ -154,10 +154,10 @@ export function Sidebar() {
             alt="E-able 로고"
             width={50}
             height={32}
-            style={{ objectFit: 'contain', objectPosition: 'left' }}
+            className={styles['brand-logo']}
             priority
           />
-          <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#111827' }}>E-able</span>
+          <span className={styles['brand-name']}>E-able</span>
         </Link>
       )}
       {collapsed && <div className={styles.brandSpacer} />}

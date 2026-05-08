@@ -1,0 +1,38 @@
+/* ============================================
+   ReportFallback 전용 스타일
+   ============================================ */
+
+.loading {
+  padding: 2rem;
+  text-align: center;
+  color: var(--c-text-secondary);
+}
+
+.warning-banner {
+  padding: 0.75rem 1.25rem;
+  margin: 1rem 2rem 0;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: var(--c-radius-md);
+  font-size: 0.875rem;
+  color: #92400e;
+}
+
+.error-panel {
+  padding: 2rem;
+  text-align: center;
+}
+
+.error-title {
+  color: #991b1b;
+  margin-bottom: 1rem;
+}
+
+.error-body {
+  color: var(--c-text-secondary);
+  line-height: 1.6;
+}
+
+.error-link {
+  color: #6366f1;
+}

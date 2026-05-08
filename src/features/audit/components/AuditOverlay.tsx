@@ -266,9 +266,8 @@ export const AuditOverlay = ({
         {canCancel && (
           <div className={styles.cancelArea}>
             <button
-              className={styles.actionBtn}
+              className={`${styles.actionBtn} ${styles.actionBtnCancel}`}
               onClick={() => onCancel?.()}
-              style={{ color: '#f87171', borderColor: 'rgba(248,113,113,0.3)' }}
             >
               진단 정지
             </button>
