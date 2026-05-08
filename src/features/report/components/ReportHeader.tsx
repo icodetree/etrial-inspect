@@ -7,6 +7,7 @@ import { ReportExportButtons } from './ReportExportButtons';
 interface ReportHeaderProps {
   result: AuditResult;
   onOpenCostModal: () => void;
+  onOpenProposalModal: () => void;
 }
 
 /**
@@ -14,7 +15,7 @@ interface ReportHeaderProps {
  * Row 1: 제목 + 진단 시간 + 인쇄/메인 링크
  * Row 2: 내보내기 버튼 묶음 ({@link ReportExportButtons})
  */
-export const ReportHeader = ({ result, onOpenCostModal }: ReportHeaderProps) => {
+export const ReportHeader = ({ result, onOpenCostModal, onOpenProposalModal }: ReportHeaderProps) => {
   const handlePrint = () => window.print();
 
   return (
@@ -44,7 +45,7 @@ export const ReportHeader = ({ result, onOpenCostModal }: ReportHeaderProps) => 
         </div>
       </div>
 
-      <ReportExportButtons result={result} onOpenCostModal={onOpenCostModal} />
+      <ReportExportButtons result={result} onOpenCostModal={onOpenCostModal} onOpenProposalModal={onOpenProposalModal} />
     </header>
   );
 };

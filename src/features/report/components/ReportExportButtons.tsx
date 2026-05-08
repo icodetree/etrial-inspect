@@ -7,6 +7,7 @@ import { useReportExport } from '../hooks/useReportExport';
 interface ReportExportButtonsProps {
   result: AuditResult;
   onOpenCostModal: () => void;
+  onOpenProposalModal: () => void;
 }
 
 /**
@@ -16,7 +17,7 @@ interface ReportExportButtonsProps {
  * - Notion 저장
  * - 33개 체크리스트 페이지 링크
  */
-export const ReportExportButtons = ({ result, onOpenCostModal }: ReportExportButtonsProps) => {
+export const ReportExportButtons = ({ result, onOpenCostModal, onOpenProposalModal }: ReportExportButtonsProps) => {
   const {
     exportJSON,
     exportExcel,
@@ -52,6 +53,9 @@ export const ReportExportButtons = ({ result, onOpenCostModal }: ReportExportBut
         disabled={savingNotion}
       >
         {savingNotion ? 'Notion 저장 중...' : 'Notion 저장'}
+      </button>
+      <button type="button" className="btn btn-primary" onClick={onOpenProposalModal}>
+        제안서 생성
       </button>
       <a href="/report/checklist" className="btn btn-secondary">
         33개 체크리스트

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import styles from '@/app/page.module.css';
 import CostReportModal from '@/components/CostReportModal';
+import ProposalModal from '@/components/ProposalModal';
 import { AuditResult, Violation } from '@/types';
 import SEODetailView from '@/features/seo/components/SEODetailView';
 import AIDetailView from '@/features/seo/components/AIDetailView';
@@ -39,6 +40,7 @@ interface ReportViewerProps {
 export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
   const [result, setResult] = useState<AuditResult | null>(initialResult || null);
   const [showCostModal, setShowCostModal] = useState(false);
+  const [showProposalModal, setShowProposalModal] = useState(false);
   const [selectedViolation, setSelectedViolation] = useState<Violation | null>(null);
   const [activeView, setActiveView] = useState<ReportView>('accessibility');
 
@@ -79,12 +81,19 @@ export const ReportViewer = ({ initialResult }: ReportViewerProps) => {
 
   return (
     <div className="container">
-      <ReportHeader result={result} onOpenCostModal={() => setShowCostModal(true)} />
+      <ReportHeader result={result} onOpenCostModal={() => setShowCostModal(true)} onOpenProposalModal={() => setShowProposalModal(true)} />
 
       {showCostModal && (
         <CostReportModal
           violations={result.violations}
           onClose={() => setShowCostModal(false)}
+        />
+      )}
+
+      {showProposalModal && (
+        <ProposalModal
+          result={result}
+          onClose={() => setShowProposalModal(false)}
         />
       )}
 
