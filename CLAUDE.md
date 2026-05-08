@@ -95,9 +95,11 @@ Inter-agent handoffs are written to `_workspace/{audit-dev,ui-dev,qa}-output.md`
 
 Project-local skills (`.claude/skills/`): `etrial-dev` (orchestrator), `feature-plan` (TDD planning → `docs/plans/PLAN_*.md`), `a11y-guide` (KWCAG coding helper).
 
-## Current status (2026-05-07, v2.3.0)
+## Current status (2026-05-08, v2.4.0)
 
-운영 중: 접근성 진단(KWCAG 2.2), SEO, AI 친화도, 이미지 OCR 진단, Claude Vision AI 정밀 분석(유료 옵션), Notion/Excel/PDF 리포트, SSE 실시간 진행률, SPA 자동 감지.
+운영 중: 접근성 진단(KWCAG 2.2), SEO, AI 친화도, 이미지 OCR 진단, Claude Vision AI 정밀 분석(유료 옵션), Notion/Excel/PDF 리포트, SSE 실시간 진행률, SPA 자동 감지, Notion API 재시도(exponential backoff).
+
+품질 강화 완료 (2026-05-08): UI 컴포넌트 테스트 53개 (React Testing Library), Notion API 재시도 로직, browser-utils 테스트 수정. 전체 테스트 433개 통과.
 
 이미지 OCR 매칭률: 전체 25.3%, 텍스트 이미지 35.4% (lottegrs.com 33p/470img 기준). Claude Vision 1회 비용 ~$0.50.
 

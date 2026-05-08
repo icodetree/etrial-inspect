@@ -33,6 +33,7 @@ import {
   type NotionListBlock,
 } from './notion-blocks';
 import { enrichViolation } from './enrich';
+import { withRetry } from './notion-retry';
 
 // Notion property 타입 가드 (audit + alt-text 양쪽에서 공유) — `index.ts` 등으로 추가 추출하지 않고
 // 여기서 한 번 정의한 뒤 alt-text writer 가 가져다 쓴다.
@@ -257,13 +258,17 @@ export class NotionAuditWriter {
       }
 
       // 6) 첫 호출은 50 블록까지, 나머지는 100/call append (413 회피)
-      const response = await this.notion.pages.create({
-        parent: { database_id: this.databaseId },
-        properties: properties as Parameters<Client['pages']['create']>[0]['properties'],
-        children: children.slice(0, FIRST_BATCH_SIZE) as Parameters<
-          Client['pages']['create']
-        >[0]['children'],
-      });
+      const response = await withRetry(
+        () =>
+          this.notion.pages.create({
+            parent: { database_id: this.databaseId },
+            properties: properties as Parameters<Client['pages']['create']>[0]['properties'],
+            children: children.slice(0, FIRST_BATCH_SIZE) as Parameters<
+              Client['pages']['create']
+            >[0]['children'],
+          }),
+        'pages.create (audit)',
+      );
 
       const pageId = response.id;
 
@@ -271,12 +276,16 @@ export class NotionAuditWriter {
         const remaining = children.slice(FIRST_BATCH_SIZE);
         const batches = chunkBlocksForApi(remaining);
         for (const batch of batches) {
-          await this.notion.blocks.children.append({
-            block_id: pageId,
-            children: batch as Parameters<
-              Client['blocks']['children']['append']
-            >[0]['children'],
-          });
+          await withRetry(
+            () =>
+              this.notion.blocks.children.append({
+                block_id: pageId,
+                children: batch as Parameters<
+                  Client['blocks']['children']['append']
+                >[0]['children'],
+              }),
+            'blocks.children.append (audit)',
+          );
         }
       }
 
@@ -298,10 +307,14 @@ export class NotionAuditWriter {
       let startCursor: string | undefined = undefined;
 
       while (hasMore) {
-        const response = await this.notion.blocks.children.list({
-          block_id: pageId,
-          start_cursor: startCursor,
-        });
+        const response = await withRetry(
+          () =>
+            this.notion.blocks.children.list({
+              block_id: pageId,
+              start_cursor: startCursor,
+            }),
+          'blocks.children.list (audit)',
+        );
 
         // 응답 results 는 union type — assembleJsonFromCodeBlocks 가 안전하게 좁힌다.
         jsonContent += assembleJsonFromCodeBlocks(
@@ -342,7 +355,10 @@ export class NotionAuditWriter {
     properties: Parameters<Client['pages']['update']>[0]['properties'],
   ): Promise<void> {
     try {
-      await this.notion.pages.update({ page_id: pageId, properties });
+      await withRetry(
+        () => this.notion.pages.update({ page_id: pageId, properties }),
+        'pages.update (audit)',
+      );
     } catch (error) {
       console.error('Error updating Notion page:', error);
     }
@@ -360,14 +376,18 @@ export class NotionAuditWriter {
 
     try {
       // databases.query 가 일부 번들러/버전에서 누락되는 이슈가 있어 raw request 사용.
-      const response = await this.notion.request<QueryDatabaseResponse>({
-        path: `databases/${formattedDbId}/query`,
-        method: 'post',
-        body: {
-          filter: { property: 'Deleted', checkbox: { equals: false } },
-          sorts: [{ property: 'Date', direction: 'descending' }],
-        },
-      });
+      const response = await withRetry(
+        () =>
+          this.notion.request<QueryDatabaseResponse>({
+            path: `databases/${formattedDbId}/query`,
+            method: 'post',
+            body: {
+              filter: { property: 'Deleted', checkbox: { equals: false } },
+              sorts: [{ property: 'Date', direction: 'descending' }],
+            },
+          }),
+        'databases.query (audit history)',
+      );
 
       if (!response || !response.results) {
         console.error('Invalid Notion response:', response);
@@ -398,10 +418,14 @@ export class NotionAuditWriter {
    */
   async softDeletePage(pageId: string): Promise<boolean> {
     try {
-      await this.notion.pages.update({
-        page_id: pageId,
-        properties: { Deleted: { checkbox: true } },
-      });
+      await withRetry(
+        () =>
+          this.notion.pages.update({
+            page_id: pageId,
+            properties: { Deleted: { checkbox: true } },
+          }),
+        'pages.update (soft delete)',
+      );
       return true;
     } catch (error) {
       console.error('Error soft deleting page:', error);

@@ -55,23 +55,23 @@
 
 ## 2순위 — 품질/안정성 강화
 
-### ④ UI 컴포넌트 테스트
-- **예상 소요**: 3~5일
-- **대상**: AuditTerminal, HistoryList, ReportViewer, AltTextScanSection, AIDetailView, AltTextOverlay
-- **방법**: React Testing Library
+### ~~④ UI 컴포넌트 테스트~~ → ✅ 완료 (2026-05-08)
+- React Testing Library + jest-environment-jsdom 도입
+- AuditTerminal (6건), HistoryList (5건), AltTextScanSection (6건), AIDetailView (6건), AltTextOverlay (30건) — 총 53개 테스트
+- 접근성 검증 포함 (role, aria-label, aria-live, aria-modal 등)
 
-### ⑤ Notion API 재시도 로직
-- **예상 소요**: 1일
-- **내용**: Exponential backoff (최대 3회, 1s→2s→4s)
-- **위치**: `src/services/notion/NotionService.ts`
+### ~~⑤ Notion API 재시도 로직~~ → ✅ 완료 (2026-05-08)
+- `src/services/notion/notion-retry.ts` — withRetry 유틸 (exponential backoff 1s→2s→4s, 최대 3회)
+- 재시도 대상: 429/500/502/503 + 네트워크 오류 (ECONNRESET/ETIMEDOUT)
+- NotionAuditWriter + NotionAltTextWriter 모든 API 호출에 적용
+- 6개 단위 테스트 통과
 
 ### ~~⑥ 진단 중 상세 진행률 표시~~ → ✅ 완료 (2026-05-07)
 - SSE 실시간 진행률 + SVG 원형 게이지 + % 표시 + 경과 시간
 - 접근성 진단 + 이미지 진단 모두 구현 완료
 
-### ⑦ browser-utils 테스트 수정
-- **예상 소요**: 0.5일
-- **내용**: `channel: 'chrome'` 환경 분기 어서션 수정
+### ~~⑦ browser-utils 테스트 수정~~ → ✅ 완료 (2026-05-08)
+- 기존 테스트가 이미 수정되어 통과 상태 확인 (Playwright executablePath 우선 사용, channel 미사용)
 
 ---
 
@@ -118,9 +118,9 @@
 
 | 항목 | 심각도 | 위치 | 비고 |
 |------|--------|------|------|
-| UI 컴포넌트 테스트 부재 | 중간 | `src/features/**/*.tsx` | ④에서 해결 |
-| Notion API 재시도 없음 | 중간 | `NotionService.ts` | ⑤에서 해결 |
-| browser-utils 테스트 실패 | 낮음 | `browser-utils.test.ts` | ⑦에서 해결 |
+| ~~UI 컴포넌트 테스트 부재~~ | ~~중간~~ | `src/features/**/*.tsx` | ✅ ④에서 해결 (2026-05-08) |
+| ~~Notion API 재시도 없음~~ | ~~중간~~ | `NotionService.ts` | ✅ ⑤에서 해결 (2026-05-08) |
+| ~~browser-utils 테스트 실패~~ | ~~낮음~~ | `browser-utils.test.ts` | ✅ ⑦에서 해결 (2026-05-08) |
 | 인라인 스타일 다수 | 중간 | 여러 컴포넌트 | 리팩토링 Phase 4 |
 | CSS 3중 혼재 | 높음 | 프로젝트 전체 | 리팩토링 Phase 0-3 결정 |
 | God 모듈 | 높음 | crawler, AuditExecutor | 리팩토링 Phase 3 |

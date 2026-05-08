@@ -36,6 +36,7 @@ import {
   readUrl,
   formatUUID,
 } from './NotionAuditWriter';
+import { withRetry } from './notion-retry';
 
 const FIRST_BATCH_SIZE_ALTTEXT = 100;
 
@@ -145,25 +146,33 @@ export class NotionAltTextWriter {
     }
 
     // 첫 호출에 100블록까지, 나머지 100/call
-    const response = await this.notion.pages.create({
-      parent: { database_id: this.formattedDbId },
-      properties: properties as Parameters<Client['pages']['create']>[0]['properties'],
-      children: children.slice(0, FIRST_BATCH_SIZE_ALTTEXT) as Parameters<
-        Client['pages']['create']
-      >[0]['children'],
-    });
+    const response = await withRetry(
+      () =>
+        this.notion.pages.create({
+          parent: { database_id: this.formattedDbId },
+          properties: properties as Parameters<Client['pages']['create']>[0]['properties'],
+          children: children.slice(0, FIRST_BATCH_SIZE_ALTTEXT) as Parameters<
+            Client['pages']['create']
+          >[0]['children'],
+        }),
+      'pages.create (alt-text)',
+    );
     const pageId = response.id;
 
     if (children.length > FIRST_BATCH_SIZE_ALTTEXT) {
       const remaining = children.slice(FIRST_BATCH_SIZE_ALTTEXT);
       const batches = chunkBlocksForApi(remaining);
       for (const batch of batches) {
-        await this.notion.blocks.children.append({
-          block_id: pageId,
-          children: batch as Parameters<
-            Client['blocks']['children']['append']
-          >[0]['children'],
-        });
+        await withRetry(
+          () =>
+            this.notion.blocks.children.append({
+              block_id: pageId,
+              children: batch as Parameters<
+                Client['blocks']['children']['append']
+              >[0]['children'],
+            }),
+          'blocks.children.append (alt-text)',
+        );
       }
     }
 
@@ -177,10 +186,14 @@ export class NotionAltTextWriter {
       let startCursor: string | undefined = undefined;
 
       while (hasMore) {
-        const response = await this.notion.blocks.children.list({
-          block_id: pageId,
-          start_cursor: startCursor,
-        });
+        const response = await withRetry(
+          () =>
+            this.notion.blocks.children.list({
+              block_id: pageId,
+              start_cursor: startCursor,
+            }),
+          'blocks.children.list (alt-text)',
+        );
         jsonContent += assembleJsonFromCodeBlocks(
           response.results as unknown as NotionListBlock[],
         );
@@ -207,14 +220,18 @@ export class NotionAltTextWriter {
 
   async getAltTextHistory(): Promise<AltTextHistoryItem[]> {
     try {
-      const response = await this.notion.request<QueryDatabaseResponse>({
-        path: `databases/${this.formattedDbId}/query`,
-        method: 'post',
-        body: {
-          filter: { property: 'Deleted', checkbox: { equals: false } },
-          sorts: [{ property: 'Date', direction: 'descending' }],
-        },
-      });
+      const response = await withRetry(
+        () =>
+          this.notion.request<QueryDatabaseResponse>({
+            path: `databases/${this.formattedDbId}/query`,
+            method: 'post',
+            body: {
+              filter: { property: 'Deleted', checkbox: { equals: false } },
+              sorts: [{ property: 'Date', direction: 'descending' }],
+            },
+          }),
+        'databases.query (alt-text history)',
+      );
 
       if (!response || !response.results) {
         console.error('Invalid Notion response (alt-text history):', response);
