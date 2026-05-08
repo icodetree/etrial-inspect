@@ -47,11 +47,8 @@ docs/
 │   └── 2026-05-07_image-ocr-matching-analysis.md
 ├── pending/               ← 미개발 사항
 │   └── README.md
-├── plans/                 ← 기존 계획 문서
+├── plans/                 ← 진행 중 계획 문서
 │   ├── PLAN_roadmap.md
-│   ├── PLAN_refactor_2026-05-06.md
-│   ├── PLAN_notion_integration_v2.md  (완료)
-│   ├── PLAN_fix_json_retrieval.md     (완료)
-│   └── PLAN_audit_history_list.md     (완료)
+│   └── PLAN_refactor_2026-05-06.md
 └── proposal-pdf-plan.md   ← PDF 제안서 계획 (미개발)
 ```
