@@ -12,7 +12,7 @@ export const CUSTOM_RULE_SCRIPT = `
         impact: 'serious', // Default impact for ARIA misuse
         description,
         help,
-        helpUrl: 'https://github.com/google/antigravity',
+        helpUrl: 'https://www.wa.or.kr/board/list.asp?BoardID=0006',
         nodes: [],
       };
       violations.push(violation);

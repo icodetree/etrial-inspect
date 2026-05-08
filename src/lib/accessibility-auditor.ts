@@ -1,5 +1,6 @@
 import { chromium, Browser, Page, BrowserContext } from 'playwright-core';
 import AxeBuilder from '@axe-core/playwright';
+import type { Result as AxeResult, NodeResult as AxeNodeResult } from 'axe-core';
 import * as fs from 'fs';
 import * as path from 'path';
 import koLocale from 'axe-core/locales/ko.json';
@@ -239,8 +240,7 @@ export class AccessibilityAuditor {
         .analyze();
 
       // [NEW] Custom Rules Execution
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let customViolations: any[] = [];
+      let customViolations: AxeResult[] = [];
       try {
         customViolations = await page.evaluate(CUSTOM_RULE_SCRIPT);
       } catch (e) {
@@ -267,8 +267,7 @@ export class AccessibilityAuditor {
                   selector = t;
                   break;
                 } else if (typeof t === 'object' && t !== null && 'selector' in t) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  selector = (t as any).selector;
+                  selector = (t as Record<string, string>).selector;
                   break;
                 }
               }
@@ -294,8 +293,7 @@ export class AccessibilityAuditor {
                   };
                 }, selector);
                 if (absBox) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  (node as any).boundingBox = absBox;
+                  (node as AxeNodeResult & { boundingBox?: typeof absBox }).boundingBox = absBox;
                 }
               }
             } catch {
@@ -337,21 +335,20 @@ export class AccessibilityAuditor {
       }
 
       // impact null/undefined 처리 및 3:1 명도대비 필터링
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let allViolations = axeResults.violations.map((v: any) => {
-        let nodes = v.nodes;
+      let allViolations = axeResults.violations.map((v: AxeResult) => {
+        let nodes: AxeNodeResult[] = v.nodes;
         if (v.id === 'color-contrast' || v.id === 'color-contrast-enhanced') {
-          nodes = nodes.filter((node: any) => {
+          nodes = nodes.filter((node: AxeNodeResult) => {
             const checks = [...(node.any || []), ...(node.all || []), ...(node.none || [])];
             const contrastCheck = checks.find(c => c.id === 'color-contrast' || c.id === 'color-contrast-enhanced');
-            if (contrastCheck && contrastCheck.data && typeof contrastCheck.data.contrastRatio === 'number') {
-              return contrastCheck.data.contrastRatio < 3.0; // 3.0 이상이면 위반 아님
+            if (contrastCheck && contrastCheck.data && typeof (contrastCheck.data as Record<string, unknown>).contrastRatio === 'number') {
+              return ((contrastCheck.data as Record<string, unknown>).contrastRatio as number) < 3.0; // 3.0 이상이면 위반 아님
             }
             return true;
           });
 
           // failureSummary 텍스트 수정 (4.5:1 -> 3.0:1)
-          nodes = nodes.map((node: any) => {
+          nodes = nodes.map((node: AxeNodeResult) => {
             if (node.failureSummary) {
               node.failureSummary = node.failureSummary.replace(/4\.5:1/g, '3.0:1');
             }
@@ -363,7 +360,7 @@ export class AccessibilityAuditor {
           nodes,
           impact: v.impact || 'minor'
         };
-      }).filter((v: any) => v.nodes.length > 0);
+      }).filter((v: AxeResult) => v.nodes.length > 0);
 
       // 동적 요소 검사 (옵션)
       if (this.options.enableDynamicCheck) {

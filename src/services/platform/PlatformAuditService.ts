@@ -1,9 +1,9 @@
-import { AuditConfig, AuditResult } from '@/types';
+import { AuditConfig, AuditResult, ProgressEvent } from '@/types';
 
 export interface IPlatformAuditService {
   startAudit(
     config: AuditConfig,
-    onProgress?: (data: unknown) => void,
+    onProgress?: (data: ProgressEvent) => void,
     signal?: AbortSignal
   ): Promise<AuditResult>;
   exportExcel(result: AuditResult): Promise<void>;
@@ -13,7 +13,7 @@ export interface IPlatformAuditService {
 export class WebAuditService implements IPlatformAuditService {
   async startAudit(
     config: AuditConfig,
-    onProgress?: (data: unknown) => void,
+    onProgress?: (data: ProgressEvent) => void,
     signal?: AbortSignal
   ): Promise<AuditResult> {
     const response = await fetch('/api/audit', {
@@ -59,9 +59,14 @@ export class WebAuditService implements IPlatformAuditService {
         }
 
         if (eventType === 'progress') {
-          onProgress?.({ type: 'progress', ...parsed });
+          onProgress?.({
+            type: 'progress',
+            current: parsed.current as number,
+            total: parsed.total as number,
+            url: parsed.url as string,
+          });
         } else if (eventType === 'log') {
-          onProgress?.({ type: 'log', message: parsed.message });
+          onProgress?.({ type: 'log', message: String(parsed.message ?? '') });
         } else if (eventType === 'result') {
           result = parsed as unknown as AuditResult;
         } else if (eventType === 'error') {

@@ -821,13 +821,13 @@ async function analyzeTechnical(page: Page, responseHeaders?: Map<string, string
     const fcpEntry = paintEntries.find(e => e.name === 'first-contentful-paint');
 
     // LCP: PerformanceObserver 엔트리에서 추출 (이미 로드 완료된 경우)
-    const lcpEntries = performance.getEntriesByType('largest-contentful-paint') as any[];
+    const lcpEntries = performance.getEntriesByType('largest-contentful-paint') as PerformanceEntry[];
     const lcp = lcpEntries.length > 0 ? Math.round(lcpEntries[lcpEntries.length - 1].startTime) : null;
 
     // CLS: LayoutShift 엔트리에서 합산
-    const clsEntries = performance.getEntriesByType('layout-shift') as any[];
+    const clsEntries = performance.getEntriesByType('layout-shift') as (PerformanceEntry & { value: number })[];
     const cls = clsEntries.length > 0
-      ? Math.round(clsEntries.reduce((sum: number, e: any) => sum + e.value, 0) * 1000) / 1000
+      ? Math.round(clsEntries.reduce((sum: number, e: PerformanceEntry & { value: number }) => sum + e.value, 0) * 1000) / 1000
       : null;
 
     const coreWebVitals = {

@@ -134,10 +134,8 @@ export function diffAuditResults(
   }
 
   // 절단 경고 확인
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const baseTruncated = (base as any)._truncated;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const currentTruncated = (current as any)._truncated;
+  const baseTruncated = base._truncated;
+  const currentTruncated = current._truncated;
   let truncationWarning: string | undefined;
   if (baseTruncated || currentTruncated) {
     const parts: string[] = [];

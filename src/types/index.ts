@@ -119,6 +119,8 @@ export interface AuditResult {
   screenshotUrl?: string; // GitHub Pages Screenshot URL
   /** 사용자에게 노출할 경고 메시지 (예: "라우트 0개 — 시드 URL 입력 권장") */
   warnings?: string[];
+  /** 위반 목록이 잘린 경우 절단 사유 메시지 */
+  _truncated?: string;
   summary: {
     byPrinciple: Record<string, number>;
     byImpact: Record<string, number>;
