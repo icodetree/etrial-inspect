@@ -98,7 +98,7 @@ export const AltTextResultViewer = ({ result, onSaveToNotion, isSavingNotion }: 
         <div className={styles['header-row']}>
           <div>
             <h1 className={styles['report-title']}>이미지 진단 보고서</h1>
-            <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>
+            <p style={{ color: '#94a3b8', marginTop: '0.5rem', fontSize: '12px' }}>
               진단 시간: {new Date(result.endTime).toLocaleString('ko-KR', {
                 year: 'numeric',
                 month: 'long',
@@ -154,7 +154,7 @@ export const AltTextResultViewer = ({ result, onSaveToNotion, isSavingNotion }: 
         }}
       >
         <h3 style={{ marginTop: 0 }}>요약</h3>
-        <ul style={{ margin: 0, lineHeight: 1.8 }}>
+        <ul style={{ margin: 0, lineHeight: 1.8 , fontSize: '14px'}}>
           <li>대상 URL: {result.totalUrls}개</li>
           <li>OCR 실행 이미지: {result.totalImagesScanned}장</li>
           <li>불일치(pass 제외): {result.totalMismatches}건</li>
