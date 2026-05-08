@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { ProgressEvent } from '@/types';
+import { createSSEResponse } from '@/lib/sse-stream';
 
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -29,70 +29,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (event: string, data: unknown) => {
-        try {
-          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-        } catch {
-          // controller already closed
-        }
-      };
+  return createSSEResponse(
+    async (onProgress) => {
+      const { runCrawlAltTextAudit } = await import('@/services/AuditExecutor');
 
-      try {
-        const { runCrawlAltTextAudit } = await import('@/services/AuditExecutor');
-
-        const result = await runCrawlAltTextAudit(
-          {
-            targetUrl: body.targetUrl,
-            inspector: body.inspector,
-            maxPages: body.maxPages,
-            maxDepth: body.maxDepth,
-            excludePaths: body.excludePaths,
-            maxImagesPerPage: body.maxImagesPerPage,
-            useClaudeVision: body.useClaudeVision,
-          },
-          (event: ProgressEvent) => {
-            switch (event.type) {
-              case 'log':
-                send('log', { message: event.message });
-                break;
-              case 'progress':
-                send('crawl-progress', {
-                  current: event.current,
-                  total: event.total,
-                  url: event.url,
-                });
-                break;
-              case 'alt-text-progress':
-                send('progress', {
-                  current: event.current,
-                  total: event.total,
-                  url: event.url,
-                });
-                break;
-            }
-          },
-        );
-
-        send('result', result);
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error('[alttext/crawl-scan] error:', error);
-        send('error', { message });
-      } finally {
-        controller.close();
-      }
+      return runCrawlAltTextAudit(
+        {
+          targetUrl: body.targetUrl,
+          inspector: body.inspector,
+          maxPages: body.maxPages,
+          maxDepth: body.maxDepth,
+          excludePaths: body.excludePaths,
+          maxImagesPerPage: body.maxImagesPerPage,
+          useClaudeVision: body.useClaudeVision,
+        },
+        onProgress,
+      );
     },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
+    {
+      eventMap: {
+        progress: 'crawl-progress',
+        'alt-text-progress': 'progress',
+      },
+      errorLogPrefix: '[alttext/crawl-scan] error:',
     },
-  });
+  );
 }
