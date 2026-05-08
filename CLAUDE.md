@@ -95,11 +95,11 @@ Inter-agent handoffs are written to `_workspace/{audit-dev,ui-dev,qa}-output.md`
 
 Project-local skills (`.claude/skills/`): `etrial-dev` (orchestrator), `feature-plan` (TDD planning → `docs/plans/PLAN_*.md`), `a11y-guide` (KWCAG coding helper).
 
-## Current status (2026-05-08, v2.5.0)
+## Current status (2026-05-08, v2.6.0)
 
-운영 중: 접근성 진단(KWCAG 2.2), SEO, AI 친화도, 이미지 OCR 진단, Claude Vision AI 정밀 분석(유료 옵션), Notion/Excel/PDF 리포트, SSE 실시간 진행률, SPA 자동 감지, Notion API 재시도(exponential backoff), 비교 분석(/report/compare), 크롤링 메모리 최적화(페이지 풀링+적응적 동시성).
+운영 중: 접근성 진단(KWCAG 2.2), SEO, AI 친화도, 이미지 OCR 진단, Claude Vision AI 정밀 분석(유료 옵션), Notion/Excel/PDF 리포트, SSE 실시간 진행률, SPA 자동 감지, Notion API 재시도(exponential backoff), 비교 분석(/report/compare), 크롤링 메모리 최적화(페이지 풀링+적응적 동시성), 주간 진행 보고서 PDF(/api/report/comparison-pdf).
 
-3순위 완료 (2026-05-08): 비교 분석(diff 로직 + 비교 페이지 + 히스토리 비교 선택), 크롤링 메모리 최적화(memory-monitor + 페이지 풀링 + 적응적 동시성 + 컨텍스트 정리). 전체 테스트 461개 통과.
+주간 보고서 기능 (2026-05-08): 비교 분석에 before/after 스크린샷(bbox 크롭+오버레이) + 코드 스니펫 추가. ComparisonPDFGenerator로 고객 보고용 PDF 자동 생성 (표지→요약→해결 위반 상세→신규 위반→잔여 요약). 전체 테스트 461개 통과.
 
 이미지 OCR 매칭률: 전체 25.3%, 텍스트 이미지 35.4% (lottegrs.com 33p/470img 기준). Claude Vision 1회 비용 ~$0.50.
 

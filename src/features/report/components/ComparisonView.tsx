@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import type { ComparisonResult, CompactViolation } from '@/lib/comparison/types';
+import { ViolationBeforeAfter } from './ViolationBeforeAfter';
 import styles from './ComparisonView.module.css';
 
 interface ComparisonViewProps {
@@ -41,22 +42,61 @@ function getImpactBadgeClass(impact: string): string {
   }
 }
 
-function ViolationList({ violations }: { violations: CompactViolation[] }) {
+interface ViolationListProps {
+  violations: CompactViolation[];
+  type: 'resolved' | 'new';
+  screenshotUrl?: string;
+}
+
+function ViolationList({ violations, type, screenshotUrl }: ViolationListProps) {
+  const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({});
+
+  const toggleItem = useCallback((index: number) => {
+    setExpandedItems(prev => ({ ...prev, [index]: !prev[index] }));
+  }, []);
+
   return (
     <ul className={styles.sectionBody} role="list">
-      {violations.map((v, i) => (
-        <li key={`${v.kwcagId}-${v.pageUrl}-${i}`} className={styles.violationItem}>
-          <span className={getImpactBadgeClass(v.impact)}>
-            {v.impact}
-          </span>
-          <span className={styles.violationInfo}>
-            <span className={styles.violationId}>
-              {v.kwcagId} {v.kwcagName}
-            </span>
-            <span className={styles.violationPage}>{v.pageUrl}</span>
-          </span>
-        </li>
-      ))}
+      {violations.map((v, i) => {
+        const isExpanded = !!expandedItems[i];
+        const itemId = `violation-detail-${type}-${i}`;
+        return (
+          <li key={`${v.kwcagId}-${v.pageUrl}-${i}`}>
+            <button
+              type="button"
+              className={styles.violationItemExpandable}
+              onClick={() => toggleItem(i)}
+              aria-expanded={isExpanded}
+              aria-controls={itemId}
+            >
+              <span
+                className={`${styles.expandIcon} ${isExpanded ? styles.expandIconOpen : ''}`}
+                aria-hidden="true"
+              >
+                &#9654;
+              </span>
+              <span className={getImpactBadgeClass(v.impact)}>
+                {v.impact}
+              </span>
+              <span className={styles.violationInfo}>
+                <span className={styles.violationId}>
+                  {v.kwcagId} {v.kwcagName}
+                </span>
+                <span className={styles.violationPage}>{v.pageUrl}</span>
+              </span>
+            </button>
+            {isExpanded && (
+              <div id={itemId} className={styles.violationDetail}>
+                <ViolationBeforeAfter
+                  violation={v}
+                  type={type}
+                  screenshotUrl={screenshotUrl}
+                />
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -69,10 +109,59 @@ export function ComparisonView({ baseId, currentId }: ComparisonViewProps) {
     new: true,
     resolved: true,
   });
+  const [showPdfForm, setShowPdfForm] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfForm, setPdfForm] = useState({
+    clientName: '',
+    reportPeriod: '',
+    weekNumber: '',
+  });
+  const pdfFormRef = useRef<HTMLFormElement>(null);
 
   const toggleSection = useCallback((key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
+
+  const handlePdfSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPdfLoading(true);
+
+    try {
+      const res = await fetch('/api/report/comparison-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          baseId,
+          currentId,
+          options: {
+            clientName: pdfForm.clientName || undefined,
+            reportPeriod: pdfForm.reportPeriod || undefined,
+            weekNumber: pdfForm.weekNumber ? Number(pdfForm.weekNumber) : undefined,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `PDF 생성 실패 (${res.status})`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `comparison-report-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setShowPdfForm(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'PDF 생성 중 오류가 발생했습니다.');
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [baseId, currentId, pdfForm]);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,10 +229,71 @@ export function ComparisonView({ baseId, currentId }: ComparisonViewProps) {
 
       {/* 헤더 */}
       <header className={styles.header}>
-        <h1 className={styles.title}>진단 비교 분석</h1>
-        <p className={styles.subtitle}>
-          {data.baseUrl} &middot; {baseDate} → {currentDate}
-        </p>
+        <div className={styles.headerRow}>
+          <div>
+            <h1 className={styles.title}>진단 비교 분석</h1>
+            <p className={styles.subtitle}>
+              {data.baseUrl} &middot; {baseDate} → {currentDate}
+            </p>
+          </div>
+          <button
+            type="button"
+            className={styles.pdfButton}
+            onClick={() => setShowPdfForm(prev => !prev)}
+            aria-expanded={showPdfForm}
+            aria-controls="pdf-form"
+          >
+            PDF 진행 보고서
+          </button>
+        </div>
+
+        {showPdfForm && (
+          <form
+            id="pdf-form"
+            ref={pdfFormRef}
+            className={styles.pdfForm}
+            onSubmit={handlePdfSubmit}
+          >
+            <label className={styles.pdfLabel}>
+              <span>고객사명</span>
+              <input
+                type="text"
+                className={styles.pdfInput}
+                placeholder="예: 롯데GRS"
+                value={pdfForm.clientName}
+                onChange={e => setPdfForm(prev => ({ ...prev, clientName: e.target.value }))}
+              />
+            </label>
+            <label className={styles.pdfLabel}>
+              <span>보고 기간</span>
+              <input
+                type="text"
+                className={styles.pdfInput}
+                placeholder="예: 2026.05.12 ~ 2026.05.16"
+                value={pdfForm.reportPeriod}
+                onChange={e => setPdfForm(prev => ({ ...prev, reportPeriod: e.target.value }))}
+              />
+            </label>
+            <label className={styles.pdfLabel}>
+              <span>주차</span>
+              <input
+                type="number"
+                className={styles.pdfInput}
+                placeholder="1"
+                min={1}
+                value={pdfForm.weekNumber}
+                onChange={e => setPdfForm(prev => ({ ...prev, weekNumber: e.target.value }))}
+              />
+            </label>
+            <button
+              type="submit"
+              className={styles.pdfSubmit}
+              disabled={pdfLoading}
+            >
+              {pdfLoading ? 'PDF 생성 중...' : 'PDF 다운로드'}
+            </button>
+          </form>
+        )}
       </header>
 
       {/* 절삭 경고 */}
@@ -233,7 +383,11 @@ export function ComparisonView({ baseId, currentId }: ComparisonViewProps) {
         {openSections.new && (
           <div id="new-violations-body">
             {data.newViolations.length > 0 ? (
-              <ViolationList violations={data.newViolations} />
+              <ViolationList
+                violations={data.newViolations}
+                type="new"
+                screenshotUrl={data.currentScreenshotUrl}
+              />
             ) : (
               <p className={styles.violationItem}>신규 위반이 없습니다.</p>
             )}
@@ -259,7 +413,11 @@ export function ComparisonView({ baseId, currentId }: ComparisonViewProps) {
         {openSections.resolved && (
           <div id="resolved-violations-body">
             {data.resolvedViolations.length > 0 ? (
-              <ViolationList violations={data.resolvedViolations} />
+              <ViolationList
+                violations={data.resolvedViolations}
+                type="resolved"
+                screenshotUrl={data.baseScreenshotUrl}
+              />
             ) : (
               <p className={styles.violationItem}>해결된 위반이 없습니다.</p>
             )}

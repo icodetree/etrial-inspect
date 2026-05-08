@@ -5,8 +5,14 @@
 import { AuditResult, Violation } from '@/types';
 import { KWCAG_MAPPING, KWCAGItem } from './kwcag-mapping';
 import { PDF_REPORT_STYLES } from './pdf-report-styles';
-import fs from 'fs';
-import path from 'path';
+import {
+  imageToBase64 as imageToBase64Util,
+  getPngDimensions as getPngDimensionsUtil,
+  renderCroppedScreenshot,
+  escapeHtml as escapeHtmlUtil,
+  truncate as truncateUtil,
+  formatDateKR,
+} from './pdf-utils';
 
 export interface PDFReportOptions {
   title?: string;
@@ -391,39 +397,7 @@ export class PDFReportGenerator {
     const dims = this.getPngDimensions(base64);
     if (!dims) return '';
 
-    const bb = v.boundingBox;
-    const padding = 80; // 오류 영역 주변 여유 px
-
-    // 크롭 영역 계산 (padding 포함)
-    const cropX = Math.max(0, bb.x - padding);
-    const cropY = Math.max(0, bb.y - padding);
-    const cropRight = Math.min(dims.width, bb.x + bb.width + padding);
-    const cropBottom = Math.min(dims.height, bb.y + bb.height + padding);
-    const cropW = cropRight - cropX;
-    const cropH = cropBottom - cropY;
-
-    // 컨테이너 내에서 bbox 오버레이 위치 (크롭 영역 기준 퍼센트)
-    const bboxLeftPct = ((bb.x - cropX) / cropW * 100).toFixed(4);
-    const bboxTopPct = ((bb.y - cropY) / cropH * 100).toFixed(4);
-    const bboxWidthPct = (bb.width / cropW * 100).toFixed(4);
-    const bboxHeightPct = (bb.height / cropH * 100).toFixed(4);
-
-    // absolute positioning 크롭:
-    // padding-bottom으로 컨테이너 종횡비를 크롭 영역에 맞추고
-    // 이미지를 확대 + translate로 크롭 영역만 노출
-    const aspectRatio = (cropH / cropW * 100).toFixed(4);
-    const imgScale = (dims.width / cropW * 100).toFixed(4);
-    const imgLeft = (-(cropX / dims.width) * 100).toFixed(4);
-    const imgTop = (-(cropY / dims.height) * 100).toFixed(4);
-
-    return `
-    <div class="violation-screenshot">
-      <div class="violation-screenshot-container" style="padding-bottom: ${aspectRatio}%;">
-        <img src="data:image/png;base64,${base64}" alt="오류 위치 스크린샷"
-          style="position: absolute; top: 0; left: 0; width: ${imgScale}%; transform: translate(${imgLeft}%, ${imgTop}%);" />
-        <div class="bbox-overlay" style="left:${bboxLeftPct}%; top:${bboxTopPct}%; width:${bboxWidthPct}%; height:${bboxHeightPct}%;"></div>
-      </div>
-    </div>`;
+    return renderCroppedScreenshot(base64, v.boundingBox, dims);
   }
 
   // ===== Helper: 스크린샷 렌더링 =====
@@ -469,17 +443,7 @@ export class PDFReportGenerator {
 
   /** PNG 바이너리에서 이미지 크기 추출 (IHDR 청크) */
   private getPngDimensions(base64Data: string): { width: number; height: number } | null {
-    try {
-      const buffer = Buffer.from(base64Data, 'base64');
-      // PNG IHDR: bytes 16-19 = width, 20-23 = height (big-endian)
-      if (buffer.length < 24) return null;
-      const width = buffer.readUInt32BE(16);
-      const height = buffer.readUInt32BE(20);
-      if (width > 0 && height > 0) return { width, height };
-      return null;
-    } catch {
-      return null;
-    }
+    return getPngDimensionsUtil(base64Data);
   }
 
   // ===== 데이터 처리 헬퍼 =====
@@ -624,40 +588,7 @@ export class PDFReportGenerator {
   }
 
   private async imageToBase64(screenshotPath: string): Promise<string | null> {
-    // 로컬 파일 시도
-    const localPaths = [
-      path.join(process.cwd(), 'public', screenshotPath),
-      path.join(process.cwd(), screenshotPath),
-      screenshotPath,
-    ];
-
-    for (const p of localPaths) {
-      try {
-        if (fs.existsSync(p)) {
-          const buffer = fs.readFileSync(p);
-          return buffer.toString('base64');
-        }
-      } catch {
-        continue;
-      }
-    }
-
-    // GitHub Pages URL 시도
-    if (this.result.screenshotUrl && screenshotPath) {
-      const filename = path.basename(screenshotPath);
-      const url = `${this.result.screenshotUrl}/${filename}`;
-      try {
-        const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-        if (response.ok) {
-          const buffer = await response.arrayBuffer();
-          return Buffer.from(buffer).toString('base64');
-        }
-      } catch {
-        // 원격 fetch 실패는 무시
-      }
-    }
-
-    return null;
+    return imageToBase64Util(screenshotPath, this.result.screenshotUrl);
   }
 
   // ===== 유틸리티 =====
@@ -682,27 +613,14 @@ export class PDFReportGenerator {
   }
 
   private formatDate(dateStr: string): string {
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
-    } catch {
-      return dateStr;
-    }
+    return formatDateKR(dateStr);
   }
 
   private escapeHtml(str: string | undefined | null): string {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    return escapeHtmlUtil(str);
   }
 
   private truncate(str: string | undefined | null, maxLen: number): string {
-    if (!str) return '';
-    if (str.length <= maxLen) return str;
-    return str.substring(0, maxLen) + '...';
+    return truncateUtil(str, maxLen);
   }
 }

@@ -46,6 +46,9 @@ function toCompact(v: Violation): CompactViolation {
     pageUrl: v.pageUrl,
     selector: v.selector,
     description: v.description,
+    screenshotPath: v.screenshotPath,
+    boundingBox: v.boundingBox,
+    affectedCode: v.affectedCode,
   };
 }
 
@@ -159,5 +162,7 @@ export function diffAuditResults(
     resolvedViolations,
     persistentCount,
     truncationWarning,
+    baseScreenshotUrl: base.screenshotUrl,
+    currentScreenshotUrl: current.screenshotUrl,
   };
 }

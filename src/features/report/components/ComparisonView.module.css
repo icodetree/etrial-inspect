@@ -188,6 +188,50 @@
   border-bottom: none;
 }
 
+/* 확장 가능한 위반 항목 */
+.violationItemExpandable {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-bottom: 1px solid #f9fafb;
+  background: none;
+  width: 100%;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+}
+
+.violationItemExpandable:hover {
+  background: #f8fafc;
+}
+
+.violationItemExpandable:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+.expandIcon {
+  margin-right: 0;
+  flex-shrink: 0;
+  font-size: 0.625rem;
+  line-height: 1.6;
+  transition: transform 0.2s;
+  display: inline-block;
+  color: #9ca3af;
+}
+
+.expandIconOpen {
+  transform: rotate(90deg);
+}
+
+.violationDetail {
+  padding: 0 1rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
 .impactBadge {
   display: inline-block;
   padding: 2px 8px;
@@ -267,6 +311,91 @@
   font-size: 0.9375rem;
 }
 
+/* 헤더 행 (제목 + PDF 버튼) */
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* PDF 버튼 */
+.pdfButton {
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pdfButton:hover {
+  background: #2563eb;
+}
+
+/* PDF 폼 */
+.pdfForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.pdfLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.pdfInput {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  color: #374151;
+  min-width: 140px;
+  background: #fff;
+}
+
+.pdfInput:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: -1px;
+  border-color: #3b82f6;
+}
+
+.pdfSubmit {
+  padding: 6px 16px;
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pdfSubmit:hover {
+  background: #047857;
+}
+
+.pdfSubmit:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
 /* 반응형 */
 @media (max-width: 768px) {
   .deltaGrid {
@@ -277,5 +406,17 @@
   .impactTable td {
     padding: 0.5rem;
     font-size: 0.8125rem;
+  }
+
+  .headerRow {
+    flex-direction: column;
+  }
+
+  .pdfForm {
+    flex-direction: column;
+  }
+
+  .pdfInput {
+    min-width: 100%;
   }
 }
