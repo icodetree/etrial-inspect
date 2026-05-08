@@ -45,10 +45,7 @@ docs/
 ├── history/               ← 개발 완료 이력
 │   ├── 2026-05-07_completed-features.md
 │   └── 2026-05-07_image-ocr-matching-analysis.md
-├── pending/               ← 미개발 사항
-│   └── README.md
-├── plans/                 ← 진행 중 계획 문서
-│   ├── PLAN_roadmap.md
+├── plans/                 ← 현행 계획 문서
+│   ├── PLAN_roadmap_v3.md         ← 통합 로드맵 (우선순위 + 미개발 + 매칭률)
 │   └── PLAN_refactor_2026-05-06.md
-└── proposal-pdf-plan.md   ← PDF 제안서 계획 (미개발)
 ```
