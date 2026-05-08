@@ -19,12 +19,14 @@ export async function POST(request: NextRequest) {
     const clientName: string = body.clientName;
     const contactPerson: string | undefined = body.contactPerson;
 
-    if (!result || !result.violations) {
+    if (!result || (!result.violations && !result.summary)) {
       return NextResponse.json(
-        { error: '유효한 감사 결과가 필요합니다.' },
+        { error: '유효한 감사 결과가 필요합니다. 먼저 접근성 진단을 수행해주세요.' },
         { status: 400 }
       );
     }
+    // violations가 없으면 빈 배열로 초기화
+    if (!result.violations) result.violations = [];
 
     if (!clientName) {
       return NextResponse.json(

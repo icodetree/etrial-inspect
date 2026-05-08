@@ -81,9 +81,9 @@ export default function ProposalModal({ result, onClose }: ProposalModalProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companyName: companyName.trim(),
-          managerName: managerName.trim() || undefined,
-          auditResult: result,
+          clientName: companyName.trim(),
+          contactPerson: managerName.trim() || undefined,
+          result,
         }),
       });
 
