@@ -95,6 +95,16 @@ Inter-agent handoffs are written to `_workspace/{audit-dev,ui-dev,qa}-output.md`
 
 Project-local skills (`.claude/skills/`): `etrial-dev` (orchestrator), `feature-plan` (TDD planning → `docs/plans/PLAN_*.md`), `a11y-guide` (KWCAG coding helper).
 
+## Current status (2026-05-07, v2.3.0)
+
+운영 중: 접근성 진단(KWCAG 2.2), SEO, AI 친화도, 이미지 OCR 진단, Claude Vision AI 정밀 분석(유료 옵션), Notion/Excel/PDF 리포트, SSE 실시간 진행률, SPA 자동 감지.
+
+이미지 OCR 매칭률: 전체 25.3%, 텍스트 이미지 35.4% (lottegrs.com 33p/470img 기준). Claude Vision 1회 비용 ~$0.50.
+
+미개발: PDF 제안서(2~3d, 착수 가능), KWCAG 체크리스트 페이지(1~2d), 대규모 리팩토링(Phase 0 미착수).
+
+상세 현황: `docs/STATUS.md` / 완료 이력: `docs/history/` / 미개발: `docs/pending/`
+
 ## Things that look weird but are intentional
 
 - `auth_state.json` at the repo root — Playwright storage state for crawling sites behind login. Don't commit credentials into it; treat it as local dev state.
