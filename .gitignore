@@ -61,3 +61,8 @@ Desktop.ini
 .idea/
 .vscode/
 public/screenshots/
+
+
+venv/
+__pycache__/
+*.pyc
