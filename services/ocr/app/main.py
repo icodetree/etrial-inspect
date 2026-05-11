@@ -44,46 +44,66 @@ def preprocess_image(image_path: str) -> str:
     cv2.imwrite(preprocessed_path, thresh)
     return preprocessed_path
 
+from fastapi import BackgroundTasks
+import uuid
+from typing import Dict, Any
+
+jobs: Dict[str, dict] = {}
+
 class AnalyzeResponse(BaseModel):
     status: str
-    results: list[OcrResult]
+    job_id: str | None = None
+    results: list[OcrResult] = []
     error: str | None = None
+    full_text: str | None = None
+    global_match_rate: float | None = None
+    global_matched_target: str | None = None
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "ocr_initialized": ocr is not None}
-
-@app.post("/api/v1/ocr/analyze", response_model=AnalyzeResponse)
-def analyze_image(request: AnalyzeRequest):
-    if not ocr:
-        raise HTTPException(status_code=500, detail="OCR engine not initialized")
-
-    image_path = request.image_path
-    
-    if not os.path.exists(image_path):
-        raise HTTPException(status_code=404, detail=f"Image file not found at path: {image_path}")
-
+def process_image_job(job_id: str, request: AnalyzeRequest):
     try:
+        jobs[job_id]["status"] = "processing"
+        image_path = request.image_path
+        
+        if not os.path.exists(image_path):
+            jobs[job_id]["status"] = "error"
+            jobs[job_id]["error"] = f"Image file not found at path: {image_path}"
+            return
+
         process_path = image_path
         if request.preprocess:
             process_path = preprocess_image(image_path)
             
-        # Run OCR
         result = ocr.ocr(process_path)
         
-        # Parse results
         parsed_results = []
         if result and result[0]:
-            for line in result[0]:
-                bbox = line[0]
-                text = line[1][0]
-                confidence = float(line[1][1])
-                
+            # Determine result format (PaddleOCR 2.8 vs 2.9+)
+            is_new_format = hasattr(result[0], 'keys') and 'rec_texts' in result[0]
+            
+            items_to_process = []
+            
+            if is_new_format:
+                for res_obj in result:
+                    texts = res_obj.get('rec_texts', [])
+                    scores = res_obj.get('rec_scores', [])
+                    polys = res_obj.get('dt_polys', [])
+                    
+                    for i in range(len(texts)):
+                        bbox = polys[i].tolist() if hasattr(polys[i], 'tolist') else polys[i]
+                        items_to_process.append((bbox, texts[i], float(scores[i])))
+            else:
+                # Assuming old format: list of pages, where page is list of [bbox, [text, score]]
+                # Flatten across all pages
+                for page in result:
+                    if page:
+                        for line in page:
+                            items_to_process.append((line[0], line[1][0], float(line[1][1])))
+
+            for bbox, text, confidence in items_to_process:
                 matched_target = None
                 match_rate = None
                 
                 if request.target_texts:
-                    # Find best match
                     best_match = None
                     best_score = 0
                     for target in request.target_texts:
@@ -91,7 +111,6 @@ def analyze_image(request: AnalyzeRequest):
                         if score > best_score:
                             best_score = score
                             best_match = target
-                            
                     if best_score > 0:
                         matched_target = best_match
                         match_rate = float(best_score)
@@ -104,10 +123,56 @@ def analyze_image(request: AnalyzeRequest):
                     match_rate=match_rate
                 ))
                 
-        # Cleanup temporary file if created
-        if request.preprocess and process_path != image_path and os.path.exists(process_path):
-            os.remove(process_path)
-                
-        return AnalyzeResponse(status="success", results=parsed_results)
+        full_text = " ".join([r.text for r in parsed_results])
+        global_match_rate = None
+        global_matched_target = None
+        
+        if request.target_texts and full_text:
+            best_score = 0
+            best_match = None
+            for target in request.target_texts:
+                score = fuzz.ratio(full_text, target)
+                if score > best_score:
+                    best_score = score
+                    best_match = target
+            if best_score > 0:
+                global_match_rate = float(best_score)
+                global_matched_target = best_match
+
+        jobs[job_id]["status"] = "success"
+        jobs[job_id]["results"] = parsed_results
+        jobs[job_id]["full_text"] = full_text
+        jobs[job_id]["global_match_rate"] = global_match_rate
+        jobs[job_id]["global_matched_target"] = global_matched_target
+        
     except Exception as e:
-        return AnalyzeResponse(status="error", results=[], error=str(e))
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = str(e)
+
+
+@app.post("/api/v1/ocr/analyze", response_model=AnalyzeResponse)
+def analyze_image(request: AnalyzeRequest, background_tasks: BackgroundTasks):
+    if not ocr:
+        raise HTTPException(status_code=500, detail="OCR engine not initialized")
+
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {"status": "pending"}
+    
+    background_tasks.add_task(process_image_job, job_id, request)
+    return AnalyzeResponse(status="pending", job_id=job_id)
+
+@app.get("/api/v1/ocr/status/{job_id}", response_model=AnalyzeResponse)
+def get_status(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    job = jobs[job_id]
+    return AnalyzeResponse(
+        status=job["status"],
+        job_id=job_id,
+        results=job.get("results", []),
+        error=job.get("error"),
+        full_text=job.get("full_text"),
+        global_match_rate=job.get("global_match_rate"),
+        global_matched_target=job.get("global_matched_target")
+    )

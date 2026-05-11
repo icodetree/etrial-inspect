@@ -18,6 +18,17 @@ def create_dummy_image(path="test_image.jpg"):
     cv2.imwrite(path, img)
     return path
 
+def poll_job(job_id):
+    while True:
+        resp = client.get(f"/api/v1/ocr/status/{job_id}")
+        if resp.status_code != 200:
+            print("Failed to get status")
+            return None
+        data = resp.json()
+        if data["status"] in ["success", "error"]:
+            return data
+        time.sleep(0.5)
+
 def run_benchmark():
     test_image = "benchmark_test.jpg"
     create_dummy_image(test_image)
@@ -32,12 +43,19 @@ def run_benchmark():
         "target_texts": targets,
         "preprocess": False
     })
-    time1 = time.time() - start
-    print(f"Time: {time1:.3f}s")
-    if resp1.status_code == 200:
-        for res in resp1.json().get("results", []):
-            print(f"OCR: '{res['text']}', Best Match: '{res['matched_target']}' (Score: {res['match_rate']})")
     
+    if resp1.status_code == 200:
+        job_id = resp1.json().get("job_id")
+        result_data = poll_job(job_id)
+        time1 = time.time() - start
+        print(f"Time: {time1:.3f}s")
+        if result_data and result_data["status"] == "success":
+            print(f"Global Match: '{result_data.get('global_matched_target')}' (Score: {result_data.get('global_match_rate')})")
+            for res in result_data.get("results", []):
+                print(f"OCR: '{res['text']}', Best Match: '{res['matched_target']}' (Score: {res['match_rate']})")
+        else:
+            print(f"Job Failed: {result_data.get('error') if result_data else 'Unknown'}")
+            
     print("="*50)
     print("\nRunning Benchmark with preprocessing ON...")
     start = time.time()
@@ -46,11 +64,18 @@ def run_benchmark():
         "target_texts": targets,
         "preprocess": True
     })
-    time2 = time.time() - start
-    print(f"Time: {time2:.3f}s")
+    
     if resp2.status_code == 200:
-        for res in resp2.json().get("results", []):
-            print(f"OCR: '{res['text']}', Best Match: '{res['matched_target']}' (Score: {res['match_rate']})")
+        job_id = resp2.json().get("job_id")
+        result_data = poll_job(job_id)
+        time2 = time.time() - start
+        print(f"Time: {time2:.3f}s")
+        if result_data and result_data["status"] == "success":
+            print(f"Global Match: '{result_data.get('global_matched_target')}' (Score: {result_data.get('global_match_rate')})")
+            for res in result_data.get("results", []):
+                print(f"OCR: '{res['text']}', Best Match: '{res['matched_target']}' (Score: {res['match_rate']})")
+        else:
+            print(f"Job Failed: {result_data.get('error') if result_data else 'Unknown'}")
     print("="*50)
     
     if os.path.exists(test_image):

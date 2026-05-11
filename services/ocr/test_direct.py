@@ -7,5 +7,5 @@ cv2.putText(img, "Fuzzy Match Testing!", (20, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.
 cv2.imwrite('test_direct.jpg', img)
 
 ocr = PaddleOCR(use_angle_cls=True, lang='en')
-res = ocr.ocr('test_direct.jpg', cls=True)
+res = ocr.ocr('test_direct.jpg')
 print("Direct OCR result:", res)
