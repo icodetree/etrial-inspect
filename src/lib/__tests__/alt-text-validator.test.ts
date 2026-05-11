@@ -11,20 +11,12 @@ import {
 } from '../alt-text-validator';
 import type { VisionAnalysisResult } from '../../types/alt-text';
 
-// ---------------------------------------------------------------------------
-// Mock: tesseract.js + sharp (네트워크/워커 호출 방지)
-// ---------------------------------------------------------------------------
+let ocrResponses: Array<{ text: string; confidence: number }> = [];
 
-const mockRecognize = jest.fn();
-const mockTerminate = jest.fn().mockResolvedValue(undefined);
-const mockSetParameters = jest.fn().mockResolvedValue(undefined);
-
-jest.mock('tesseract.js', () => ({
-  createWorker: jest.fn().mockImplementation(async () => ({
-    recognize: mockRecognize,
-    terminate: mockTerminate,
-    setParameters: mockSetParameters,
-  })),
+jest.mock('fs/promises', () => ({
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('sharp', () => {
@@ -44,9 +36,48 @@ jest.mock('sharp', () => {
   return jest.fn(() => chain);
 });
 
-global.fetch = jest.fn().mockResolvedValue({
-  ok: true,
-  arrayBuffer: async () => new ArrayBuffer(8),
+global.fetch = jest.fn().mockImplementation(async (url: string | URL | Request, init?: RequestInit) => {
+  const urlStr = url.toString();
+  // 동기 엔드포인트 (우선 사용됨)
+  if (urlStr.includes('/api/v1/ocr/analyze-sync')) {
+    const nextOcr = ocrResponses.shift() || { text: '', confidence: 0 };
+    return {
+      ok: true,
+      json: async () => ({
+        status: 'success',
+        full_text: nextOcr.text,
+        results: [
+          { confidence: nextOcr.confidence }
+        ],
+      }),
+    };
+  }
+  // 비동기 엔드포인트 (폴백)
+  if (urlStr.endsWith('/api/v1/ocr/analyze')) {
+    return {
+      ok: true,
+      json: async () => ({ job_id: 'test_job_id_' + Math.random().toString(36).slice(2) }),
+    };
+  }
+  if (urlStr.includes('/api/v1/ocr/status/')) {
+    const nextOcr = ocrResponses.shift() || { text: '', confidence: 0 };
+    return {
+      ok: true,
+      json: async () => ({
+        status: 'success',
+        full_text: nextOcr.text,
+        results: [
+          { confidence: nextOcr.confidence }
+        ],
+      }),
+    };
+  }
+
+  // Image fetch
+  return {
+    ok: true,
+    arrayBuffer: async () => new ArrayBuffer(8),
+  };
 }) as unknown as typeof fetch;
 
 // ---------------------------------------------------------------------------
@@ -80,13 +111,11 @@ function makePageStub(
 }
 
 function mockOcr(text: string, confidencePct: number) {
-  mockRecognize.mockResolvedValueOnce({
-    data: { text, confidence: confidencePct },
-  });
+  ocrResponses.push({ text, confidence: confidencePct > 1 ? confidencePct / 100 : confidencePct });
 }
 
 beforeEach(() => {
-  mockRecognize.mockReset();
+  ocrResponses = [];
   clearOcrCache();
 });
 
@@ -499,6 +528,8 @@ describe('scanPageForAltMismatches', () => {
     });
 
     expect(onProgress).toHaveBeenCalledTimes(2);
-    expect(onProgress).toHaveBeenLastCalledWith(2, 2, 'https://example.com/b.png');
+    // 병렬 처리로 완료 순서가 보장되지 않으므로 total 파라미터만 확인
+    const lastCall = onProgress.mock.calls[onProgress.mock.calls.length - 1];
+    expect(lastCall[1]).toBe(2); // total은 항상 2
   });
 });

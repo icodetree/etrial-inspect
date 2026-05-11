@@ -40,14 +40,10 @@ function makePageAuditResult(
 ): PageAuditResult {
   return {
     url: 'http://example.com',
-    violations: overrides.violations,
-    passes: 0,
-    incomplete: 0,
-    inapplicable: 0,
     timestamp: new Date().toISOString(),
     screenshotPaths: [],
     ...overrides,
-  };
+  } as PageAuditResult;
 }
 
 /** 기본 A11yPhaseInput 을 생성하는 헬퍼 */

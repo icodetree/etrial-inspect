@@ -1,12 +1,8 @@
 import { Page } from 'playwright-core';
 import path from 'path';
-import { createRequire } from 'node:module';
-import { createWorker, PSM, Worker } from 'tesseract.js';
 import sharp from 'sharp';
-
-// Next.js(Turbopack) 번들러가 tesseract.js worker-script 경로를 재작성하는 문제 방지
-// 런타임에 실제 설치된 node_modules 경로를 직접 해석한다.
-const nodeRequire = createRequire(path.join(process.cwd(), 'package.json'));
+import fs from 'fs/promises';
+import crypto from 'crypto';
 import {
   AltTextJudgment,
   AltTextMismatch,
@@ -23,127 +19,74 @@ import {
 
 const DEFAULT_SIMILARITY_THRESHOLD = 0.6;
 const DEFAULT_MAX_IMAGES = 20;
-const DEFAULT_WORKER_POOL_SIZE = 2;
+const DEFAULT_WORKER_POOL_SIZE = 3;
 const DEFAULT_MIN_IMAGE_SIZE_PX = 32;
 const TEXT_HEAVY_MIN_CONFIDENCE = 70;
 const TEXT_HEAVY_MIN_WORDS = 3;
 const MIXED_MIN_CONFIDENCE = 40;
 
 // ---------------------------------------------------------------------------
-// Worker Pool — Tesseract worker를 재사용해 init 비용 절감
+// OCR Microservice API 통신 설정
 // ---------------------------------------------------------------------------
 
-interface PooledWorker {
-  worker: Worker;
-  busy: boolean;
-}
+const OCR_API_URL = process.env.OCR_API_URL || 'http://localhost:8000';
+const SHARED_DIR = path.join(process.cwd(), '.shared', 'images');
 
-class TesseractWorkerPool {
-  private workers: PooledWorker[] = [];
-  private initialized = false;
-  private initPromise: Promise<void> | null = null;
-  private initFailed = false;
-  private initError: Error | null = null;
-  private readonly poolSize: number;
-
-  constructor(poolSize: number) {
-    this.poolSize = poolSize;
-  }
-
-  async init(): Promise<void> {
-    if (this.initialized) return;
-    if (this.initFailed) {
-      throw this.initError ?? new Error('Tesseract worker pool init previously failed');
-    }
-    if (this.initPromise) return this.initPromise;
-
-    this.initPromise = (async () => {
-      const langPath = path.resolve(process.cwd(), 'public', 'tessdata');
-      try {
-        let workerPath: string | undefined;
-        try {
-          workerPath = nodeRequire.resolve('tesseract.js/src/worker-script/node/index.js');
-        } catch {
-          // 경로 해석 실패 시 tesseract.js 기본 로직에 위임
-          workerPath = undefined;
-        }
-        for (let i = 0; i < this.poolSize; i++) {
-          const worker = await createWorker(['kor', 'eng'], 1, {
-            langPath,
-            ...(workerPath ? { workerPath } : {}),
-            gzip: false,
-          });
-          this.workers.push({ worker, busy: false });
-        }
-        this.initialized = true;
-      } catch (error) {
-        this.initFailed = true;
-        this.initError = error instanceof Error ? error : new Error(String(error));
-        await Promise.all(this.workers.map((p) => p.worker.terminate().catch(() => {})));
-        this.workers = [];
-        throw this.initError;
-      }
-    })();
-
-    return this.initPromise;
-  }
-
-  private async acquire(): Promise<PooledWorker> {
-    while (true) {
-      const available = this.workers.find((w) => !w.busy);
-      if (available) {
-        available.busy = true;
-        return available;
-      }
-      await new Promise((r) => setTimeout(r, 20));
-    }
-  }
-
-  async recognize(
-    imageInput: Buffer | string,
-    psmMode?: PSM,
-  ): Promise<{ text: string; confidence: number }> {
-    await this.init();
-    const pooled = await this.acquire();
-    try {
-      if (psmMode) {
-        await pooled.worker.setParameters({ tessedit_pageseg_mode: psmMode });
-      }
-      const { data } = await pooled.worker.recognize(imageInput);
-      // PSM을 변경했으면 기본값(AUTO)으로 복원
-      if (psmMode) {
-        await pooled.worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO });
-      }
-      return { text: data.text, confidence: data.confidence };
-    } finally {
-      pooled.busy = false;
-    }
-  }
-
-  async terminate(): Promise<void> {
-    await Promise.all(this.workers.map((p) => p.worker.terminate().catch(() => {})));
-    this.workers = [];
-    this.initialized = false;
-    this.initPromise = null;
-    this.initFailed = false;
-    this.initError = null;
+export async function initOcrEnvironment(): Promise<void> {
+  try {
+    await fs.mkdir(SHARED_DIR, { recursive: true });
+  } catch (err) {
+    console.error('[alt-text-validator] Failed to create shared directory:', err);
   }
 }
 
-let sharedPool: TesseractWorkerPool | null = null;
-
-export function getSharedWorkerPool(poolSize = DEFAULT_WORKER_POOL_SIZE): TesseractWorkerPool {
-  if (!sharedPool) {
-    sharedPool = new TesseractWorkerPool(poolSize);
-  }
-  return sharedPool;
+// 이 함수는 이전 호환성을 위해 유지하되 아무것도 하지 않습니다.
+export function getSharedWorkerPool(poolSize?: number): any {
+  return null;
 }
 
 export async function shutdownSharedWorkerPool(): Promise<void> {
-  if (sharedPool) {
-    await sharedPool.terminate();
-    sharedPool = null;
+  // no-op
+}
+
+async function pollOcrJob(jobId: string, maxRetries = 20, initialDelayMs = 200): Promise<any> {
+  let delay = initialDelayMs;
+  for (let i = 0; i < maxRetries; i++) {
+    const res = await fetch(`${OCR_API_URL}/api/v1/ocr/status/${jobId}`);
+    if (!res.ok) {
+      throw new Error(`OCR status API failed: ${res.status}`);
+    }
+    const data = await res.json();
+    if (data.status === 'success') return data;
+    if (data.status === 'error') throw new Error(data.error || 'Unknown OCR error');
+
+    // exponential backoff: 200 → 400 → 800 → 1600 (cap 2s)
+    await new Promise((r) => setTimeout(r, delay));
+    delay = Math.min(delay * 2, 2000);
   }
+  throw new Error('OCR job timed out');
+}
+
+// ---------------------------------------------------------------------------
+// 동시 실행 제한 유틸리티 (p-limit 대체)
+// ---------------------------------------------------------------------------
+
+function createConcurrencyLimiter(concurrency: number) {
+  let active = 0;
+  const queue: (() => void)[] = [];
+
+  return async function <T>(fn: () => Promise<T>): Promise<T> {
+    while (active >= concurrency) {
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+    active++;
+    try {
+      return await fn();
+    } finally {
+      active--;
+      queue.shift()?.();
+    }
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +156,7 @@ export async function extractImagesFromPage(
 }
 
 // ---------------------------------------------------------------------------
-// Step 2: 이미지 전처리 (sharp) — OCR 정확도 향상
+// Step 2: 이미지 버퍼 다운로드 및 정규화
 // ---------------------------------------------------------------------------
 
 async function fetchImageBuffer(imageUrl: string): Promise<Buffer> {
@@ -230,84 +173,95 @@ async function fetchImageBuffer(imageUrl: string): Promise<Buffer> {
 }
 
 export async function preprocessImage(input: Buffer): Promise<Buffer> {
-  const meta = await sharp(input).metadata();
-  const targetWidth = Math.max((meta.width ?? 0) * 2, 800);
-
-  // 적응형 이진화: 이미지 밝기에 따라 threshold 동적 조정
-  const stats = await sharp(input).stats();
-  const meanBrightness = stats.channels[0]?.mean ?? 128;
-
-  let thresholdValue: number;
-  if (meanBrightness > 200) thresholdValue = 220; // 매우 밝은 이미지
-  else if (meanBrightness > 150) thresholdValue = 180; // 일반
-  else if (meanBrightness > 100) thresholdValue = 140; // 약간 어두운
-  else thresholdValue = 100; // 어두운 이미지
-
-  return sharp(input)
-    .resize({ width: Math.min(targetWidth, 3000), withoutEnlargement: false })
-    .grayscale()
-    .normalize()
-    .sharpen()
-    .threshold(thresholdValue)
-    .png()
-    .toBuffer();
+  // Python 측에서 cv2.imread가 잘 처리할 수 있도록 PNG로 변환만 수행
+  return sharp(input).png().toBuffer();
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: Vision 분석 (Tesseract.js 워커 풀 사용)
+// Step 3: Vision 분석 (PaddleOCR Microservice 사용)
 // ---------------------------------------------------------------------------
 
 export async function analyzeImageWithVision(
   imageUrl: string,
-  options: { enablePreprocessing?: boolean; pool?: TesseractWorkerPool } = {},
+  options: { enablePreprocessing?: boolean; pool?: any } = {},
 ): Promise<VisionAnalysisResult> {
   const cached = ocrCache.get(imageUrl);
   if (cached) return cached;
 
   const enablePreprocessing = options.enablePreprocessing ?? true;
-  const pool = options.pool ?? getSharedWorkerPool();
 
   try {
-    let recognitionInput: Buffer | string;
-    let psmMode: PSM | undefined;
+    await initOcrEnvironment();
+    
+    const raw = await fetchImageBuffer(imageUrl);
 
-    if (enablePreprocessing) {
-      const raw = await fetchImageBuffer(imageUrl);
+    // 캐시에 이미지 버퍼 보관
+    if (imageBufferCache.size >= 100) {
+      const oldestKey = imageBufferCache.keys().next().value;
+      if (oldestKey !== undefined) imageBufferCache.delete(oldestKey);
+    }
+    imageBufferCache.set(imageUrl, raw);
 
-      // 이미지 버퍼를 캐시에 저장 (Claude Vision 재검증 시 재다운로드 방지)
-      if (imageBufferCache.size >= 100) {
-        const oldestKey = imageBufferCache.keys().next().value;
-        if (oldestKey !== undefined) imageBufferCache.delete(oldestKey);
-      }
-      imageBufferCache.set(imageUrl, raw);
+    const pngBuffer = await preprocessImage(raw);
+    const fileId = crypto.randomUUID();
+    const localFilePath = path.join(SHARED_DIR, `${fileId}.png`);
+    const containerFilePath = `/shared/images/${fileId}.png`;
 
-      // PSM 튜닝: 이미지 크기/비율에 따라 세그멘테이션 모드 선택
-      try {
-        const meta = await sharp(raw).metadata();
-        const width = meta.width ?? 0;
-        const height = meta.height ?? 1;
-        const aspectRatio = width / height;
-        if (aspectRatio > 5) psmMode = PSM.SINGLE_LINE; // 한 줄 텍스트 (배너, 버튼)
-        else if (aspectRatio > 2) psmMode = PSM.SINGLE_BLOCK; // 균일한 텍스트 블록
-        // else psmMode stays undefined → 기본값(AUTO) 사용
-      } catch {
-        // metadata 실패 시 기본 PSM 사용
-      }
-      recognitionInput = await preprocessImage(raw);
-    } else {
-      recognitionInput = imageUrl;
+    await fs.writeFile(localFilePath, pngBuffer);
+
+    // OCR Microservice 호출 — 동기 엔드포인트 우선, 실패 시 비동기+폴링 폴백
+    const payload = JSON.stringify({
+      image_path: containerFilePath,
+      preprocess: enablePreprocessing,
+    });
+    const headers = { 'Content-Type': 'application/json' };
+
+    let resultData: any;
+    try {
+      const syncRes = await fetch(`${OCR_API_URL}/api/v1/ocr/analyze-sync`, {
+        method: 'POST',
+        headers,
+        body: payload,
+        signal: AbortSignal.timeout(60_000), // 60초 타임아웃
+      });
+      if (!syncRes.ok) throw new Error(`Sync API failed: ${syncRes.status}`);
+      resultData = await syncRes.json();
+      if (resultData.status === 'error') throw new Error(resultData.error || 'OCR sync error');
+    } catch {
+      // 폴백: 비동기 + 폴링
+      const analyzeRes = await fetch(`${OCR_API_URL}/api/v1/ocr/analyze`, {
+        method: 'POST',
+        headers,
+        body: payload,
+      });
+      if (!analyzeRes.ok) throw new Error(`Analyze API failed: ${analyzeRes.status}`);
+      const { job_id } = await analyzeRes.json();
+      resultData = await pollOcrJob(job_id);
     }
 
-    const { text, confidence } = await pool.recognize(recognitionInput, psmMode);
+    const text = resultData.full_text || '';
+    
+    // PaddleOCR 결과에서 평균 confidence 계산
+    let confidence = 0;
+    if (resultData.results && resultData.results.length > 0) {
+      const totalConf = resultData.results.reduce((sum: number, item: any) => sum + (item.confidence || 0), 0);
+      confidence = totalConf / resultData.results.length;
+    }
+
     const cleaned = sanitizeExtractedText(text);
     const wordCount = cleaned ? cleaned.split(/\s+/).filter(Boolean).length : 0;
 
     const result: VisionAnalysisResult = {
       extractedText: cleaned,
-      confidenceScore: Number.isFinite(confidence) ? confidence / 100 : 0,
+      confidenceScore: confidence, // 이미 0~1 범위
       wordCount,
     };
+    
     ocrCache.set(imageUrl, result);
+    
+    // 분석 후 로컬 임시 파일 삭제
+    await fs.unlink(localFilePath).catch(() => {});
+    
     return result;
   } catch (error) {
     console.error('[alt-text-validator] OCR error:', error instanceof Error ? error.message : error);
@@ -546,9 +500,17 @@ export function computeSimilarity(
 export function classifyImageType(vision: VisionAnalysisResult): ImageType {
   const confidencePct = vision.confidenceScore * 100;
 
-  if (vision.wordCount === 0 || confidencePct < MIXED_MIN_CONFIDENCE) {
+  // 텍스트가 전혀 없으면 photo로 분류
+  if (vision.wordCount === 0) {
     return 'photo';
   }
+
+  // 신뢰도가 낮더라도 추출된 단어 수가 어느 정도(5개 이상) 되면 
+  // 의미 있는 텍스트가 있다고 보고 mixed로 분류하여 자동 판정 기회를 제공함
+  if (confidencePct < MIXED_MIN_CONFIDENCE && vision.wordCount < 5) {
+    return 'photo';
+  }
+
   if (confidencePct >= TEXT_HEAVY_MIN_CONFIDENCE && vision.wordCount >= TEXT_HEAVY_MIN_WORDS) {
     return 'text-heavy';
   }
@@ -628,6 +590,14 @@ export function judgeAltText(params: JudgeParams): { judgment: AltTextJudgment; 
   }
 
   if (imageType === 'photo') {
+    // 사진/도표형이라도 유사도가 매우 높으면(0.8 이상 및 임계값 상회) 통과 처리하여 수동 검토를 줄임
+    const photoPassThreshold = Math.max(0.8, threshold);
+    if (similarity >= photoPassThreshold) {
+      return {
+        judgment: 'pass',
+        reason: `사진/도표형 이미지지만 alt 텍스트가 OCR 결과와 높은 유사도를 보입니다 (유사도 ${(similarity * 100).toFixed(0)}%).`,
+      };
+    }
     return {
       judgment: 'review_needed',
       reason: '사진/도표형 이미지로 OCR만으로는 적절성을 판별할 수 없어 수동 검토가 필요합니다.',
@@ -675,11 +645,12 @@ export async function scanPageForAltMismatches(
     review_needed: 0,
   };
 
-  for (let i = 0; i < images.length; i++) {
-    if (options.abortSignal?.aborted) break;
+  // 이미지 OCR을 동시에 최대 poolSize개씩 병렬 실행
+  const limit = createConcurrencyLimiter(poolSize);
+  let completed = 0;
 
-    const img = images[i];
-    options.onProgress?.(i + 1, images.length, img.src);
+  const processImage = async (img: ImageMetadata): Promise<AltTextMismatch | null> => {
+    if (options.abortSignal?.aborted) return null;
 
     const vision = await analyzeImageWithVision(img.src, { enablePreprocessing, pool });
     const imageType = classifyImageType(vision);
@@ -693,9 +664,10 @@ export async function scanPageForAltMismatches(
       confidence: vision.confidenceScore,
     });
 
-    countsByJudgment[judgment]++;
+    completed++;
+    options.onProgress?.(completed, images.length, img.src);
 
-    items.push({
+    return {
       elementId: img.elementId,
       imageUrl: img.src,
       currentAlt: img.alt,
@@ -705,7 +677,18 @@ export async function scanPageForAltMismatches(
       similarity,
       judgment,
       reason,
-    });
+    };
+  };
+
+  const results = await Promise.all(
+    images.map((img) => limit(() => processImage(img))),
+  );
+
+  for (const result of results) {
+    if (result) {
+      items.push(result);
+      countsByJudgment[result.judgment]++;
+    }
   }
 
   // Claude Vision 재검증 (옵션 활성 시)

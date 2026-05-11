@@ -20,7 +20,7 @@ function runCustomRules(html: string): Array<{
 }> {
   const dom = new JSDOM(html, { url: 'http://localhost', runScripts: 'dangerously' });
   // CUSTOM_RULE_SCRIPT 는 IIFE 이므로 window.eval 로 실행하면 document/Node 가 자연스럽게 바인딩된다.
-  const result = dom.window.eval(CUSTOM_RULE_SCRIPT);
+  const result = dom.window.eval(CUSTOM_RULE_SCRIPT) as any;
   return result;
 }
 
