@@ -4,3 +4,5 @@ paddlepaddle>=2.5.0
 paddleocr>=2.7.0
 opencv-python-headless>=4.8.0
 pydantic>=2.0.0
+thefuzz>=0.20.0
+Levenshtein>=0.23.0
