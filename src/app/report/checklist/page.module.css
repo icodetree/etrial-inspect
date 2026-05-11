@@ -26,7 +26,7 @@
 /* 버튼 그룹 */
 .header-actions {
   display: flex;
-  gap: 1rem;
+  gap: .5rem;
 }
 
 /* 준수율 카드 */
@@ -103,6 +103,8 @@
   font-weight: 600;
   color: var(--c-text-slate-dark);
   margin-right: 0.5rem;
+  display: flex;
+  align-items: center;
 }
 
 /* 테이블 고정 열 너비 */
